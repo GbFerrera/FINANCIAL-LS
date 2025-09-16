@@ -54,6 +54,13 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
 
 interface TeamMember {
   id: string
@@ -70,6 +77,7 @@ interface TeamMember {
   projects: string[]
   skills: string[]
   location?: string
+  accessToken?: string
 }
 
 export default function TeamPage() {
@@ -178,6 +186,37 @@ export default function TeamPage() {
     } catch (error) {
       console.error('Erro ao adicionar membro:', error)
       toast.error('Erro ao adicionar membro')
+    }
+  }
+
+  const handleGenerateToken = async (memberId: string) => {
+    try {
+      const response = await fetch('/api/collaborator/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId: memberId })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Atualizar o membro na lista local
+        setMembers(prevMembers => 
+          prevMembers.map(member => 
+            member.id === memberId 
+              ? { ...member, accessToken: data.user.accessToken }
+              : member
+          )
+        )
+        toast.success('Token gerado com sucesso!')
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erro ao gerar token')
+      }
+    } catch (error) {
+      console.error('Erro ao gerar token:', error)
+      toast.error('Erro ao gerar token')
     }
   }
 
@@ -320,12 +359,9 @@ export default function TeamPage() {
                     required
                   >
                     <option value="">Selecione o cargo</option>
-                    <option value="admin">Administrador</option>
-                    <option value="manager">Gerente</option>
-                    <option value="developer">Desenvolvedor</option>
-                    <option value="designer">Designer</option>
-                    <option value="analyst">Analista</option>
-                    <option value="support">Suporte</option>
+                    <option value="ADMIN">Administrador</option>
+                    <option value="TEAM">Membro da Equipe</option>
+                    <option value="CLIENT">Cliente</option>
                   </select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -487,9 +523,29 @@ export default function TeamPage() {
                       <CardDescription>{member.role}</CardDescription>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {!member.accessToken && member.role === 'TEAM' && (
+                        <DropdownMenuItem onClick={() => handleGenerateToken(member.id)}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Gerar Token
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem>
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-red-600">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remover
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -554,6 +610,17 @@ export default function TeamPage() {
                     <Mail className="h-4 w-4 mr-1" />
                     Email
                   </Button>
+                  {member.accessToken && (
+                    <Button 
+                      size="sm" 
+                      variant="default" 
+                      className="flex-1"
+                      onClick={() => window.open(`http://localhost:3000/collaborator-portal/${member.accessToken}`, '_blank')}
+                    >
+                      <Shield className="h-4 w-4 mr-1" />
+                      Portal
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

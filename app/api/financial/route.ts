@@ -13,9 +13,13 @@ const financialEntrySchema = z.object({
   amount: z.number().positive('Valor deve ser positivo'),
   date: z.string().datetime('Data inválida'),
   isRecurring: z.boolean().default(false),
-  recurringType: z.nativeEnum(RecurringType).optional(),
-  projectId: z.string().optional(),
-})
+  recurringType: z.nativeEnum(RecurringType).nullable().optional(),
+  projectId: z.string().nullable().optional(),
+}).transform((data) => ({
+  ...data,
+  recurringType: data.recurringType || undefined,
+  projectId: data.projectId || undefined,
+}))
 
 // GET - Listar entradas financeiras
 export async function GET(request: NextRequest) {
@@ -189,7 +193,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = financialEntrySchema.parse(body)
+    console.log('💰 Dados recebidos na API financeira:', JSON.stringify(body, null, 2))
+    
+    let validatedData
+    try {
+      validatedData = financialEntrySchema.parse(body)
+      console.log('✅ Dados validados:', JSON.stringify(validatedData, null, 2))
+    } catch (zodError) {
+      console.log('❌ Erro de validação Zod:', zodError)
+      if (zodError instanceof z.ZodError) {
+        console.log('📋 Detalhes dos erros:', JSON.stringify(zodError.issues, null, 2))
+        return NextResponse.json(
+          { 
+            error: 'Dados inválidos', 
+            details: zodError.issues.map((err: any) => ({
+              field: err.path.join('.'),
+              message: err.message,
+              received: err.received
+            }))
+          },
+          { status: 400 }
+        )
+      }
+      throw zodError
+    }
 
     // Verificar se o projeto existe (se fornecido)
     if (validatedData.projectId) {

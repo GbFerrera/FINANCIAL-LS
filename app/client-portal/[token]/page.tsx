@@ -20,7 +20,8 @@ import {
   Phone,
   TrendingUp,
   TrendingDown,
-  Calculator
+  Calculator,
+  Bell
 } from "lucide-react"
 import toast from "react-hot-toast"
 
@@ -54,6 +55,7 @@ interface ProjectData {
     status: string
     dueDate?: string
     completedAt?: string
+    estimatedHours?: number
   }>
   files: Array<{
     id: string
@@ -99,12 +101,31 @@ export default function ClientPortalPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [sendingComment, setSendingComment] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const [hasNewMessages, setHasNewMessages] = useState(false)
 
   useEffect(() => {
     if (params.token) {
       fetchClientData(params.token as string)
     }
   }, [params.token])
+
+  useEffect(() => {
+    let eventSource: EventSource | null = null
+    
+    if (activeTab === 'messages' && selectedProject) {
+       eventSource = connectToSSE() || null
+       // Limpar notificação quando acessar a aba de mensagens
+       setHasNewMessages(false)
+     }
+    
+    return () => {
+      if (eventSource) {
+        eventSource.close()
+        setIsConnected(false)
+      }
+    }
+  }, [activeTab, selectedProject])
 
   const fetchClientData = async (token: string) => {
     try {
@@ -133,6 +154,53 @@ export default function ClientPortalPage() {
     }
   }
 
+  const connectToSSE = () => {
+    if (!selectedProject) return null
+    
+    const eventSource = new EventSource(`/api/projects/${selectedProject}/comments/stream`)
+    
+    eventSource.onopen = () => {
+      console.log('SSE connection opened')
+      setIsConnected(true)
+    }
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type === 'heartbeat') {
+          console.log('SSE heartbeat received')
+          return
+        }
+        
+        if (data.type === 'new_comments' && data.comments?.length > 0) {
+           // Se não estamos na aba de mensagens, mostrar notificação
+           if (activeTab !== 'messages') {
+             setHasNewMessages(true)
+           }
+           // Refresh data to show new comment
+           fetchClientData(params.token as string)
+         }
+      } catch (error) {
+        console.error('Error parsing SSE data:', error)
+      }
+    }
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error)
+      setIsConnected(false)
+      eventSource.close()
+      
+      // Reconnect after 5 seconds
+      setTimeout(() => {
+        if (selectedProject) {
+          connectToSSE()
+        }
+      }, 5000)
+    }
+    
+    return eventSource
+  }
+
   const sendComment = async () => {
     if (!newComment.trim() || !selectedProject) return
     
@@ -155,8 +223,7 @@ export default function ClientPortalPage() {
       
       toast.success('Comentário enviado com sucesso!')
       setNewComment('')
-      // Refresh data to show new comment
-      fetchClientData(params.token as string)
+      // SSE will handle real-time updates
     } catch (error) {
       console.error('Erro ao enviar comentário:', error)
       toast.error('Erro ao enviar comentário')
@@ -182,10 +249,27 @@ export default function ClientPortalPage() {
     }
   }
 
+  const formatEstimatedTime = (hours: number) => {
+    if (hours >= 1) {
+      // Se for número inteiro, mostra só as horas
+      if (hours % 1 === 0) {
+        return `${hours}h estimadas`
+      }
+      // Se tiver decimais, mostra horas e minutos
+      const wholeHours = Math.floor(hours)
+      const minutes = Math.round((hours - wholeHours) * 60)
+      return minutes > 0 ? `${wholeHours}h ${minutes}min estimados` : `${wholeHours}h estimadas`
+    } else {
+      return `${Math.round(hours * 60)}min estimados`
+    }
+  }
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(value)
   }
 
@@ -275,10 +359,13 @@ export default function ClientPortalPage() {
                     className={`${activeTab === tab.id
                       ? 'border-indigo-500 text-indigo-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center relative`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {tab.name}
+                    {tab.id === 'messages' && hasNewMessages && (
+                      <Bell className="h-3 w-3 ml-1 text-red-500 animate-pulse" />
+                    )}
                   </button>
                 )
               })}
@@ -430,7 +517,14 @@ export default function ClientPortalPage() {
                           <div className="space-y-2">
                             {project.tasks.slice(0, 5).map((task) => (
                               <div key={task.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                <span className="text-sm text-gray-700">{task.title}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-sm text-gray-700">{task.title}</span>
+                                  {task.estimatedHours && (
+                                     <span className="text-xs text-gray-500">
+                                       {formatEstimatedTime(task.estimatedHours)}
+                                     </span>
+                                   )}
+                                </div>
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
                                   {task.status === 'COMPLETED' ? 'Concluído' :
                                    task.status === 'IN_PROGRESS' ? 'Em Andamento' : 'Pendente'}
@@ -697,7 +791,19 @@ export default function ClientPortalPage() {
             {activeTab === 'messages' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">Mensagens</h3>
+                  <div className="flex items-center space-x-4">
+                    <h3 className="text-lg font-medium text-gray-900">Mensagens</h3>
+                    {selectedProject && (
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-2 h-2 rounded-full ${
+                          isConnected ? 'bg-green-500' : 'bg-red-500'
+                        }`}></div>
+                        <span className="text-sm text-gray-500">
+                          {isConnected ? 'Tempo real ativo' : 'Desconectado'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <select
                     value={selectedProject || ''}
                     onChange={(e) => setSelectedProject(e.target.value)}

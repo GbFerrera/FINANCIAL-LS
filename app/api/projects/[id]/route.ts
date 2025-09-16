@@ -64,6 +64,13 @@ export async function GET(
             status: true,
             priority: true,
             dueDate: true,
+            estimatedHours: true,
+            milestone: {
+              select: {
+                id: true,
+                name: true,
+              }
+            },
             assignee: {
                select: {
                  id: true,
@@ -253,30 +260,57 @@ export async function DELETE(
       )
     }
 
-    // Verificar se há dados relacionados (opcional - pode permitir exclusão em cascata)
-    const hasRelatedData = 
-      existingProject._count.tasks > 0 ||
-      existingProject._count.milestones > 0 ||
-      existingProject._count.team > 0 ||
-      existingProject._count.files > 0
-
-    if (hasRelatedData) {
-      return NextResponse.json(
-        { 
-          error: 'Não é possível excluir projeto com dados relacionados',
-          details: {
-            tasks: existingProject._count.tasks,
-            milestones: existingProject._count.milestones,
-            team: existingProject._count.team,
-            files: existingProject._count.files,
+    // Excluir todos os dados relacionados em cascata
+    await prisma.$transaction(async (tx) => {
+      // Excluir comentários das tarefas do projeto
+      await tx.comment.deleteMany({
+        where: {
+          task: {
+            projectId: params.id
           }
-        },
-        { status: 400 }
-      )
-    }
+        }
+      })
 
-    await prisma.project.delete({
-      where: { id: params.id }
+      // Excluir tarefas do projeto
+      await tx.task.deleteMany({
+        where: { projectId: params.id }
+      })
+
+      // Excluir milestones do projeto
+      await tx.milestone.deleteMany({
+        where: { projectId: params.id }
+      })
+
+      // Excluir membros da equipe do projeto
+      await tx.projectTeam.deleteMany({
+        where: { projectId: params.id }
+      })
+
+      // Excluir arquivos do projeto
+      await tx.projectFile.deleteMany({
+        where: { projectId: params.id }
+      })
+
+      // Atualizar entradas financeiras (remover associação com o projeto)
+      await tx.financialEntry.updateMany({
+        where: { projectId: params.id },
+        data: { projectId: null }
+      })
+
+      // Excluir notificações relacionadas ao projeto
+      await tx.notification.deleteMany({
+        where: {
+          OR: [
+            { title: { contains: existingProject.name } },
+            { message: { contains: existingProject.name } }
+          ]
+        }
+      })
+
+      // Finalmente, excluir o projeto
+      await tx.project.delete({
+        where: { id: params.id }
+      })
     })
 
     return NextResponse.json(

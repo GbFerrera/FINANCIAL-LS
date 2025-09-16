@@ -84,6 +84,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [clientFilter, setClientFilter] = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [newProject, setNewProject] = useState<NewProject>({
@@ -220,7 +221,28 @@ export default function ProjectsPage() {
   }
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este projeto? Esta ação não pode ser desfeita.')) {
+    const project = projects.find(p => p.id === projectId)
+    if (!project) return
+
+    const confirmMessage = `⚠️ ATENÇÃO: Esta ação irá excluir permanentemente o projeto "${project.name}" e TODOS os dados relacionados:
+
+` +
+      `• ${project.tasksCount} tarefa(s)
+` +
+      `• ${project.milestonesCount} milestone(s)
+` +
+      `• ${project.teamCount} membro(s) da equipe
+` +
+      `• Todos os arquivos do projeto
+` +
+      `• Todos os comentários
+` +
+      `• Notificações relacionadas
+\n` +
+      `Esta ação NÃO PODE ser desfeita!\n\n` +
+      `Tem certeza que deseja continuar?`
+
+    if (!confirm(confirmMessage)) {
       return
     }
 
@@ -231,7 +253,7 @@ export default function ProjectsPage() {
       })
 
       if (response.ok) {
-        toast.success('Projeto excluído com sucesso!')
+        toast.success('Projeto e todos os dados relacionados foram excluídos com sucesso!')
         fetchProjects()
       } else {
         const error = await response.json()
@@ -251,8 +273,9 @@ export default function ProjectsPage() {
       project.clientName.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter
+    const matchesClient = clientFilter === 'all' || project.clientName === clientFilter
     
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesStatus && matchesClient
   })
 
   const getStatusColor = (status: string) => {
@@ -309,7 +332,9 @@ export default function ProjectsPage() {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(value)
   }
 
@@ -560,7 +585,7 @@ export default function ProjectsPage() {
         {/* Filters */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Search */}
               <div className="sm:col-span-2">
                 <div className="relative">
@@ -592,6 +617,22 @@ export default function ProjectsPage() {
                   <option value="CANCELLED">Cancelado</option>
                 </select>
               </div>
+              
+              {/* Client Filter */}
+              <div>
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                >
+                  <option value="all">Todos os clientes</option>
+                  {Array.from(new Set(projects.map(p => p.clientName))).sort().map((clientName) => (
+                    <option key={clientName} value={clientName}>
+                      {clientName}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -608,7 +649,7 @@ export default function ProjectsPage() {
                 <FolderOpen className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum projeto encontrado</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  {searchTerm || statusFilter !== 'all' ? 'Tente ajustar os filtros' : 'Comece criando um novo projeto'}
+                  {searchTerm || statusFilter !== 'all' || clientFilter !== 'all' ? 'Tente ajustar os filtros' : 'Comece criando um novo projeto'}
                 </p>
               </div>
             ) : (

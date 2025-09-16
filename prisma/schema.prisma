@@ -11,20 +11,22 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  password  String
-  role      UserRole @default(TEAM)
-  avatar    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  password    String
+  role        UserRole @default(TEAM)
+  avatar      String?
+  accessToken String?  @unique // Token para acesso ao portal do colaborador
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relacionamentos
   assignedTasks Task[]
   comments      Comment[]
   notifications Notification[]
   teamProjects  ProjectTeam[]
+  timeEntries   TimeEntry[]
 
   @@map("users")
 }
@@ -113,6 +115,7 @@ model Task {
   assigneeId  String?
   assignee    User?     @relation(fields: [assigneeId], references: [id])
   comments    Comment[]
+  timeEntries TimeEntry[]
 
   @@map("tasks")
 }
@@ -198,6 +201,28 @@ model Notification {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  startTime   DateTime
+  endTime     DateTime?
+  duration    Int?     // Duração em segundos
+  description String?
+  isActive    Boolean  @default(false) // Se o cronômetro está rodando
+  isPaused    Boolean  @default(false) // Se o cronômetro está pausado
+  pausedAt    DateTime? // Quando foi pausado
+  pausedTime  Int      @default(0) // Tempo total pausado em segundos
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relacionamentos
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("time_entries")
 }
 
 // Enums

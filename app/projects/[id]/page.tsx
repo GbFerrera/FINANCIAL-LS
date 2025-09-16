@@ -19,7 +19,8 @@ import {
   Flag,
   MessageSquare,
   Paperclip,
-  X
+  X,
+  Bell
 } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import {
@@ -71,6 +72,11 @@ interface ProjectDetails {
     status: string
     priority: string
     dueDate: string | null
+    estimatedHours: number | null
+    milestone: {
+      id: string
+      name: string
+    } | null
     assignee: {
       id: string
       name: string
@@ -92,7 +98,7 @@ export default function ProjectDetailsPage() {
   const params = useParams()
   const [project, setProject] = useState<ProjectDetails | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'milestones' | 'tasks' | 'team'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'milestones' | 'tasks' | 'team' | 'comments'>('overview')
   const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false)
   const [newMilestone, setNewMilestone] = useState({
     name: '',
@@ -108,7 +114,8 @@ export default function ProjectDetailsPage() {
     priority: 'MEDIUM',
     dueDate: '',
     assigneeId: '',
-    milestoneId: ''
+    milestoneId: '',
+    estimatedMinutes: ''
   })
   const [editingTask, setEditingTask] = useState<any>(null)
   const [showAddTeamMemberModal, setShowAddTeamMemberModal] = useState(false)
@@ -127,8 +134,23 @@ export default function ProjectDetailsPage() {
     status: 'TODO',
     priority: 'MEDIUM',
     assigneeId: '',
-    dueDate: ''
+    dueDate: '',
+    estimatedMinutes: ''
   })
+  const [comments, setComments] = useState<Array<{
+    id: string
+    content: string
+    type: string
+    createdAt: string
+    authorName: string
+    authorId: string | null
+    isFromClient: boolean
+  }>>([])
+  const [newComment, setNewComment] = useState('')
+  const [sendingComment, setSendingComment] = useState(false)
+  const [loadingComments, setLoadingComments] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [hasNewMessages, setHasNewMessages] = useState(false)
 
   useEffect(() => {
     if (status === "loading") return
@@ -142,6 +164,25 @@ export default function ProjectDetailsPage() {
       fetchProjectDetails(params.id)
     }
   }, [session, status, router, params.id])
+
+  useEffect(() => {
+    let eventSource: EventSource | null = null
+    
+    if (activeTab === 'comments' && params.id) {
+      fetchComments()
+      eventSource = connectToSSE() || null
+      // Limpar notificação quando acessar a aba de comentários
+      setHasNewMessages(false)
+    }
+    
+    // Cleanup: fechar conexão SSE quando sair da aba de comentários
+    return () => {
+      if (eventSource) {
+        eventSource.close()
+        setIsConnected(false)
+      }
+    }
+  }, [activeTab, params.id])
 
   const fetchProjectDetails = async (projectId: string) => {
     try {
@@ -189,6 +230,117 @@ export default function ProjectDetailsPage() {
     }
   }
 
+  // Carregar comentários iniciais
+  const fetchComments = async () => {
+    if (!params.id) return
+    
+    try {
+      setLoadingComments(true)
+      const response = await fetch(`/api/projects/${params.id}/comments`)
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
+        throw new Error(errorData.error || 'Falha ao carregar comentários')
+      }
+      
+      const data = await response.json()
+      setComments(data.comments || [])
+    } catch (error) {
+      console.error('Erro ao buscar comentários:', error)
+      toast.error('Erro ao carregar comentários')
+      setComments([]) // Definir array vazio em caso de erro
+    } finally {
+      setLoadingComments(false)
+    }
+  }
+
+  // Conectar ao SSE para atualizações em tempo real
+  const connectToSSE = () => {
+    if (!params.id) return
+
+    const eventSource = new EventSource(`/api/projects/${params.id}/comments/stream`)
+    
+    eventSource.onopen = () => {
+      setIsConnected(true)
+      console.log('Conectado ao SSE para comentários em tempo real')
+    }
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        
+        if (data.type === 'connected') {
+          console.log('SSE conectado para projeto:', data.projectId)
+        } else if (data.type === 'new_comments') {
+          // Adicionar novos comentários sem duplicar
+          setComments(prev => {
+            const existingIds = new Set(prev.map(c => c.id))
+            const newComments = data.comments.filter((c: any) => !existingIds.has(c.id))
+            return [...prev, ...newComments]
+          })
+          
+          if (data.comments.length > 0) {
+            // Se não estamos na aba de comentários, mostrar notificação
+            if (activeTab !== 'comments') {
+              setHasNewMessages(true)
+            }
+            toast.success('Nova mensagem recebida!')
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao processar mensagem SSE:', error)
+      }
+    }
+    
+    eventSource.onerror = () => {
+      setIsConnected(false)
+      console.log('Erro na conexão SSE, tentando reconectar...')
+      eventSource.close()
+      
+      // Tentar reconectar após 5 segundos
+      setTimeout(() => {
+        connectToSSE()
+      }, 5000)
+    }
+    
+    return eventSource
+  }
+
+  const sendComment = async () => {
+    if (!newComment.trim() || !params.id) return
+    
+    try {
+      setSendingComment(true)
+      const response = await fetch(`/api/projects/${params.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          content: newComment.trim(),
+          type: 'CLIENT_VISIBLE'
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
+        throw new Error(errorData.error || 'Falha ao enviar comentário')
+      }
+      
+      const result = await response.json()
+      toast.success('Mensagem enviada com sucesso!')
+      setNewComment('')
+      
+      // O SSE cuidará da atualização em tempo real
+      // Não precisamos adicionar manualmente o comentário
+    } catch (error) {
+      console.error('Erro ao enviar comentário:', error)
+      toast.error('Erro ao enviar mensagem')
+    } finally {
+      setSendingComment(false)
+    }
+  }
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'HIGH':
@@ -205,7 +357,9 @@ export default function ProjectDetailsPage() {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(value)
   }
 
@@ -327,7 +481,8 @@ export default function ProjectDetailsPage() {
           priority: newTask.priority,
           dueDate: newTask.dueDate || null,
           assigneeId: newTask.assigneeId || null,
-          milestoneId: newTask.milestoneId || null
+          milestoneId: newTask.milestoneId || null,
+          estimatedHours: newTask.estimatedMinutes ? parseFloat(newTask.estimatedMinutes) / 60 : null
         }),
       })
 
@@ -344,7 +499,8 @@ export default function ProjectDetailsPage() {
         priority: 'MEDIUM',
         dueDate: '',
         assigneeId: '',
-        milestoneId: ''
+        milestoneId: '',
+        estimatedMinutes: ''
       })
       
       // Recarregar dados do projeto
@@ -463,7 +619,8 @@ export default function ProjectDetailsPage() {
       status: task.status,
       priority: task.priority,
       assigneeId: task.assignee?.id || '',
-      dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+      estimatedMinutes: task.estimatedHours ? (task.estimatedHours * 60).toString() : ''
     })
     setSelectedTask(task)
     setShowEditTaskModal(true)
@@ -484,7 +641,8 @@ export default function ProjectDetailsPage() {
           status: editTaskData.status,
           priority: editTaskData.priority,
           assigneeId: editTaskData.assigneeId || null,
-          dueDate: editTaskData.dueDate || null
+          dueDate: editTaskData.dueDate || null,
+          estimatedHours: editTaskData.estimatedMinutes ? parseFloat(editTaskData.estimatedMinutes) / 60 : null
         })
       })
 
@@ -531,6 +689,21 @@ export default function ProjectDetailsPage() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR')
+  }
+
+  const formatEstimatedTime = (hours: number) => {
+    if (hours >= 1) {
+      // Se for número inteiro, mostra só as horas
+      if (hours % 1 === 0) {
+        return `${hours}h`
+      }
+      // Se tiver decimais, mostra horas e minutos
+      const wholeHours = Math.floor(hours)
+      const minutes = Math.round((hours - wholeHours) * 60)
+      return minutes > 0 ? `${wholeHours}h ${minutes}min` : `${wholeHours}h`
+    } else {
+      return `${Math.round(hours * 60)}min`
+    }
   }
 
   if (status === "loading" || loading) {
@@ -643,7 +816,8 @@ export default function ProjectDetailsPage() {
                 { id: 'overview', name: 'Visão Geral', icon: Target },
                 { id: 'milestones', name: 'Milestones', icon: Flag },
                 { id: 'tasks', name: 'Tarefas', icon: CheckCircle },
-                { id: 'team', name: 'Equipe', icon: Users }
+                { id: 'team', name: 'Equipe', icon: Users },
+                { id: 'comments', name: 'Comentários', icon: MessageSquare }
               ].map((tab) => {
                 const Icon = tab.icon
                 return (
@@ -653,10 +827,13 @@ export default function ProjectDetailsPage() {
                     className={`${activeTab === tab.id
                       ? 'border-indigo-500 text-indigo-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center`}
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center relative`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {tab.name}
+                    {tab.id === 'comments' && hasNewMessages && (
+                      <Bell className="h-3 w-3 ml-1 text-red-500 animate-pulse" />
+                    )}
                   </button>
                 )
               })}
@@ -1060,6 +1237,20 @@ export default function ProjectDetailsPage() {
                       ))}
                     </select>
                   </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="task-estimatedMinutes" className="text-right">
+                      Tempo Estimado (minutos)
+                    </label>
+                    <input
+                      id="task-estimatedMinutes"
+                      type="number"
+                      min="0"
+                      value={newTask.estimatedMinutes}
+                      onChange={(e) => setNewTask({...newTask, estimatedMinutes: e.target.value})}
+                      className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="Ex: 120 (2 horas)"
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-end space-x-2">
                   <button
@@ -1072,7 +1263,8 @@ export default function ProjectDetailsPage() {
                         priority: 'MEDIUM',
                         dueDate: '',
                         assigneeId: '',
-                        milestoneId: ''
+                        milestoneId: '',
+                        estimatedMinutes: ''
                       })
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
@@ -1206,6 +1398,9 @@ export default function ProjectDetailsPage() {
                           Prazo
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tempo Estimado
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Milestone
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1243,7 +1438,10 @@ export default function ProjectDetailsPage() {
                             {task.dueDate ? formatDate(task.dueDate) : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            -
+                            {task.estimatedHours ? formatEstimatedTime(task.estimatedHours) : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {task.milestone?.name || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             {session?.user.role === 'ADMIN' && (
@@ -1326,6 +1524,99 @@ export default function ProjectDetailsPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Comments Tab */}
+            {activeTab === 'comments' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Mensagens ({project._count.comments})
+                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      isConnected ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
+                    <span className="text-sm text-gray-500">
+                      {isConnected ? 'Tempo real ativo' : 'Desconectado'}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Messages List */}
+                <div className="bg-white border border-gray-200 rounded-lg">
+                  <div className="px-4 py-5 sm:p-6">
+                    <h4 className="text-lg font-medium text-gray-900 mb-4">
+                      Conversas - {project.name}
+                    </h4>
+                    
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                      {loadingComments ? (
+                        <div className="flex justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                        </div>
+                      ) : comments.length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhuma mensagem</h3>
+                          <p className="mt-1 text-sm text-gray-500">
+                            Inicie uma conversa enviando uma mensagem.
+                          </p>
+                        </div>
+                      ) : (
+                        comments.map((comment) => (
+                          <div key={comment.id} className={`flex ${
+                            comment.type === 'CLIENT_REQUEST' || comment.isFromClient 
+                              ? 'justify-end' 
+                              : 'justify-start'
+                          }`}>
+                            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                              comment.type === 'CLIENT_REQUEST' || comment.isFromClient
+                                ? 'bg-indigo-600 text-white' 
+                                : 'bg-gray-100 text-gray-900'
+                            }`}>
+                              <p className="text-sm">{comment.content}</p>
+                              <p className={`text-xs mt-1 ${
+                                comment.type === 'CLIENT_REQUEST' || comment.isFromClient
+                                  ? 'text-indigo-200' 
+                                  : 'text-gray-500'
+                              }`}>
+                                {comment.authorName} • {new Date(comment.createdAt).toLocaleString('pt-BR')}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Send Message */}
+                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="flex space-x-4">
+                    <div className="flex-1">
+                      <textarea
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Digite sua mensagem..."
+                        rows={3}
+                        className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={sendComment}
+                      disabled={!newComment.trim() || sendingComment}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {sendingComment ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      ) : (
+                        <MessageSquare className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1459,6 +1750,17 @@ export default function ProjectDetailsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tempo Estimado (minutos)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editTaskData.estimatedMinutes}
+                  onChange={(e) => setEditTaskData({...editTaskData, estimatedMinutes: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Ex: 120 (2 horas)"
+                />
               </div>
               <div className="flex justify-end space-x-2 pt-4">
                 <button

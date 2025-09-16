@@ -91,37 +91,46 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       fetchProjects()
       fetchCategories()
       
-      // Preencher formulário se estiver editando
-       if (editingEntry) {
-         const project = projects.find(p => p.name === editingEntry.projectName)
-         setFormData({
-           type: editingEntry.type,
-           category: editingEntry.category,
-           description: editingEntry.description,
-           amount: editingEntry.amount.toString(),
-           date: editingEntry.date.split('T')[0],
-           isRecurring: editingEntry.isRecurring,
-           recurringType: editingEntry.recurringType || '',
-           projectId: project?.id || ''
-         })
-         setExistingAttachments(editingEntry.attachments || [])
-       } else {
-         // Reset formulário para nova entrada
-         setFormData({
-           type: 'INCOME',
-           category: '',
-           description: '',
-           amount: '',
-           date: new Date().toISOString().split('T')[0],
-           isRecurring: false,
-           recurringType: '',
-           projectId: ''
-         })
-         setExistingAttachments([])
-       }
-       setAttachments([])
+      // Reset formulário para nova entrada ou preencher se editando
+      if (editingEntry) {
+        setFormData({
+          type: editingEntry.type,
+          category: editingEntry.category,
+          description: editingEntry.description,
+          amount: editingEntry.amount.toString(),
+          date: editingEntry.date.split('T')[0],
+          isRecurring: editingEntry.isRecurring,
+          recurringType: editingEntry.recurringType || '',
+          projectId: ''
+        })
+        setExistingAttachments(editingEntry.attachments || [])
+      } else {
+        // Reset formulário para nova entrada
+        setFormData({
+          type: 'INCOME',
+          category: '',
+          description: '',
+          amount: '',
+          date: new Date().toISOString().split('T')[0],
+          isRecurring: false,
+          recurringType: '',
+          projectId: ''
+        })
+        setExistingAttachments([])
+      }
+      setAttachments([])
     }
-  }, [isOpen, editingEntry, projects])
+  }, [isOpen, editingEntry])
+
+  // Separar useEffect para atualizar projectId quando projects carregarem
+  useEffect(() => {
+    if (editingEntry && projects.length > 0) {
+      const project = projects.find(p => p.name === editingEntry.projectName)
+      if (project) {
+        setFormData(prev => ({ ...prev, projectId: project.id }))
+      }
+    }
+  }, [editingEntry, projects])
 
   useEffect(() => {
     // Reset category when type changes
@@ -230,7 +239,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           amount: amount,
           date: dateTime,
           isRecurring: formData.isRecurring,
-          recurringType: formData.isRecurring ? formData.recurringType : null,
+          recurringType: formData.isRecurring && formData.recurringType ? formData.recurringType : null,
           projectId: formData.projectId || null
         })
       })
@@ -294,6 +303,13 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const formatCurrencyInput = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value)
   }
 
   const availableCategories = categories[formData.type]
@@ -376,13 +392,21 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 Valor *
               </Label>
               <div className="relative mt-1">
-                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  type="text"
+                  value={formData.amount ? formatCurrencyInput(parseFloat(formData.amount)) : ''}
+                  onChange={(e) => {
+                    // Remove tudo exceto números
+                    const value = e.target.value.replace(/[^\d]/g, '')
+                    if (value === '') {
+                      setFormData(prev => ({ ...prev, amount: '' }))
+                      return
+                    }
+                    // Converte centavos para reais
+                    const numericValue = (parseFloat(value) / 100).toString()
+                    setFormData(prev => ({ ...prev, amount: numericValue }))
+                  }}
                   className="pl-10"
                   placeholder="0,00"
                   required

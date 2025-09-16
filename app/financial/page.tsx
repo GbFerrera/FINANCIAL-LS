@@ -21,6 +21,16 @@ import {
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
 import { AddEntryModal } from "@/components/financial/add-entry-modal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import toast from "react-hot-toast"
 
 interface FinancialEntry {
@@ -150,7 +160,9 @@ export default function FinancialPage() {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(value)
   }
 
@@ -438,42 +450,27 @@ export default function FinancialPage() {
         )}
 
         {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-              <div className="mt-3 text-center">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                  <Trash2 className="h-6 w-6 text-red-600" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mt-4">
-                  Confirmar Exclusão
-                </h3>
-                <div className="mt-2 px-7 py-3">
-                  <p className="text-sm text-gray-500">
-                    Tem certeza que deseja excluir esta entrada financeira? Esta ação não pode ser desfeita.
-                  </p>
-                </div>
-                <div className="flex justify-center space-x-4 mt-4">
-                  <button
-                    onClick={() => {
-                      setShowDeleteConfirm(false)
-                      setDeletingEntryId(null)
-                    }}
-                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => deletingEntryId && handleDeleteEntry(deletingEntryId)}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                  >
-                    Excluir
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta entrada financeira? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setShowDeleteConfirm(false)
+                setDeletingEntryId(null)
+              }}>
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={() => deletingEntryId && handleDeleteEntry(deletingEntryId)} className="bg-red-600 hover:bg-red-700">
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   )

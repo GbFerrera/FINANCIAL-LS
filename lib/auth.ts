@@ -15,7 +15,10 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        console.log('🔐 Tentativa de login:', { email: credentials?.email })
+        
         if (!credentials?.email || !credentials?.password) {
+          console.log('❌ Credenciais inválidas')
           return null
         }
 
@@ -26,24 +29,31 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!user) {
+          console.log('❌ Usuário não encontrado:', credentials.email)
           return null
         }
+
+        console.log('👤 Usuário encontrado:', { id: user.id, email: user.email, role: user.role })
 
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         )
 
+        console.log('🔑 Senha válida:', isPasswordValid)
+
         if (!isPasswordValid) {
+          console.log('❌ Senha incorreta')
           return null
         }
 
+        console.log('✅ Login bem-sucedido')
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
-          avatar: user.avatar,
+          avatar: user.avatar || undefined,
         }
       }
     })
