@@ -59,6 +59,10 @@ EXPOSE 3000
 
 ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
+ENV NODE_ENV production
+ENV NEXTAUTH_URL "https://projects.linksystem.tech"
+ENV NEXTAUTH_SECRET "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
+ENV DATABASE_URL "postgres://postgres:87G1d5mC7MxDexB4t5PfoUQ7LpaPTanIfMXe1LDu3A5qGoMCL4QGGDhI0ZkXH884@62.72.11.161:5439/postgres"
 
 # Comando para executar a aplicação
 CMD ["node", "server.js"]

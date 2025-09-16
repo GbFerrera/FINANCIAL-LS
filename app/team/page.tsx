@@ -615,7 +615,7 @@ export default function TeamPage() {
                       size="sm" 
                       variant="default" 
                       className="flex-1"
-                      onClick={() => window.open(`http://localhost:3000/collaborator-portal/${member.accessToken}`, '_blank')}
+                      onClick={() => window.open(`https://projects.linksystem.tech/collaborator-portal/${member.accessToken}`, '_blank')}
                     >
                       <Shield className="h-4 w-4 mr-1" />
                       Portal
