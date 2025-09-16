@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   Clock, 
   Calendar, 
@@ -18,7 +19,10 @@ import {
   User,
   Building2,
   Target,
-  Award
+  Award,
+  Filter,
+  Grid,
+  List
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -91,6 +95,9 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [timeTrackers, setTimeTrackers] = useState<Map<string, TimeTracker>>(new Map())
   const [activeTimer, setActiveTimer] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [priorityFilter, setPriorityFilter] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'sections' | 'unified'>('sections')
 
   useEffect(() => {
     fetchData()
@@ -351,6 +358,52 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     return `${hours.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
   }
 
+  // Função para filtrar tasks
+  const filterTasks = (tasks: Task[]) => {
+    return tasks.filter(task => {
+      const statusMatch = statusFilter === 'all' || task.status === statusFilter
+      const priorityMatch = priorityFilter === 'all' || task.priority === priorityFilter
+      return statusMatch && priorityMatch
+    })
+  }
+
+  // Função para obter todas as tasks filtradas
+  const getAllFilteredTasks = () => {
+    if (!data) return []
+    
+    const allTasks = [
+      ...data.tasks.today,
+      ...data.tasks.overdue,
+      ...data.tasks.inProgress,
+      ...data.tasks.completed
+    ]
+    
+    // Remove duplicatas (uma task pode aparecer em múltiplas categorias)
+    const uniqueTasks = allTasks.filter((task, index, self) => 
+      index === self.findIndex(t => t.id === task.id)
+    )
+    
+    return filterTasks(uniqueTasks).sort((a, b) => {
+      // Ordenação: TODO primeiro, depois por prioridade, depois por data
+      const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 1, 'IN_REVIEW': 2, 'COMPLETED': 3 }
+      const priorityOrder = { 'URGENT': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 }
+      
+      if (a.status !== b.status) {
+        return statusOrder[a.status] - statusOrder[b.status]
+      }
+      
+      if (a.priority !== b.priority) {
+        return priorityOrder[a.priority] - priorityOrder[b.priority]
+      }
+      
+      if (a.dueDate && b.dueDate) {
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      }
+      
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -405,6 +458,73 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
           </div>
         </div>
 
+        {/* Filters and View Controls */}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 flex-1">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">Filtros:</span>
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="min-w-[140px]">
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os Status</SelectItem>
+                        <SelectItem value="TODO">A Fazer</SelectItem>
+                        <SelectItem value="IN_PROGRESS">Em Progresso</SelectItem>
+                        <SelectItem value="IN_REVIEW">Em Revisão</SelectItem>
+                        <SelectItem value="COMPLETED">Concluído</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="min-w-[140px]">
+                    <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Prioridade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as Prioridades</SelectItem>
+                        <SelectItem value="URGENT">Urgente</SelectItem>
+                        <SelectItem value="HIGH">Alta</SelectItem>
+                        <SelectItem value="MEDIUM">Média</SelectItem>
+                        <SelectItem value="LOW">Baixa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 border rounded-lg p-1 bg-gray-50">
+                <Button
+                  variant={viewMode === 'sections' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('sections')}
+                  className="h-8 px-3"
+                >
+                  <Grid className="h-4 w-4 mr-1" />
+                  Seções
+                </Button>
+                <Button
+                  variant={viewMode === 'unified' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('unified')}
+                  className="h-8 px-3"
+                >
+                  <List className="h-4 w-4 mr-1" />
+                  Lista
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
@@ -458,12 +578,128 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
 
         {/* Tasks Sections */}
         <div className="space-y-6">
-          {/* Today's Tasks */}
-          {data.tasks.today.length > 0 && (
+          {viewMode === 'sections' ? (
+            <>
+              {/* Today's Tasks */}
+              {filterTasks(data.tasks.today).length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 text-gray-900">
+                    Tarefas de Hoje ({filterTasks(data.tasks.today).length})
+                  </h2>
+                  <div className="space-y-4">
+                    {filterTasks(data.tasks.today).map((task) => (
+                      <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        timeTracker={timeTrackers.get(task.id)}
+                        isActive={activeTimer === task.id}
+                        onStartTimer={() => startTimer(task.id)}
+                        onPauseTimer={() => pauseTimer(task.id)}
+                        onResumeTimer={() => resumeTimer(task.id)}
+                        onStopTimer={() => stopTimer(task.id)}
+                        onUpdateStatus={updateTaskStatus}
+                        getPriorityColor={getPriorityColor}
+                        getStatusColor={getStatusColor}
+                        formatTime={formatTime}
+                        formatElapsedTime={formatElapsedTime}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Overdue Tasks */}
+              {filterTasks(data.tasks.overdue).length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 text-red-600">
+                    Tarefas Atrasadas ({filterTasks(data.tasks.overdue).length})
+                  </h2>
+                  <div className="space-y-4">
+                    {filterTasks(data.tasks.overdue).map((task) => (
+                      <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        timeTracker={timeTrackers.get(task.id)}
+                        isActive={activeTimer === task.id}
+                        onStartTimer={() => startTimer(task.id)}
+                        onPauseTimer={() => pauseTimer(task.id)}
+                        onResumeTimer={() => resumeTimer(task.id)}
+                        onStopTimer={() => stopTimer(task.id)}
+                        onUpdateStatus={updateTaskStatus}
+                        getPriorityColor={getPriorityColor}
+                        getStatusColor={getStatusColor}
+                        formatTime={formatTime}
+                        formatElapsedTime={formatElapsedTime}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* In Progress Tasks */}
+              {filterTasks(data.tasks.inProgress).length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 text-blue-600">
+                    Em Progresso ({filterTasks(data.tasks.inProgress).length})
+                  </h2>
+                  <div className="space-y-4">
+                    {filterTasks(data.tasks.inProgress).map((task) => (
+                      <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        timeTracker={timeTrackers.get(task.id)}
+                        isActive={activeTimer === task.id}
+                        onStartTimer={() => startTimer(task.id)}
+                        onPauseTimer={() => pauseTimer(task.id)}
+                        onResumeTimer={() => resumeTimer(task.id)}
+                        onStopTimer={() => stopTimer(task.id)}
+                        onUpdateStatus={updateTaskStatus}
+                        getPriorityColor={getPriorityColor}
+                        getStatusColor={getStatusColor}
+                        formatTime={formatTime}
+                        formatElapsedTime={formatElapsedTime}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Completed Tasks */}
+              {filterTasks(data.tasks.completed).length > 0 && (
+                <div>
+                  <h2 className="text-xl font-semibold mb-4 text-green-600">
+                    Concluídas ({filterTasks(data.tasks.completed).slice(0, 5).length})
+                  </h2>
+                  <div className="space-y-4">
+                    {filterTasks(data.tasks.completed).slice(0, 5).map((task) => (
+                      <TaskCard 
+                        key={task.id} 
+                        task={task} 
+                        timeTracker={timeTrackers.get(task.id)}
+                        isActive={false}
+                        onStartTimer={() => {}}
+                        onPauseTimer={() => {}}
+                        onResumeTimer={() => {}}
+                        onStopTimer={() => {}}
+                        onUpdateStatus={() => {}}
+                        getPriorityColor={getPriorityColor}
+                        getStatusColor={getStatusColor}
+                        formatTime={formatTime}
+                        formatElapsedTime={formatElapsedTime}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            /* Unified View */
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-gray-900">Tarefas de Hoje</h2>
+              <h2 className="text-xl font-semibold mb-4 text-gray-900">
+                Todas as Tarefas ({getAllFilteredTasks().length})
+              </h2>
               <div className="space-y-4">
-                {data.tasks.today.map((task) => (
+                {getAllFilteredTasks().map((task) => (
                   <TaskCard 
                     key={task.id} 
                     task={task} 
@@ -474,84 +710,6 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
                     onResumeTimer={() => resumeTimer(task.id)}
                     onStopTimer={() => stopTimer(task.id)}
                     onUpdateStatus={updateTaskStatus}
-                    getPriorityColor={getPriorityColor}
-                    getStatusColor={getStatusColor}
-                    formatTime={formatTime}
-                    formatElapsedTime={formatElapsedTime}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Overdue Tasks */}
-          {data.tasks.overdue.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 text-red-600">Tarefas Atrasadas</h2>
-              <div className="space-y-4">
-                {data.tasks.overdue.map((task) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    timeTracker={timeTrackers.get(task.id)}
-                    isActive={activeTimer === task.id}
-                    onStartTimer={() => startTimer(task.id)}
-                    onPauseTimer={() => pauseTimer(task.id)}
-                    onResumeTimer={() => resumeTimer(task.id)}
-                    onStopTimer={() => stopTimer(task.id)}
-                    onUpdateStatus={updateTaskStatus}
-                    getPriorityColor={getPriorityColor}
-                    getStatusColor={getStatusColor}
-                    formatTime={formatTime}
-                    formatElapsedTime={formatElapsedTime}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* In Progress Tasks */}
-          {data.tasks.inProgress.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 text-blue-600">Em Progresso</h2>
-              <div className="space-y-4">
-                {data.tasks.inProgress.map((task) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    timeTracker={timeTrackers.get(task.id)}
-                    isActive={activeTimer === task.id}
-                    onStartTimer={() => startTimer(task.id)}
-                    onPauseTimer={() => pauseTimer(task.id)}
-                    onResumeTimer={() => resumeTimer(task.id)}
-                    onStopTimer={() => stopTimer(task.id)}
-                    onUpdateStatus={updateTaskStatus}
-                    getPriorityColor={getPriorityColor}
-                    getStatusColor={getStatusColor}
-                    formatTime={formatTime}
-                    formatElapsedTime={formatElapsedTime}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Completed Tasks */}
-          {data.tasks.completed.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 text-green-600">Concluídas</h2>
-              <div className="space-y-4">
-                {data.tasks.completed.slice(0, 5).map((task) => (
-                  <TaskCard 
-                    key={task.id} 
-                    task={task} 
-                    timeTracker={timeTrackers.get(task.id)}
-                    isActive={false}
-                    onStartTimer={() => {}}
-                    onPauseTimer={() => {}}
-                    onResumeTimer={() => {}}
-                    onStopTimer={() => {}}
-                    onUpdateStatus={() => {}}
                     getPriorityColor={getPriorityColor}
                     getStatusColor={getStatusColor}
                     formatTime={formatTime}
@@ -563,13 +721,29 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
           )}
 
           {/* No tasks message */}
-          {data.summary.total === 0 && (
+          {(viewMode === 'sections' ? 
+            (filterTasks(data.tasks.today).length === 0 && 
+             filterTasks(data.tasks.overdue).length === 0 && 
+             filterTasks(data.tasks.inProgress).length === 0 && 
+             filterTasks(data.tasks.completed).length === 0) :
+            getAllFilteredTasks().length === 0
+          ) && (
             <Card>
               <CardContent className="flex items-center justify-center py-12">
                 <div className="text-center">
-                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa para hoje!</h3>
-                  <p className="text-gray-500">Você está em dia com suas atividades.</p>
+                  {statusFilter === 'all' && priorityFilter === 'all' ? (
+                    <>
+                      <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa para hoje!</h3>
+                      <p className="text-gray-500">Você está em dia com suas atividades.</p>
+                    </>
+                  ) : (
+                    <>
+                      <Filter className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa encontrada</h3>
+                      <p className="text-gray-500">Tente ajustar os filtros para ver mais tarefas.</p>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>

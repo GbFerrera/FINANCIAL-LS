@@ -151,6 +151,7 @@ export default function ProjectDetailsPage() {
   const [loadingComments, setLoadingComments] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [hasNewMessages, setHasNewMessages] = useState(false)
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all')
 
   useEffect(() => {
     if (status === "loading") return
@@ -1364,9 +1365,21 @@ export default function ProjectDetailsPage() {
             {activeTab === 'tasks' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Tarefas ({project.tasks.length})
-                  </h3>
+                  <div className="flex items-center space-x-4">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Tarefas ({project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter).length})
+                    </h3>
+                    <select
+                      value={taskStatusFilter}
+                      onChange={(e) => setTaskStatusFilter(e.target.value)}
+                      className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="all">Todos os Status</option>
+                      <option value="TODO">A Fazer</option>
+                      <option value="IN_PROGRESS">Em Andamento</option>
+                      <option value="DONE">Concluído</option>
+                    </select>
+                  </div>
                   {session?.user.role === 'ADMIN' && (
                     <button 
                       onClick={() => setShowAddTaskModal(true)}
@@ -1409,7 +1422,9 @@ export default function ProjectDetailsPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {project.tasks.map((task) => (
+                      {project.tasks
+                        .filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)
+                        .map((task) => (
                         <tr key={task.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4">
                             <div>

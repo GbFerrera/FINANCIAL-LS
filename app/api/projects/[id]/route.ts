@@ -79,8 +79,10 @@ export async function GET(
                }
              }
           },
-          orderBy: { createdAt: 'desc' },
-          take: 10
+          orderBy: [
+            { status: 'asc' }, // TODO primeiro, depois IN_PROGRESS, depois DONE
+            { createdAt: 'desc' }
+          ]
         },
         team: {
           select: {
