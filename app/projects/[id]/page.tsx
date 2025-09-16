@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
+import { parseISO, format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import {
   ArrowLeft,
   Calendar,
@@ -689,7 +691,7 @@ export default function ProjectDetailsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    return format(parseISO(dateString), 'dd/MM/yyyy', { locale: ptBR })
   }
 
   const formatEstimatedTime = (hours: number) => {
@@ -1598,7 +1600,7 @@ export default function ProjectDetailsPage() {
                                   ? 'text-indigo-200' 
                                   : 'text-gray-500'
                               }`}>
-                                {comment.authorName} • {new Date(comment.createdAt).toLocaleString('pt-BR')}
+                                {comment.authorName} • {parseISO(comment.createdAt).toLocaleString('pt-BR')}
                               </p>
                             </div>
                           </div>

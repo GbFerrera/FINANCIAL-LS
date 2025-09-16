@@ -1,5 +1,6 @@
 'use client'
 
+import { parseISO } from "date-fns"
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -386,9 +387,9 @@ export default function CollaboratorsPage() {
                       </div>
                       
                       <div className="text-xs text-muted-foreground">
-                        Criado em: {new Date(collab.user.createdAt).toLocaleDateString('pt-BR')}
+                        Criado em: {parseISO(collab.user.createdAt).toLocaleDateString('pt-BR')}
                         {collab.user.updatedAt !== collab.user.createdAt && (
-                          <> • Atualizado em: {new Date(collab.user.updatedAt).toLocaleDateString('pt-BR')}</>
+                          <> • Atualizado em: {parseISO(collab.user.updatedAt).toLocaleDateString('pt-BR')}</>
                         )}
                       </div>
                     </CardContent>

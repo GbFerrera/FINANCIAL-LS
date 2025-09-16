@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { parseISO } from "date-fns"
 import {
   Plus,
   Edit,
@@ -164,7 +165,7 @@ export default function ClientsAdminPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    return parseISO(dateString).toLocaleDateString('pt-BR')
   }
 
   if (status === "loading" || loading) {

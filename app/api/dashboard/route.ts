@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
         user: comment.author?.name || 'Usuário',
         timestamp: comment.createdAt.toISOString(),
         metadata: {
-          projectName: comment.project.name
+          projectName: comment.project?.name || 'Sem projeto'
         }
       })),
       ...recentTasks.map(task => ({
@@ -197,7 +197,7 @@ export async function GET(request: NextRequest) {
         user: 'Sistema',
         timestamp: task.updatedAt.toISOString(),
         metadata: {
-          projectName: task.project.name,
+          projectName: task.project?.name || 'Sem projeto',
           taskName: task.title
         }
       })),
@@ -209,7 +209,7 @@ export async function GET(request: NextRequest) {
         user: 'Sistema',
         timestamp: payment.createdAt.toISOString(),
         metadata: {
-          projectName: payment.project.name,
+          projectName: payment.project?.name || 'Sem projeto',
           amount: payment.amount
         }
       }))
@@ -235,6 +235,93 @@ export async function GET(request: NextRequest) {
     const completedTasks = await prisma.task.count({ where: { completedAt: { not: null } } })
     const pendingTasks = totalTasks - completedTasks
 
+    // Get team task metrics for today
+    const today = new Date()
+    const startOfDay = new Date(today)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(today)
+    endOfDay.setHours(23, 59, 59, 999)
+
+    // Get all team members with their task metrics for today
+    const teamMembers = await prisma.user.findMany({
+      where: {
+        role: {
+          in: ['ADMIN', 'TEAM']
+        }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        assignedTasks: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            completedAt: true,
+            dueDate: true,
+            project: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      }
+    })
+
+    const teamTaskMetrics = teamMembers.map(member => {
+      const allTasks = member.assignedTasks
+      
+      // Tasks completed today
+      const completedToday = allTasks.filter(task => 
+        task.completedAt && 
+        task.completedAt >= startOfDay && 
+        task.completedAt <= endOfDay
+      )
+      
+      // Tasks pending (not completed and either due today or overdue)
+      const pendingTasks = allTasks.filter(task => 
+        !task.completedAt && (
+          (task.dueDate && task.dueDate <= endOfDay) || // Due today or overdue
+          task.status === 'IN_PROGRESS' // Currently in progress
+        )
+      )
+      
+      // Tasks due today but not completed
+      const dueTodayNotCompleted = allTasks.filter(task =>
+        !task.completedAt &&
+        task.dueDate &&
+        task.dueDate >= startOfDay &&
+        task.dueDate <= endOfDay
+      )
+
+      return {
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        role: member.role,
+        tasksCompletedToday: completedToday.length,
+        tasksPending: pendingTasks.length,
+        tasksDueTodayNotCompleted: dueTodayNotCompleted.length,
+        completedTasks: completedToday.map(task => ({
+          id: task.id,
+          title: task.title,
+          projectName: task.project?.name || 'Sem projeto',
+          completedAt: task.completedAt
+        })),
+        pendingTasks: pendingTasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          dueDate: task.dueDate,
+          projectName: task.project?.name || 'Sem projeto',
+          isOverdue: task.dueDate && task.dueDate < startOfDay
+        }))
+      }
+    })
+
     const dashboardData = {
       stats: {
         totalProjects,
@@ -249,7 +336,8 @@ export async function GET(request: NextRequest) {
       },
       projects: projectsWithStats,
       financialData,
-      activities
+      activities,
+      teamTaskMetrics
     }
 
     return NextResponse.json(dashboardData)

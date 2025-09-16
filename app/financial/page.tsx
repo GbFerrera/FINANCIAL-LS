@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { parseISO } from "date-fns"
 import {
   Plus,
   Download,
@@ -167,7 +168,7 @@ export default function FinancialPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    return parseISO(dateString).toLocaleDateString('pt-BR')
   }
 
   const getTypeColor = (type: string) => {

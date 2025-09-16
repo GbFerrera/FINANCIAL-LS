@@ -1,5 +1,6 @@
 'use client'
 
+import { parseISO } from "date-fns"
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -575,11 +576,11 @@ export default function TeamPage() {
                   )}
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-4 w-4" />
-                    <span>Desde {new Date(member.joinedAt).toLocaleDateString('pt-BR')}</span>
+                    <span>Desde {parseISO(member.joinedAt).toLocaleDateString('pt-BR')}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Clock className="h-4 w-4" />
-                    <span>Ativo {new Date(member.lastActive).toLocaleDateString('pt-BR')}</span>
+                    <span>Ativo {parseISO(member.lastActive).toLocaleDateString('pt-BR')}</span>
                   </div>
                 </div>
 

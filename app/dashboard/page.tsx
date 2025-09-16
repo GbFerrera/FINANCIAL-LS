@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { parseISO, format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { 
   BarChart3, 
   DollarSign, 
@@ -61,6 +63,29 @@ interface DashboardData {
       amount?: number
       taskName?: string
     }
+  }>
+  teamTaskMetrics?: Array<{
+    id: string
+    name: string
+    email: string
+    role: string
+    tasksCompletedToday: number
+    tasksPending: number
+    tasksDueTodayNotCompleted: number
+    completedTasks: Array<{
+      id: string
+      title: string
+      projectName: string
+      completedAt: string
+    }>
+    pendingTasks: Array<{
+      id: string
+      title: string
+      status: string
+      dueDate: string | null
+      projectName: string
+      isOverdue: boolean
+    }>
   }>
 }
 
@@ -223,6 +248,104 @@ export default function DashboardPage() {
         <div className="">
           <ProjectsOverview projects={projects} />
         </div>
+
+        {/* Team Task Metrics */}
+        {dashboardData?.teamTaskMetrics && dashboardData.teamTaskMetrics.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Métricas da Equipe - Hoje</h2>
+                <p className="text-gray-600 text-sm">Tarefas concluídas e pendentes por membro da equipe</p>
+              </div>
+              <div className="text-sm text-gray-500">
+                {new Date().toLocaleDateString('pt-BR', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {dashboardData.teamTaskMetrics.map((member) => (
+                <div key={member.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                  <div className="flex items-center mb-4">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                      <Users className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="font-medium text-gray-900">{member.name}</h3>
+                      <p className="text-sm text-gray-500">{member.role}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Concluídas hoje:</span>
+                      <span className="font-semibold text-green-600">{member.tasksCompletedToday}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Pendentes:</span>
+                      <span className="font-semibold text-yellow-600">{member.tasksPending}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Vencendo hoje:</span>
+                      <span className="font-semibold text-red-600">{member.tasksDueTodayNotCompleted}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Tarefas concluídas hoje */}
+                  {member.completedTasks.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Concluídas hoje:</h4>
+                      <div className="space-y-1">
+                        {member.completedTasks.slice(0, 3).map((task) => (
+                          <div key={task.id} className="text-xs text-gray-600 bg-green-50 p-2 rounded">
+                            <div className="font-medium">{task.title}</div>
+                            <div className="text-gray-500">{task.projectName}</div>
+                          </div>
+                        ))}
+                        {member.completedTasks.length > 3 && (
+                          <div className="text-xs text-gray-500">
+                            +{member.completedTasks.length - 3} mais...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Tarefas pendentes */}
+                  {member.pendingTasks.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Pendentes:</h4>
+                      <div className="space-y-1">
+                        {member.pendingTasks.slice(0, 3).map((task) => (
+                          <div key={task.id} className={`text-xs p-2 rounded ${
+                            task.isOverdue ? 'text-red-700 bg-red-50' : 'text-yellow-700 bg-yellow-50'
+                          }`}>
+                            <div className="font-medium">{task.title}</div>
+                            <div className="text-gray-500">{task.projectName}</div>
+                            {task.dueDate && (
+                              <div className="text-xs">
+                                Vence: {format(parseISO(task.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {member.pendingTasks.length > 3 && (
+                          <div className="text-xs text-gray-500">
+                            +{member.pendingTasks.length - 3} mais...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )

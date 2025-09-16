@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { parseISO } from "date-fns"
 import {
   Calendar,
   Clock,
@@ -274,7 +275,7 @@ export default function ClientPortalPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    return parseISO(dateString).toLocaleDateString('pt-BR')
   }
 
   const formatFileSize = (bytes: number) => {

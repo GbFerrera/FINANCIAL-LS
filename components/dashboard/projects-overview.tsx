@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { parseISO, format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { Calendar, Clock, DollarSign, Users } from "lucide-react"
 
 interface Project {
@@ -48,7 +50,7 @@ export function ProjectsOverview({ projects }: ProjectsOverviewProps) {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    return format(parseISO(dateString), 'dd/MM/yyyy', { locale: ptBR })
   }
 
   return (

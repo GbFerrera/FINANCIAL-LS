@@ -1,5 +1,6 @@
 "use client"
 
+import { parseISO } from "date-fns"
 import { Clock, User, FileText, DollarSign, CheckCircle, AlertCircle } from "lucide-react"
 
 interface Activity {
@@ -39,7 +40,7 @@ const activityColors = {
 export function RecentActivity({ activities }: RecentActivityProps) {
   const formatTimeAgo = (timestamp: string) => {
     const now = new Date()
-    const activityTime = new Date(timestamp)
+    const activityTime = parseISO(timestamp)
     const diffInMinutes = Math.floor((now.getTime() - activityTime.getTime()) / (1000 * 60))
     
     if (diffInMinutes < 1) return 'Agora mesmo'
