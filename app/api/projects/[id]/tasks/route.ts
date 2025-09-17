@@ -17,6 +17,7 @@ const taskSchema = z.object({
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
+  milestoneId: z.string().optional(),
   estimatedHours: z.number().optional(),
 })
 
@@ -61,6 +62,21 @@ export async function POST(
       }
     }
 
+    // Verificar se o milestone existe (se fornecido)
+    if (validatedData.milestoneId) {
+      const milestone = await prisma.milestone.findFirst({
+        where: { 
+          id: validatedData.milestoneId,
+          projectId: params.id
+        },
+        select: { id: true }
+      })
+
+      if (!milestone) {
+        return NextResponse.json({ error: 'Milestone não encontrado neste projeto' }, { status: 404 })
+      }
+    }
+
     // Criar a tarefa
     const task = await prisma.task.create({
       data: {
@@ -70,6 +86,7 @@ export async function POST(
         priority: validatedData.priority,
         dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
         assigneeId: validatedData.assigneeId,
+        milestoneId: validatedData.milestoneId,
         estimatedHours: validatedData.estimatedHours,
         projectId: params.id
       },

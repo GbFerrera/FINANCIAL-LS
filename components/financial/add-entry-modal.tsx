@@ -2,7 +2,7 @@
 
 import { parseISO } from "date-fns"
 import { useState, useEffect } from "react"
-import { DollarSign, Calendar, Tag, FileText, Repeat, Upload, X } from "lucide-react"
+import { DollarSign, Calendar, Tag, FileText, Repeat, Upload, X, Plus } from "lucide-react"
 import toast from "react-hot-toast"
 import {
   Dialog,
@@ -49,6 +49,12 @@ interface FinancialEntry {
   createdAt: string
 }
 
+interface ProjectDistribution {
+  projectId: string
+  projectName: string
+  amount: number
+}
+
 interface AddEntryModalProps {
   isOpen: boolean
   onClose: () => void
@@ -86,6 +92,11 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     size: number
     url: string
   }>>([])
+  
+  // Estados para distribuição de projetos
+  const [enableProjectDistribution, setEnableProjectDistribution] = useState(false)
+  const [projectDistributions, setProjectDistributions] = useState<ProjectDistribution[]>([])
+  const [remainingAmount, setRemainingAmount] = useState(0)
 
   useEffect(() => {
     if (isOpen) {
@@ -133,8 +144,15 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     }
   }, [editingEntry, projects])
 
+  // Efeito para calcular valor restante
   useEffect(() => {
-    // Reset category when type changes
+    const totalAmount = parseFloat(formData.amount) || 0
+    const distributedAmount = projectDistributions.reduce((sum, dist) => sum + dist.amount, 0)
+    setRemainingAmount(totalAmount - distributedAmount)
+  }, [formData.amount, projectDistributions])
+
+  // Reset category when type changes
+  useEffect(() => {
     setFormData(prev => ({ ...prev, category: '' }))
   }, [formData.type])
 
@@ -219,6 +237,35 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       return
     }
 
+    // Validação para distribuição de projetos
+    if (enableProjectDistribution) {
+      if (projectDistributions.length === 0) {
+        toast.error('Adicione pelo menos um projeto para distribuição')
+        return
+      }
+
+      const totalDistributed = projectDistributions.reduce((sum, dist) => sum + dist.amount, 0)
+      if (Math.abs(totalDistributed - amount) > 0.01) {
+        toast.error(`A soma das distribuições (${formatCurrency(totalDistributed)}) deve ser igual ao valor total (${formatCurrency(amount)})`)
+        return
+      }
+
+      // Verificar se todos os projetos têm valores válidos
+      for (const dist of projectDistributions) {
+        if (dist.amount <= 0) {
+          toast.error('Todos os valores de distribuição devem ser maiores que zero')
+          return
+        }
+        if (!dist.projectId) {
+          toast.error('Todos os projetos devem ser selecionados')
+          return
+        }
+      }
+    } else if (!formData.projectId) {
+      toast.error('Selecione um projeto')
+      return
+    }
+
     setLoading(true)
     
     try {
@@ -241,7 +288,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           date: dateTime,
           isRecurring: formData.isRecurring,
           recurringType: formData.isRecurring && formData.recurringType ? formData.recurringType : null,
-          projectId: formData.projectId || null
+          projectId: enableProjectDistribution ? null : (formData.projectId || null),
+          projectDistributions: enableProjectDistribution ? projectDistributions : null
         })
       })
 
@@ -274,6 +322,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     })
     setAttachments([])
     setExistingAttachments([])
+    setEnableProjectDistribution(false)
+    setProjectDistributions([])
     onClose()
   }
 
@@ -313,11 +363,50 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     }).format(value)
   }
 
+  // Funções para distribuição de projetos
+  const addProjectDistribution = () => {
+    setProjectDistributions(prev => [...prev, {
+      projectId: '',
+      projectName: '',
+      amount: 0
+    }])
+  }
+
+  const updateProjectDistribution = (index: number, field: keyof ProjectDistribution, value: string | number) => {
+    setProjectDistributions(prev => prev.map((dist, i) => {
+      if (i === index) {
+        if (field === 'projectId') {
+          const project = projects.find(p => p.id === value)
+          return {
+            ...dist,
+            projectId: value as string,
+            projectName: project?.name || ''
+          }
+        }
+        return { ...dist, [field]: value }
+      }
+      return dist
+    }))
+  }
+
+  const removeProjectDistribution = (index: number) => {
+    setProjectDistributions(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value)
+  }
+
   const availableCategories = categories[formData.type]
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingEntry ? 'Editar Entrada Financeira' : 'Nova Entrada Financeira'}</DialogTitle>
           <DialogDescription>
@@ -452,28 +541,140 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
               </div>
             </div>
 
-            {/* Project */}
+            {/* Project Distribution Toggle */}
             <div>
-              <Label className="text-sm font-medium">
-                Projeto (opcional)
-              </Label>
-              <div className="mt-1">
-                <Select
-                  value={formData.projectId || undefined}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, projectId: value || '' }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Nenhum projeto" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map(project => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex items-center space-x-2 mb-3">
+                <Checkbox
+                  id="enableProjectDistribution"
+                  checked={enableProjectDistribution}
+                  onCheckedChange={(checked) => {
+                    setEnableProjectDistribution(checked as boolean)
+                    if (!checked) {
+                      setProjectDistributions([])
+                      setFormData(prev => ({ ...prev, projectId: '' }))
+                    }
+                  }}
+                />
+                <Label htmlFor="enableProjectDistribution" className="text-sm font-medium">
+                  Distribuir entre múltiplos projetos
+                </Label>
               </div>
+
+              {!enableProjectDistribution ? (
+                // Seleção de projeto único (comportamento original)
+                <div>
+                  <Label className="text-sm font-medium">
+                    Projeto (opcional)
+                  </Label>
+                  <div className="mt-1">
+                    <Select
+                      value={formData.projectId || undefined}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, projectId: value || '' }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Nenhum projeto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map(project => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : (
+                // Distribuição entre múltiplos projetos
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">
+                      Distribuição por Projetos
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addProjectDistribution}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar Projeto
+                    </Button>
+                  </div>
+
+                  {projectDistributions.map((distribution, index) => (
+                    <div key={index} className="flex items-center space-x-2 p-3 border rounded-lg">
+                      <div className="flex-1">
+                        <Select
+                          value={distribution.projectId}
+                          onValueChange={(value) => updateProjectDistribution(index, 'projectId', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um projeto" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projects.map(project => (
+                              <SelectItem key={project.id} value={project.id}>
+                                {project.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="w-32">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={distribution.amount || ''}
+                            onChange={(e) => updateProjectDistribution(index, 'amount', parseFloat(e.target.value) || 0)}
+                            className="pl-10"
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeProjectDistribution(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {projectDistributions.length > 0 && (
+                    <div className="p-3 bg-gray-50 rounded-lg space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Valor Total:</span>
+                        <span className="font-medium">{formatCurrency(parseFloat(formData.amount) || 0)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Distribuído:</span>
+                        <span className="font-medium">{formatCurrency(projectDistributions.reduce((sum, dist) => sum + dist.amount, 0))}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Restante:</span>
+                        <span className={`font-medium ${remainingAmount < 0 ? 'text-red-600' : remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                          {formatCurrency(remainingAmount)}
+                        </span>
+                      </div>
+                      {remainingAmount !== 0 && (
+                        <div className="text-xs text-gray-600 mt-1">
+                          {remainingAmount < 0 
+                            ? '⚠️ Valor distribuído excede o total' 
+                            : '⚠️ Ainda há valor para distribuir'
+                          }
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

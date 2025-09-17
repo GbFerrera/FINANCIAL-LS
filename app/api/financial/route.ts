@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const type = searchParams.get('type') as FinancialType | null
     const projectId = searchParams.get('projectId')
+    const clientId = searchParams.get('clientId')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const isRecurring = searchParams.get('isRecurring')
@@ -51,6 +52,12 @@ export async function GET(request: NextRequest) {
 
     if (projectId) {
       where.projectId = projectId
+    }
+
+    if (clientId) {
+      where.project = {
+        clientId: clientId
+      }
     }
 
     // Filtro por período
@@ -120,9 +127,9 @@ export async function GET(request: NextRequest) {
       createdAt: entry.createdAt.toISOString()
     }))
 
-    // Calcular estatísticas
+    // Calcular estatísticas usando os mesmos filtros aplicados às entradas
     const allEntries = await prisma.financialEntry.findMany({
-      where: days && days !== 'all' ? where : {},
+      where,
       select: {
         type: true,
         amount: true,

@@ -40,6 +40,26 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: session } = useSession()
   const router = useRouter()
 
+  // Carregar estado da sidebar do localStorage
+  useEffect(() => {
+    const savedCollapsed = localStorage.getItem('sidebarCollapsed')
+    if (savedCollapsed !== null) {
+      setSidebarCollapsed(JSON.parse(savedCollapsed))
+    }
+  }, [])
+
+  // Salvar estado da sidebar no localStorage
+  const toggleSidebarCollapsed = () => {
+    const newState = !sidebarCollapsed
+    setSidebarCollapsed(newState)
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(newState))
+  }
+
+  // Fechar sidebar mobile ao navegar
+  const closeMobileSidebar = () => {
+    setSidebarOpen(false)
+  }
+
   const handleSignOut = async () => {
     await signOut({ redirect: false })
     router.push("/auth/signin")
@@ -59,7 +79,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <X className="h-6 w-6 text-white" />
             </button>
           </div>
-          <SidebarContent />
+          <SidebarContent onNavigate={closeMobileSidebar} />
         </div>
       </div>
 
@@ -88,7 +108,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Desktop sidebar toggle */}
           <button
             className="hidden md:flex items-center justify-center px-4 border-r border-gray-200 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onClick={toggleSidebarCollapsed}
           >
             {sidebarCollapsed ? <ChevronRight className="h-6 w-6" /> : <ChevronLeft className="h-6 w-6" />}
           </button>
@@ -144,7 +164,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Page content */}
         <main className="flex-1 relative overflow-y-auto focus:outline-none">
           <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+            <div className="mx-auto px-4 sm:px-6 md:px-8">
               {children}
             </div>
           </div>
@@ -154,7 +174,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 }
 
-function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
+function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const router = useRouter()
   const [currentPath, setCurrentPath] = useState('')
 
@@ -164,6 +184,13 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
       setCurrentPath(window.location.pathname)
     }
   }, [])
+
+  const handleNavigation = (href: string) => {
+    router.push(href)
+    if (onNavigate) {
+      onNavigate()
+    }
+  }
 
   return (
     <div className="flex flex-col h-full pt-5 pb-4 overflow-y-auto bg-white border-r border-gray-200">
@@ -183,7 +210,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
             return (
               <button
                 key={item.name}
-                onClick={() => router.push(item.href)}
+                onClick={() => handleNavigation(item.href)}
                 className={`${
                   isActive
                     ? 'bg-indigo-50 border-indigo-500 text-indigo-700'

@@ -22,6 +22,8 @@ import {
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
 import { AddEntryModal } from "@/components/financial/add-entry-modal"
+import { ClientsFinancialOverview } from "@/components/financial/clients-financial-overview"
+import { SyncPaymentsButton } from "@/components/financial/sync-payments-button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,12 +73,13 @@ export default function FinancialPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [dateRange, setDateRange] = useState('30') // days
+  const [dateRange, setDateRange] = useState('all') // days
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === "loading") return
@@ -93,12 +96,18 @@ export default function FinancialPage() {
     }
 
     fetchFinancialData()
-  }, [session, status, router, dateRange])
+  }, [session, status, router, dateRange, selectedClientId])
 
   const fetchFinancialData = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/financial?days=${dateRange}`)
+      let url = `/api/financial?days=${dateRange}`
+      
+      if (selectedClientId) {
+        url += `&clientId=${selectedClientId}`
+      }
+      
+      const response = await fetch(url)
       
       if (!response.ok) {
         throw new Error('Falha ao carregar dados financeiros')
@@ -203,6 +212,7 @@ export default function FinancialPage() {
             </p>
           </div>
           <div className="mt-4 flex space-x-3 md:mt-0 md:ml-4">
+            <SyncPaymentsButton />
             <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
               <Download className="-ml-1 mr-2 h-5 w-5" />
               Exportar
@@ -303,16 +313,21 @@ export default function FinancialPage() {
                   onChange={(e) => setDateRange(e.target.value)}
                   className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
                 >
+                  <option value="all">Todos os períodos</option>
                   <option value="7">Últimos 7 dias</option>
                   <option value="30">Últimos 30 dias</option>
                   <option value="90">Últimos 90 dias</option>
                   <option value="365">Último ano</option>
-                  <option value="all">Todos os períodos</option>
                 </select>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Clients Financial Overview */}
+        <ClientsFinancialOverview 
+          onClientFilter={(clientId) => setSelectedClientId(clientId)}
+        />
 
         {/* Entries Table */}
         <div className="bg-white shadow rounded-lg overflow-hidden">

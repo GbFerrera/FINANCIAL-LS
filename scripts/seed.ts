@@ -142,8 +142,15 @@ async function main() {
   })
 
   // Adicionar membro à equipe do projeto
-  await prisma.projectTeam.create({
-    data: {
+  await prisma.projectTeam.upsert({
+    where: {
+      userId_projectId: {
+        userId: teamMember.id,
+        projectId: demoProject.id,
+      }
+    },
+    update: {},
+    create: {
       userId: teamMember.id,
       projectId: demoProject.id,
       role: 'Desenvolvedor Full Stack',
