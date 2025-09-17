@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { format, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { calculateEstimatedTime } from '@/lib/time-utils'
 
 export async function GET(
   request: NextRequest,
@@ -88,6 +89,8 @@ export async function GET(
         status: true,
         priority: true,
         dueDate: true,
+        startTime: true,
+        endTime: true,
         estimatedHours: true,
         actualHours: true,
         createdAt: true,
@@ -138,6 +141,8 @@ export async function GET(
       where: { assigneeId: user.id },
       select: {
         status: true,
+        startTime: true,
+        endTime: true,
         estimatedHours: true,
         actualHours: true,
         completedAt: true
@@ -147,7 +152,7 @@ export async function GET(
     const stats = {
       totalTasks: allUserTasks.length,
       completedTasks: allUserTasks.filter(t => t.status === 'COMPLETED').length,
-      totalEstimatedHours: allUserTasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0),
+      totalEstimatedHours: allUserTasks.reduce((sum, task) => sum + calculateEstimatedTime(task), 0),
       totalActualHours: allUserTasks.reduce((sum, task) => sum + (task.actualHours || 0), 0),
       efficiency: 0
     }
@@ -168,7 +173,7 @@ export async function GET(
         overdue: categorizedTasks.overdue.length,
         inProgress: categorizedTasks.inProgress.length,
         completed: categorizedTasks.completed.length,
-        totalEstimatedHours: tasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0),
+        totalEstimatedHours: tasks.reduce((sum, task) => sum + calculateEstimatedTime(task), 0),
         totalActualHours: tasks.reduce((sum, task) => sum + (task.actualHours || 0), 0)
       },
       stats

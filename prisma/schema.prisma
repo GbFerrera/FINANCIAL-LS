@@ -103,6 +103,8 @@ model Task {
   status      TaskStatus @default(TODO)
   priority    Priority   @default(MEDIUM)
   dueDate     DateTime?
+  startTime   DateTime?
+  endTime     DateTime?
   completedAt DateTime?
   estimatedHours Float?
   actualHours    Float?

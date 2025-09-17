@@ -52,13 +52,24 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
       })
 
       for (const entry of activeEntries) {
-        const duration = Math.floor((new Date().getTime() - new Date(entry.startTime).getTime()) / (1000 * 60))
+        let duration
+        if (entry.isPaused && entry.pausedAt) {
+          // Se estava pausado, usar a duração já calculada
+          duration = entry.duration || 0
+        } else {
+          // Se estava ativo, calcular duração total incluindo tempo pausado
+          const elapsedTime = Math.floor((new Date().getTime() - new Date(entry.startTime).getTime()) / 1000)
+          duration = (entry.duration || 0) + elapsedTime - (entry.pausedTime || 0)
+        }
+        
         await prisma.timeEntry.update({
           where: { id: entry.id },
           data: {
             endTime: new Date(),
             duration,
-            isActive: false
+            isActive: false,
+            isPaused: false,
+            pausedAt: null
           }
         })
 
@@ -71,7 +82,7 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
           await prisma.task.update({
             where: { id: entry.taskId },
             data: {
-              actualHours: (relatedTask.actualHours || 0) + (duration / 60)
+              actualHours: (relatedTask.actualHours || 0) + (duration / 3600) // converter segundos para horas
             }
           })
         }
@@ -84,7 +95,10 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
           userId: user.id,
           startTime: new Date(),
           description,
-          isActive: true
+          isActive: true,
+          isPaused: false,
+          pausedTime: 0,
+          duration: 0
         },
         include: {
           task: {
@@ -116,9 +130,9 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
         )
       }
 
-      // Calcular tempo acumulado até agora
+      // Calcular tempo acumulado até agora em segundos
       const currentTime = new Date()
-      const elapsedTime = Math.floor((currentTime.getTime() - new Date(activeEntry.startTime).getTime()) / (1000 * 60))
+      const elapsedTime = Math.floor((currentTime.getTime() - new Date(activeEntry.startTime).getTime()) / 1000)
       const totalDuration = (activeEntry.duration || 0) + elapsedTime
 
       const updatedEntry = await prisma.timeEntry.update({
@@ -151,10 +165,14 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
         )
       }
 
+      // Calcular tempo pausado e atualizar
+      const pausedTime = pausedEntry.pausedAt ? 
+        Math.floor((new Date().getTime() - new Date(pausedEntry.pausedAt).getTime()) / 1000) : 0
+      
       const updatedEntry = await prisma.timeEntry.update({
         where: { id: pausedEntry.id },
         data: {
-          startTime: new Date(), // Novo tempo de início
+          pausedTime: (pausedEntry.pausedTime || 0) + pausedTime,
           pausedAt: null,
           isPaused: false
         }
@@ -185,9 +203,9 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
         // Se estava pausado, usar a duração já calculada
         duration = activeEntry.duration || 0
       } else {
-        // Se estava ativo, calcular duração total
-        const elapsedTime = Math.floor((new Date().getTime() - new Date(activeEntry.startTime).getTime()) / (1000 * 60))
-        duration = (activeEntry.duration || 0) + elapsedTime
+        // Se estava ativo, calcular duração total em segundos
+        const elapsedTime = Math.floor((new Date().getTime() - new Date(activeEntry.startTime).getTime()) / 1000)
+        duration = (activeEntry.duration || 0) + elapsedTime - (activeEntry.pausedTime || 0)
       }
       
       const updatedEntry = await prisma.timeEntry.update({
@@ -201,11 +219,11 @@ export async function POST(request: NextRequest, { params }: { params: { token: 
         }
       })
 
-      // Atualizar actualHours da tarefa
+      // Atualizar actualHours da tarefa (converter segundos para horas)
       await prisma.task.update({
         where: { id: taskId },
         data: {
-          actualHours: (task.actualHours || 0) + (duration / 60)
+          actualHours: (task.actualHours || 0) + (duration / 3600)
         }
       })
 

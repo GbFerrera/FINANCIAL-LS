@@ -36,6 +36,22 @@ interface CustomTooltipProps {
   visible: boolean
 }
 
+// Função para formatar tempo em horas e minutos
+const formatTime = (hours: number): string => {
+  if (hours === 0) return '0h'
+  
+  const wholeHours = Math.floor(hours)
+  const minutes = Math.round((hours - wholeHours) * 60)
+  
+  if (wholeHours === 0) {
+    return `${minutes}min`
+  } else if (minutes === 0) {
+    return `${wholeHours}h`
+  } else {
+    return `${wholeHours}h ${minutes}min`
+  }
+}
+
 export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
   if (!visible || !data) return null
 
@@ -82,11 +98,11 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
             </div>
           )}
 
-          {data.totalHours && data.totalHours > 0 && (
+          {data.totalHours !== undefined && data.totalHours >= 0 && (
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-blue-500" />
               <span className="text-gray-700">
-                {data.totalHours}h trabalhadas
+                {data.totalHours === 0 ? 'Nenhum tempo registrado' : `${formatTime(data.totalHours)} trabalhadas`}
               </span>
             </div>
           )}

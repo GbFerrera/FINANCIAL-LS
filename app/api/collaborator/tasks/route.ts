@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { calculateEstimatedTime } from '@/lib/time-utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +59,8 @@ export async function GET(request: NextRequest) {
         status: true,
         priority: true,
         dueDate: true,
+        startTime: true,
+        endTime: true,
         estimatedHours: true,
         actualHours: true,
         createdAt: true,
@@ -109,7 +112,7 @@ export async function GET(request: NextRequest) {
         today: categorizedTasks.today.length,
         overdue: categorizedTasks.overdue.length,
         inProgress: categorizedTasks.inProgress.length,
-        totalEstimatedHours: tasks.reduce((sum, task) => sum + (task.estimatedHours || 0), 0),
+        totalEstimatedHours: tasks.reduce((sum, task) => sum + calculateEstimatedTime(task), 0),
         totalActualHours: tasks.reduce((sum, task) => sum + (task.actualHours || 0), 0)
       }
     })

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
 import { parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { calculateEstimatedTime, formatEstimatedTime } from "@/lib/time-utils"
 import {
   ArrowLeft,
   Calendar,
@@ -75,6 +76,8 @@ interface ProjectDetails {
     priority: string
     dueDate: string | null
     estimatedHours: number | null
+    startTime: string | null
+    endTime: string | null
     milestone: {
       id: string
       name: string
@@ -117,7 +120,8 @@ export default function ProjectDetailsPage() {
     dueDate: '',
     assigneeId: '',
     milestoneId: '',
-    estimatedMinutes: ''
+    startTime: '',
+    endTime: ''
   })
   const [editingTask, setEditingTask] = useState<any>(null)
   const [showAddTeamMemberModal, setShowAddTeamMemberModal] = useState(false)
@@ -137,7 +141,8 @@ export default function ProjectDetailsPage() {
     priority: 'MEDIUM',
     assigneeId: '',
     dueDate: '',
-    estimatedMinutes: ''
+    startTime: '',
+    endTime: ''
   })
   const [comments, setComments] = useState<Array<{
     id: string
@@ -485,7 +490,8 @@ export default function ProjectDetailsPage() {
           dueDate: newTask.dueDate || null,
           assigneeId: newTask.assigneeId || null,
           milestoneId: newTask.milestoneId || null,
-          estimatedHours: newTask.estimatedMinutes ? parseFloat(newTask.estimatedMinutes) / 60 : null
+          startTime: newTask.startTime || null,
+          endTime: newTask.endTime || null
         }),
       })
 
@@ -503,7 +509,8 @@ export default function ProjectDetailsPage() {
         dueDate: '',
         assigneeId: '',
         milestoneId: '',
-        estimatedMinutes: ''
+        startTime: '',
+        endTime: ''
       })
       
       // Recarregar dados do projeto
@@ -623,7 +630,8 @@ export default function ProjectDetailsPage() {
       priority: task.priority,
       assigneeId: task.assignee?.id || '',
       dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
-      estimatedMinutes: task.estimatedHours ? (task.estimatedHours * 60).toString() : ''
+      startTime: task.startTime ? new Date(task.startTime).toISOString().slice(0, 16) : '',
+      endTime: task.endTime ? new Date(task.endTime).toISOString().slice(0, 16) : ''
     })
     setSelectedTask(task)
     setShowEditTaskModal(true)
@@ -645,7 +653,8 @@ export default function ProjectDetailsPage() {
           priority: editTaskData.priority,
           assigneeId: editTaskData.assigneeId || null,
           dueDate: editTaskData.dueDate || null,
-          estimatedHours: editTaskData.estimatedMinutes ? parseFloat(editTaskData.estimatedMinutes) / 60 : null
+          startTime: editTaskData.startTime || null,
+          endTime: editTaskData.endTime || null
         })
       })
 
@@ -694,19 +703,9 @@ export default function ProjectDetailsPage() {
     return format(parseISO(dateString), 'dd/MM/yyyy', { locale: ptBR })
   }
 
-  const formatEstimatedTime = (hours: number) => {
-    if (hours >= 1) {
-      // Se for número inteiro, mostra só as horas
-      if (hours % 1 === 0) {
-        return `${hours}h`
-      }
-      // Se tiver decimais, mostra horas e minutos
-      const wholeHours = Math.floor(hours)
-      const minutes = Math.round((hours - wholeHours) * 60)
-      return minutes > 0 ? `${wholeHours}h ${minutes}min` : `${wholeHours}h`
-    } else {
-      return `${Math.round(hours * 60)}min`
-    }
+  const formatTaskEstimatedTime = (task: any) => {
+    const hours = calculateEstimatedTime(task)
+    return formatEstimatedTime(hours)
   }
 
   if (status === "loading" || loading) {
@@ -1241,17 +1240,27 @@ export default function ProjectDetailsPage() {
                     </select>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-estimatedMinutes" className="text-right">
-                      Tempo Estimado (minutos)
+                    <label htmlFor="task-startTime" className="text-right">
+                      Horário de Início
                     </label>
                     <input
-                      id="task-estimatedMinutes"
-                      type="number"
-                      min="0"
-                      value={newTask.estimatedMinutes}
-                      onChange={(e) => setNewTask({...newTask, estimatedMinutes: e.target.value})}
+                      id="task-startTime"
+                      type="datetime-local"
+                      value={newTask.startTime}
+                      onChange={(e) => setNewTask({...newTask, startTime: e.target.value})}
                       className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Ex: 120 (2 horas)"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <label htmlFor="task-endTime" className="text-right">
+                      Horário de Término
+                    </label>
+                    <input
+                      id="task-endTime"
+                      type="datetime-local"
+                      value={newTask.endTime}
+                      onChange={(e) => setNewTask({...newTask, endTime: e.target.value})}
+                      className="col-span-3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                 </div>
@@ -1267,7 +1276,8 @@ export default function ProjectDetailsPage() {
                         dueDate: '',
                         assigneeId: '',
                         milestoneId: '',
-                        estimatedMinutes: ''
+                        startTime: '',
+                        endTime: ''
                       })
                     }}
                     className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
@@ -1455,7 +1465,7 @@ export default function ProjectDetailsPage() {
                             {task.dueDate ? formatDate(task.dueDate) : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {task.estimatedHours ? formatEstimatedTime(task.estimatedHours) : '-'}
+                            {formatTaskEstimatedTime(task)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {task.milestone?.name || '-'}
@@ -1769,14 +1779,21 @@ export default function ProjectDetailsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tempo Estimado (minutos)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Horário de Início</label>
                 <input
-                  type="number"
-                  min="0"
-                  value={editTaskData.estimatedMinutes}
-                  onChange={(e) => setEditTaskData({...editTaskData, estimatedMinutes: e.target.value})}
+                  type="datetime-local"
+                  value={editTaskData.startTime}
+                  onChange={(e) => setEditTaskData({...editTaskData, startTime: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Ex: 120 (2 horas)"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Horário de Término</label>
+                <input
+                  type="datetime-local"
+                  value={editTaskData.endTime}
+                  onChange={(e) => setEditTaskData({...editTaskData, endTime: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-4">

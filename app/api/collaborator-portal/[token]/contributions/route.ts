@@ -56,34 +56,38 @@ export async function GET(
       }
     })
 
-    // Agrupar tarefas por data
-    const contributionMap = new Map<string, number>()
+    // Agrupar tarefas por data com contagem e tempo trabalhado
+    const contributionMap = new Map<string, { count: number; totalHours: number }>()
     
     // Inicializar todos os dias do período com 0
     for (let i = 0; i <= days; i++) {
       const date = subDays(endDate, i)
       const dateKey = format(date, 'yyyy-MM-dd')
-      contributionMap.set(dateKey, 0)
+      contributionMap.set(dateKey, { count: 0, totalHours: 0 })
     }
 
-    // Contar tarefas concluídas por dia
+    // Contar tarefas concluídas e somar horas trabalhadas por dia
     completedTasks.forEach(task => {
       if (task.completedAt) {
         const dateKey = format(new Date(task.completedAt), 'yyyy-MM-dd')
-        const currentCount = contributionMap.get(dateKey) || 0
-        contributionMap.set(dateKey, currentCount + 1)
+        const current = contributionMap.get(dateKey) || { count: 0, totalHours: 0 }
+        contributionMap.set(dateKey, {
+          count: current.count + 1,
+          totalHours: current.totalHours + (task.actualHours || 0)
+        })
       }
     })
 
     // Converter para array de objetos
-    const contributions = Array.from(contributionMap.entries()).map(([date, count]) => ({
+    const contributions = Array.from(contributionMap.entries()).map(([date, data]) => ({
       date,
-      count
+      count: data.count,
+      totalHours: Math.round(data.totalHours * 100) / 100 // Arredondar para 2 casas decimais
     })).sort((a, b) => a.date.localeCompare(b.date))
 
     // Calcular estatísticas
     const totalContributions = completedTasks.length
-    const contributionCounts = Array.from(contributionMap.values())
+    const contributionCounts = Array.from(contributionMap.values()).map(data => data.count)
     const averagePerDay = totalContributions / days
 
     // Calcular streak atual
@@ -93,9 +97,9 @@ export async function GET(
     
     while (true) {
       const dateKey = format(checkDate, 'yyyy-MM-dd')
-      const count = contributionMap.get(dateKey) || 0
+      const data = contributionMap.get(dateKey) || { count: 0, totalHours: 0 }
       
-      if (count > 0) {
+      if (data.count > 0) {
         currentStreak++
         checkDate = subDays(checkDate, 1)
       } else {
@@ -121,11 +125,15 @@ export async function GET(
       }
     })
 
+    // Calcular total de horas trabalhadas
+    const totalHours = Array.from(contributionMap.values()).reduce((sum, data) => sum + data.totalHours, 0)
+
     const stats = {
       totalContributions,
       currentStreak,
       longestStreak,
-      averagePerDay: Math.round(averagePerDay * 100) / 100
+      averagePerDay: Math.round(averagePerDay * 100) / 100,
+      totalHours: Math.round(totalHours * 100) / 100
     }
 
     return NextResponse.json({

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, use } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { calculateEstimatedTime } from '@/lib/time-utils'
 import { ContributionHeatmap } from '@/components/dashboard/contribution-heatmap'
 
 interface Task {
@@ -37,6 +38,8 @@ interface Task {
   dueDate?: string
   estimatedHours?: number
   actualHours?: number
+  startTime?: string
+  endTime?: string
   createdAt: string
   updatedAt: string
   project: {
@@ -87,9 +90,12 @@ interface TimeTracker {
   elapsedTime: number
   isPaused: boolean
   pausedAt?: number
+  totalPausedTime: number
+  duration: number // duração total em segundos
 }
 
-export default function CollaboratorPortalPage({ params }: { params: { token: string } }) {
+export default function CollaboratorPortalPage({ params }: { params: Promise<{ token: string }> }) {
+  const resolvedParams = use(params)
   const [data, setData] = useState<CollaboratorData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -100,33 +106,11 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [viewMode, setViewMode] = useState<'sections' | 'unified'>('sections')
 
-  useEffect(() => {
-    fetchData()
-  }, [selectedDate, params.token])
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (activeTimer) {
-      interval = setInterval(() => {
-        setTimeTrackers(prev => {
-          const newTrackers = new Map(prev)
-          const tracker = newTrackers.get(activeTimer)
-          if (tracker && !tracker.isPaused) {
-            tracker.elapsedTime = Date.now() - tracker.startTime
-            newTrackers.set(activeTimer, tracker)
-          }
-          return newTrackers
-        })
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [activeTimer])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch(`/api/collaborator-portal/${params.token}?date=${selectedDate}`)
+      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}?date=${selectedDate}`)
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -141,7 +125,33 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedDate, resolvedParams.token])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (activeTimer) {
+      interval = setInterval(() => {
+        setTimeTrackers(prev => {
+          const newTrackers = new Map(prev)
+          const tracker = newTrackers.get(activeTimer)
+          if (tracker && !tracker.isPaused) {
+            const currentTime = Date.now()
+            const totalElapsed = Math.floor((currentTime - tracker.startTime) / 1000)
+            tracker.elapsedTime = totalElapsed - tracker.totalPausedTime
+            tracker.duration = tracker.elapsedTime
+            newTrackers.set(activeTimer, tracker)
+          }
+          // Se estiver pausado, não atualiza o elapsedTime, mantém o valor atual
+          return newTrackers
+        })
+      }, 1000)
+    }
+    return () => clearInterval(interval)
+  }, [activeTimer])
 
   const startTimer = async (taskId: string) => {
     if (activeTimer && activeTimer !== taskId) {
@@ -149,7 +159,7 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     }
     
     try {
-      const response = await fetch(`/api/collaborator-portal/${params.token}/time-entries`, {
+      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -168,7 +178,9 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
             taskId,
             startTime: now,
             elapsedTime: 0,
-            isPaused: false
+            isPaused: false,
+            totalPausedTime: 0,
+            duration: 0
           })
           return newTrackers
         })
@@ -185,7 +197,7 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     const tracker = timeTrackers.get(taskId)
     if (tracker && !tracker.isPaused) {
       try {
-        const response = await fetch(`/api/collaborator-portal/${params.token}/time-entries`, {
+        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -201,10 +213,11 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
             const newTrackers = new Map(prev)
             const currentTracker = newTrackers.get(taskId)
             if (currentTracker) {
+              const pausedTime = Date.now()
               newTrackers.set(taskId, {
                 ...currentTracker,
                 isPaused: true,
-                pausedAt: Date.now()
+                pausedAt: pausedTime
               })
             }
             return newTrackers
@@ -222,7 +235,7 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     const tracker = timeTrackers.get(taskId)
     if (tracker && tracker.isPaused && tracker.pausedAt) {
       try {
-        const response = await fetch(`/api/collaborator-portal/${params.token}/time-entries`, {
+        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -234,14 +247,14 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
         })
         
         if (response.ok) {
-          const pausedDuration = Date.now() - tracker.pausedAt
           setTimeTrackers(prev => {
             const newTrackers = new Map(prev)
             const currentTracker = newTrackers.get(taskId)
-            if (currentTracker) {
+            if (currentTracker && currentTracker.pausedAt) {
+              const pausedDuration = Math.floor((Date.now() - currentTracker.pausedAt) / 1000)
               newTrackers.set(taskId, {
                 ...currentTracker,
-                startTime: currentTracker.startTime + pausedDuration,
+                totalPausedTime: currentTracker.totalPausedTime + pausedDuration,
                 isPaused: false,
                 pausedAt: undefined
               })
@@ -261,7 +274,7 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     const tracker = timeTrackers.get(taskId)
     if (tracker) {
       try {
-        const response = await fetch(`/api/collaborator-portal/${params.token}/time-entries`, {
+        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -295,7 +308,7 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
 
   const updateTaskStatus = async (taskId: string, status: string) => {
     try {
-      const response = await fetch(`/api/collaborator-portal/${params.token}`, {
+      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
@@ -352,11 +365,11 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
     }
   }
 
-  const formatElapsedTime = (milliseconds: number) => {
-    const seconds = Math.floor(milliseconds / 1000)
-    const minutes = Math.floor(seconds / 60)
-    const hours = Math.floor(minutes / 60)
-    return `${hours.toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
+  const formatElapsedTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainingSeconds = seconds % 60
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
   }
 
   // Função para filtrar tasks
@@ -587,7 +600,7 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
           </CardHeader>
           <CardContent>
              <ContributionHeatmap 
-               token={params.token}
+               token={resolvedParams.token}
              />
            </CardContent>
         </Card>
@@ -782,7 +795,7 @@ interface TaskCardProps {
   getPriorityColor: (priority: string) => string
   getStatusColor: (status: string) => string
   formatTime: (hours: number) => string
-  formatElapsedTime: (milliseconds: number) => string
+  formatElapsedTime: (seconds: number) => string
 }
 
 function TaskCard({ 
@@ -835,32 +848,7 @@ function TaskCard({
           <div className="flex items-center gap-2 ml-4">
             {task.status !== 'COMPLETED' && (
               <>
-                {!isActive ? (
-                  <Button size="sm" onClick={onStartTimer} className="gap-1">
-                    <Play className="h-4 w-4" />
-                    Iniciar
-                  </Button>
-                ) : (
-                  <div className="flex gap-2">
-                    {timeTracker?.isPaused ? (
-                      <Button size="sm" onClick={onResumeTimer} className="gap-1">
-                        <Play className="h-4 w-4" />
-                        Retomar
-                      </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" onClick={onPauseTimer} className="gap-1">
-                        <Pause className="h-4 w-4" />
-                        Pausar
-                      </Button>
-                    )}
-                    <Button size="sm" variant="destructive" onClick={onStopTimer} className="gap-1">
-                      <Square className="h-4 w-4" />
-                      Parar
-                    </Button>
-                  </div>
-                )}
-                
-                {task.status === 'TODO' && (
+                {task.status === 'TODO' ? (
                   <Button 
                     size="sm" 
                     variant="outline" 
@@ -868,18 +856,45 @@ function TaskCard({
                   >
                     Iniciar Tarefa
                   </Button>
-                )}
-                
-                {task.status === 'IN_PROGRESS' && (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    onClick={() => onUpdateStatus(task.id, 'COMPLETED')}
-                  >
-                    Concluir
-                  </Button>
+                ) : (
+                  <>
+                    {!isActive ? (
+                      <Button size="sm" onClick={onStartTimer} className="gap-1">
+                        <Play className="h-4 w-4" />
+                        Iniciar Cronômetro
+                      </Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        {timeTracker?.isPaused ? (
+                          <Button size="sm" onClick={onResumeTimer} className="gap-1">
+                            <Play className="h-4 w-4" />
+                            Retomar
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="outline" onClick={onPauseTimer} className="gap-1">
+                            <Pause className="h-4 w-4" />
+                            Pausar
+                          </Button>
+                        )}
+                        <Button size="sm" variant="destructive" onClick={onStopTimer} className="gap-1">
+                          <Square className="h-4 w-4" />
+                          Parar
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
+            )}
+            
+            {task.status === 'IN_PROGRESS' && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => onUpdateStatus(task.id, 'COMPLETED')}
+              >
+                Concluir
+              </Button>
             )}
           </div>
         </div>
@@ -897,7 +912,7 @@ function TaskCard({
               <span>Estimado</span>
             </div>
             <p className="font-medium">
-              {task.estimatedHours ? formatTime(task.estimatedHours) : 'Não definido'}
+              {calculateEstimatedTime(task) ? formatTime(calculateEstimatedTime(task)) : 'Não definido'}
             </p>
           </div>
           

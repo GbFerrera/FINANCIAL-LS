@@ -14,6 +14,7 @@ import { DayDetailsModal } from '@/components/ui/day-details-modal'
 interface ContributionData {
   date: string
   count: number
+  totalHours?: number
   tasks?: Array<{
     id: string
     title: string
@@ -51,7 +52,6 @@ interface ContributionData {
       avatar?: string
     }
   }>
-  totalHours?: number
   projects?: string[]
   pendingCount?: number
 }
@@ -75,7 +75,8 @@ export function ContributionHeatmap({
     totalContributions: 0,
     currentStreak: 0,
     longestStreak: 0,
-    averagePerDay: 0
+    averagePerDay: 0,
+    totalHours: 0
   })
   
   // Estados para tooltip e modal
@@ -123,9 +124,9 @@ export function ContributionHeatmap({
       const processedContributions = data.contributions.map((contrib: any) => ({
         date: contrib.date,
         count: contrib.count,
+        totalHours: contrib.totalHours || 0,
         tasks: [], // A API atual não retorna tarefas detalhadas
         pendingTasks: [],
-        totalHours: 0,
         projects: [],
         pendingCount: 0
       }))
@@ -135,7 +136,8 @@ export function ContributionHeatmap({
         totalContributions: 0,
         currentStreak: 0,
         longestStreak: 0,
-        averagePerDay: 0
+        averagePerDay: 0,
+        totalHours: 0
       })
       
     } catch (error) {
@@ -249,8 +251,21 @@ export function ContributionHeatmap({
       totalContributions,
       currentStreak,
       longestStreak,
-      averagePerDay: Math.round(averagePerDay * 10) / 10
+      averagePerDay: Math.round(averagePerDay * 10) / 10,
+      totalHours: 0
     })
+  }
+
+  const formatTime = (hours: number) => {
+    if (hours === 0) return '0h'
+    if (hours < 1) {
+      const minutes = Math.round(hours * 60)
+      return `${minutes}min`
+    }
+    const wholeHours = Math.floor(hours)
+    const minutes = Math.round((hours - wholeHours) * 60)
+    if (minutes === 0) return `${wholeHours}h`
+    return `${wholeHours}h ${minutes}min`
   }
 
   const getClassForValue = (value: any) => {
@@ -471,7 +486,7 @@ export function ContributionHeatmap({
 
           {/* Estatísticas */}
           {showStats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4 border-t">
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">
                   {stats.totalContributions}
@@ -482,6 +497,14 @@ export function ContributionHeatmap({
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">
+                  {formatTime(stats.totalHours)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Tempo gasto
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-indigo-600">
                   {stats.currentStreak}
                 </div>
                 <div className="text-sm text-gray-600">

@@ -15,9 +15,11 @@ const taskSchema = z.object({
   description: z.string().optional(),
   status: z.enum(['TODO', 'IN_PROGRESS', 'COMPLETED']).default('TODO'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
-  dueDate: z.string().optional(),
-  assigneeId: z.string().optional(),
-  milestoneId: z.string().optional(),
+  dueDate: z.string().optional().nullable(),
+  startTime: z.string().optional().nullable(),
+  endTime: z.string().optional().nullable(),
+  assigneeId: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  milestoneId: z.string().optional().nullable().transform(val => val === '' ? null : val),
   estimatedHours: z.number().optional(),
 })
 
@@ -85,6 +87,8 @@ export async function POST(
         status: validatedData.status,
         priority: validatedData.priority,
         dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
+        startTime: validatedData.startTime ? new Date(validatedData.startTime) : null,
+        endTime: validatedData.endTime ? new Date(validatedData.endTime) : null,
         assigneeId: validatedData.assigneeId,
         milestoneId: validatedData.milestoneId,
         estimatedHours: validatedData.estimatedHours,

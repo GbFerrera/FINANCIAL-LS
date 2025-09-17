@@ -141,6 +141,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Atualizar startTime da tarefa se ainda não foi definido
+      if (!task.startTime) {
+        await prisma.task.update({
+          where: { id: taskId },
+          data: {
+            startTime: new Date()
+          }
+        })
+      }
+
       // Criar nova entrada de tempo
       const newEntry = await prisma.timeEntry.create({
         data: {
@@ -264,11 +274,12 @@ export async function POST(request: NextRequest) {
         }
       })
 
-      // Atualizar actualHours da tarefa
+      // Atualizar actualHours e endTime da tarefa
       await prisma.task.update({
         where: { id: taskId },
         data: {
-          actualHours: (task.actualHours || 0) + (totalDuration / 3600) // Converter segundos para horas
+          actualHours: (task.actualHours || 0) + (totalDuration / 3600), // Converter segundos para horas
+          endTime: new Date() // Definir endTime quando a tarefa é parada
         }
       })
 

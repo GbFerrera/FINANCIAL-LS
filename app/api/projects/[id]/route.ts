@@ -65,6 +65,8 @@ export async function GET(
             priority: true,
             dueDate: true,
             estimatedHours: true,
+            startTime: true,
+            endTime: true,
             milestone: {
               select: {
                 id: true,
