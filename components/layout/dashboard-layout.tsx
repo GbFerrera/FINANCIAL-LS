@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import {
@@ -156,7 +156,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
 function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
   const router = useRouter()
-  const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
+  const [currentPath, setCurrentPath] = useState('')
+
+  // Use useEffect to set the current path only on the client side
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentPath(window.location.pathname)
+    }
+  }, [])
 
   return (
     <div className="flex flex-col h-full pt-5 pb-4 overflow-y-auto bg-white border-r border-gray-200">
@@ -182,7 +189,7 @@ function SidebarContent({ collapsed = false }: { collapsed?: boolean }) {
                     ? 'bg-indigo-50 border-indigo-500 text-indigo-700'
                     : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'pl-2 pr-2'} py-2 border-l-4 text-sm font-medium transition-colors`}
-                title={collapsed ? item.name : undefined}
+                {...(collapsed ? { title: item.name } : {})}
               >
                 <item.icon
                   className={`${

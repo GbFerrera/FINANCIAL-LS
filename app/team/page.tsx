@@ -1,6 +1,7 @@
 'use client'
 
-import { parseISO } from "date-fns"
+import { parseISO, format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -239,8 +240,8 @@ export default function TeamPage() {
     }
   }
 
-  const departments = [...new Set(members.map(m => m.department))]
-  const roles = [...new Set(members.map(m => m.role))]
+  const departments = members.length > 0 ? [...new Set(members.map(m => m.department))] : []
+  const roles = members.length > 0 ? [...new Set(members.map(m => m.role))] : []
 
   if (loading) {
     return (
@@ -439,7 +440,7 @@ export default function TeamPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Departamentos</SelectItem>
-                  {departments.map(dept => (
+                  {departments.length > 0 && departments.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
                 </SelectContent>
@@ -450,7 +451,7 @@ export default function TeamPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Cargos</SelectItem>
-                  {roles.map(role => (
+                  {roles.length > 0 && roles.map(role => (
                     <SelectItem key={role} value={role}>{role}</SelectItem>
                   ))}
                 </SelectContent>
@@ -514,7 +515,7 @@ export default function TeamPage() {
                       <Avatar className="h-12 w-12">
                         <AvatarImage src={member.avatar} alt={member.name} />
                         <AvatarFallback>
-                          {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          {member.name ? member.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <div className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white ${getStatusColor(member.status)}`}></div>
@@ -576,11 +577,11 @@ export default function TeamPage() {
                   )}
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-4 w-4" />
-                    <span>Desde {parseISO(member.joinedAt).toLocaleDateString('pt-BR')}</span>
+                    <span>Desde {member.joinedAt ? format(parseISO(member.joinedAt), 'dd/MM/yyyy', { locale: ptBR }) : 'Data não disponível'}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Clock className="h-4 w-4" />
-                    <span>Ativo {parseISO(member.lastActive).toLocaleDateString('pt-BR')}</span>
+                    <span>Ativo {member.lastActive ? format(parseISO(member.lastActive), 'dd/MM/yyyy', { locale: ptBR }) : 'Data não disponível'}</span>
                   </div>
                 </div>
 

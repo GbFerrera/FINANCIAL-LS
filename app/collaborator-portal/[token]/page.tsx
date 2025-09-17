@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { ContributionHeatmap } from '@/components/dashboard/contribution-heatmap'
 
 interface Task {
   id: string
@@ -575,6 +576,21 @@ export default function CollaboratorPortalPage({ params }: { params: { token: st
             </CardContent>
           </Card>
         </div>
+
+        {/* Contribution Heatmap */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Atividades Concluídas</CardTitle>
+            <CardDescription>
+              Visualize suas contribuições diárias ao longo do tempo
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+             <ContributionHeatmap 
+               token={params.token}
+             />
+           </CardContent>
+        </Card>
 
         {/* Tasks Sections */}
         <div className="space-y-6">

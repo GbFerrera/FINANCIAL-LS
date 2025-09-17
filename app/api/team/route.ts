@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const usersRaw = await prisma.$queryRaw`
       SELECT 
         id, name, email, role, avatar, "accessToken", 
-        "createdAt", "updatedAt"
+        "createdAt" as "joinedAt", "updatedAt" as "lastActive"
       FROM users
       ORDER BY "createdAt" DESC
       LIMIT ${limit} OFFSET ${skip}
@@ -57,8 +57,8 @@ export async function GET(request: NextRequest) {
       role: string;
       avatar: string | null;
       accessToken: string | null;
-      createdAt: Date;
-      updatedAt: Date;
+      joinedAt: Date;
+      lastActive: Date;
     }>
 
     const total = await prisma.user.count({ where })
