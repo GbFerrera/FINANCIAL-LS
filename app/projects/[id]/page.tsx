@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation"
 import { parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { calculateEstimatedTime, formatEstimatedTime } from "@/lib/time-utils"
+import { calculateBasicProjectProgress } from "@/lib/progress-utils"
 import {
   ArrowLeft,
   Calendar,
@@ -737,9 +738,7 @@ export default function ProjectDetailsPage() {
 
   const completedMilestones = project.milestones.filter(m => m.status === 'COMPLETED').length
   const completedTasks = project.tasks.filter(t => t.status === 'DONE').length
-  const progress = project.milestones.length > 0 
-    ? Math.round((completedMilestones / project.milestones.length) * 100)
-    : 0
+  const progress = calculateBasicProjectProgress(project.milestones, project.tasks)
 
   return (
     <DashboardLayout>

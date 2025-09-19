@@ -81,6 +81,8 @@ interface ProjectData {
     category: string
     date: string
     createdAt: string
+    projectId?: string
+    projectName?: string
   }>
 }
 
@@ -91,11 +93,40 @@ interface FinancialSummary {
   entriesCount: number
 }
 
+interface PaymentData {
+  id: string
+  amount: number
+  description: string
+  paymentDate: string
+  method: string
+  status: string
+  totalDistributed: number
+  remainingAmount: number
+  projectPayments: Array<{
+    projectId: string
+    projectName: string
+    projectBudget: number
+    amountPaid: number
+  }>
+  createdAt: string
+}
+
+interface ProjectPaymentSummary {
+  projectId: string
+  projectName: string
+  budget: number
+  totalPaid: number
+  remainingBudget: number
+  paymentPercentage: number
+}
+
 export default function ClientPortalPage() {
   const params = useParams()
   const router = useRouter()
   const [client, setClient] = useState<ClientData | null>(null)
   const [projects, setProjects] = useState<ProjectData[]>([])
+  const [payments, setPayments] = useState<PaymentData[]>([])
+  const [projectPaymentSummaries, setProjectPaymentSummaries] = useState<ProjectPaymentSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'files' | 'messages' | 'financial'>('overview')
   const [newComment, setNewComment] = useState('')
@@ -104,6 +135,35 @@ export default function ClientPortalPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [hasNewMessages, setHasNewMessages] = useState(false)
+
+  // Calculate payment summaries from projects and financial entries
+  const calculatePaymentSummaries = (projects: ProjectData[], payments: PaymentData[]) => {
+    return projects.map(project => {
+      // Sum up payments from the payments array
+      const paymentAmount = payments
+        .flatMap(payment => payment.projectPayments || [])
+        .filter(p => p.projectId === project.id)
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+      
+      // Sum up income from financial entries
+      const incomeFromEntries = (project.financialEntries || [])
+        .filter(entry => entry.type === 'INCOME')
+        .reduce((sum, entry) => sum + entry.amount, 0);
+      
+      const totalPaid = paymentAmount + incomeFromEntries;
+      const remainingBudget = Math.max(0, project.budget - totalPaid);
+      const paymentPercentage = project.budget > 0 ? Math.round((totalPaid / project.budget) * 100) : 0;
+      
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        budget: project.budget,
+        totalPaid,
+        remainingBudget,
+        paymentPercentage
+      };
+    });
+  };
 
   useEffect(() => {
     if (params.token) {
@@ -144,6 +204,14 @@ export default function ClientPortalPage() {
       const data = await response.json()
       setClient(data.client)
       setProjects(data.projects)
+      setPayments(data.payments || [])
+      
+      // Calculate payment summaries from the data we received
+      const calculatedSummaries = calculatePaymentSummaries(
+        data.projects,
+        data.payments || []
+      )
+      setProjectPaymentSummaries(calculatedSummaries)
       if (data.projects.length > 0) {
         setSelectedProject(data.projects[0].id)
       }
@@ -349,8 +417,6 @@ export default function ClientPortalPage() {
                 { id: 'overview', name: 'Visão Geral', icon: BarChart3 },
                 { id: 'projects', name: 'Projetos', icon: FileText },
                 { id: 'financial', name: 'Financeiro', icon: DollarSign },
-                { id: 'files', name: 'Arquivos', icon: Download },
-                { id: 'messages', name: 'Mensagens', icon: MessageSquare }
               ].map((tab) => {
                 const Icon = tab.icon
                 return (
@@ -651,7 +717,105 @@ export default function ClientPortalPage() {
                         </div>
                       </div>
 
-                      {/* Lista de movimentações */}
+                      {/* Resumo de Pagamentos por Projeto */}
+                      {projectPaymentSummaries.length > 0 && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Resumo de Pagamentos por Projeto
+                            </h3>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Acompanhe o progresso financeiro de cada projeto
+                            </p>
+                          </div>
+                          
+                          <div className="divide-y divide-gray-100">
+                            {projectPaymentSummaries.map((summary) => (
+                              <div key={summary.projectId} className="px-6 py-5">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                                  <div className="flex-1">
+                                    <h4 className="text-base font-semibold text-gray-900">{summary.projectName}</h4>
+                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                      <div className="bg-blue-50 p-3 rounded-lg">
+                                        <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
+                                        <p className="text-lg font-bold text-blue-900 mt-1">
+                                          {formatCurrency(summary.budget)}
+                                        </p>
+                                      </div>
+                                      <div className="bg-green-50 p-3 rounded-lg">
+                                        <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Valor Pago</p>
+                                        <p className="text-lg font-bold text-green-900 mt-1">
+                                          {formatCurrency(summary.totalPaid)}
+                                        </p>
+                                      </div>
+                                      <div className="bg-orange-50 p-3 rounded-lg">
+                                        <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">Restante</p>
+                                        <p className="text-lg font-bold text-orange-900 mt-1">
+                                          {formatCurrency(summary.remainingBudget)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-4">
+                                    <div className="text-right">
+                                      <p className="text-sm text-gray-500">Progresso</p>
+                                      <p className="text-2xl font-bold text-gray-900">{summary.paymentPercentage}%</p>
+                                    </div>
+                                    <div className="w-16 h-16">
+                                      <div className="relative w-16 h-16">
+                                        <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+                                          <path
+                                            className="text-gray-200"
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            fill="none"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                          />
+                                          <path
+                                            className={`${summary.paymentPercentage >= 100 ? 'text-green-500' : summary.paymentPercentage >= 50 ? 'text-blue-500' : 'text-orange-500'}`}
+                                            stroke="currentColor"
+                                            strokeWidth="3"
+                                            strokeLinecap="round"
+                                            fill="none"
+                                            strokeDasharray={`${summary.paymentPercentage}, 100`}
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                          />
+                                        </svg>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* Total Summary */}
+                            <div className="mt-6 pt-6 border-t border-gray-200">
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="bg-blue-50 p-4 rounded-lg">
+                                  <p className="text-sm font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
+                                  <p className="text-xl font-bold text-blue-900 mt-1">
+                                    {formatCurrency(projectPaymentSummaries.reduce((sum, p) => sum + p.budget, 0))}
+                                  </p>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg">
+                                  <p className="text-sm font-medium text-green-700 uppercase tracking-wide">Valor Pago</p>
+                                  <p className="text-xl font-bold text-green-900 mt-1">
+                                    {formatCurrency(projectPaymentSummaries.reduce((sum, p) => sum + p.totalPaid, 0))}
+                                  </p>
+                                </div>
+                                <div className="bg-orange-50 p-4 rounded-lg">
+                                  <p className="text-sm font-medium text-orange-700 uppercase tracking-wide">Restante</p>
+                                  <p className="text-xl font-bold text-orange-900 mt-1">
+                                    {formatCurrency(projectPaymentSummaries.reduce((sum, p) => sum + p.remainingBudget, 0))}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Lista de movimentações financeiras (mantida para compatibilidade) */}
                       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                           <h3 className="text-lg font-semibold text-gray-900">
@@ -699,6 +863,14 @@ export default function ClientPortalPage() {
                                         }`}>
                                           {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
                                         </span>
+                                        {entry.projectName && (
+                                          <>
+                                            <span className="text-gray-300">•</span>
+                                            <span className="text-sm font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                              {entry.projectName}
+                                            </span>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </div>

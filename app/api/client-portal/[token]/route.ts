@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { calculateBasicProjectProgress } from '@/lib/progress-utils'
 
 export async function GET(
   request: NextRequest,
@@ -92,7 +93,13 @@ export async function GET(
             description: true,
             amount: true,
             date: true,
-            createdAt: true
+            createdAt: true,
+            project: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
           },
           orderBy: {
             date: 'desc'
@@ -109,16 +116,11 @@ export async function GET(
       const completedMilestones = project.milestones.filter(m => m.completedAt).length
       const completedTasks = project.tasks.filter(t => t.status === 'COMPLETED').length
       
-      // Calculate progress based on milestones and tasks
-      const milestoneProgress = project.milestones.length > 0 
-        ? (completedMilestones / project.milestones.length) * 0.7 // 70% weight for milestones
-        : 0
-      
-      const taskProgress = project.tasks.length > 0 
-        ? (completedTasks / project.tasks.length) * 0.3 // 30% weight for tasks
-        : 0
-      
-      const progress = Math.round((milestoneProgress + taskProgress) * 100)
+      // Calculate progress using the standardized utility function
+      const progress = calculateBasicProjectProgress(
+        project.milestones,
+        project.tasks
+      )
 
       return {
         id: project.id,
@@ -164,14 +166,87 @@ export async function GET(
           amount: financial.amount,
           description: financial.description,
           date: financial.date.toISOString(),
-          createdAt: financial.createdAt.toISOString()
+          createdAt: financial.createdAt.toISOString(),
+          projectId: financial.project?.id || null,
+          projectName: financial.project?.name || null
         }))
+      }
+    })
+
+    // Get client's payments with project information
+    const payments = await prisma.payment.findMany({
+      where: { clientId: client.id },
+      include: {
+        paymentProjects: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                name: true,
+                budget: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        paymentDate: 'desc'
+      }
+    })
+
+    // Transform payments data with project calculations
+    const transformedPayments = payments.map(payment => {
+      const projectPayments = payment.paymentProjects.map(pp => ({
+        projectId: pp.project.id,
+        projectName: pp.project.name,
+        projectBudget: pp.project.budget || 0,
+        amountPaid: pp.amount
+      }))
+
+      // Calculate total distributed amount for this payment
+      const totalDistributed = payment.paymentProjects.reduce((sum, pp) => sum + pp.amount, 0)
+      const remainingAmount = payment.amount - totalDistributed
+
+      return {
+        id: payment.id,
+        amount: payment.amount,
+        description: payment.description,
+        paymentDate: payment.paymentDate.toISOString(),
+        method: payment.method,
+        status: payment.status,
+        totalDistributed,
+        remainingAmount,
+        projectPayments,
+        createdAt: payment.createdAt.toISOString()
+      }
+    })
+
+    // Calculate project payment summaries
+    const projectPaymentSummaries = transformedProjects.map(project => {
+      const projectPayments = payments.flatMap(payment => 
+        payment.paymentProjects
+          .filter(pp => pp.project.id === project.id)
+          .map(pp => pp.amount)
+      )
+      
+      const totalPaid = projectPayments.reduce((sum, amount) => sum + amount, 0)
+      const remainingBudget = (project.budget || 0) - totalPaid
+      
+      return {
+        projectId: project.id,
+        projectName: project.name,
+        budget: project.budget || 0,
+        totalPaid,
+        remainingBudget,
+        paymentPercentage: project.budget ? Math.round((totalPaid / project.budget) * 100) : 0
       }
     })
 
     return NextResponse.json({
       client,
-      projects: transformedProjects
+      projects: transformedProjects,
+      payments: transformedPayments,
+      projectPaymentSummaries
     })
   } catch (error) {
     console.error('Erro ao buscar dados do portal do cliente:', error)

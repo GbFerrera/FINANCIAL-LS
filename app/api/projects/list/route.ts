@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { calculateBasicProjectProgress } from "@/lib/progress-utils"
 
 export async function GET() {
   try {
@@ -72,17 +73,11 @@ export async function GET() {
       const totalTasks = project.tasks.length
       const completedTasks = project.tasks.filter(t => t.completedAt).length
       
-      // Calculate progress based on milestones and tasks
-      let progress = 0
-      if (totalMilestones > 0 && totalTasks > 0) {
-        const milestoneProgress = (completedMilestones / totalMilestones) * 0.6
-        const taskProgress = (completedTasks / totalTasks) * 0.4
-        progress = Math.round((milestoneProgress + taskProgress) * 100)
-      } else if (totalMilestones > 0) {
-        progress = Math.round((completedMilestones / totalMilestones) * 100)
-      } else if (totalTasks > 0) {
-        progress = Math.round((completedTasks / totalTasks) * 100)
-      }
+      // Calculate progress using the standardized utility function
+      const progress = calculateBasicProjectProgress(
+        project.milestones,
+        project.tasks
+      )
 
       return {
         id: project.id,
