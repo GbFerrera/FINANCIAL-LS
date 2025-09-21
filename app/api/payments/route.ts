@@ -130,7 +130,8 @@ export async function POST(request: NextRequest) {
           description: description || `Pagamento recebido de ${client.name}`,
           amount: parseFloat(amount),
           date: new Date(paymentDate),
-          isRecurring: false
+          isRecurring: false,
+          paymentId: payment.id // Vincular entrada financeira ao pagamento
         }
       })
 

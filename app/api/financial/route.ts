@@ -5,6 +5,13 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { FinancialType, RecurringType } from '@prisma/client'
 
+// Schema de validação para distribuição de projetos
+const projectDistributionSchema = z.object({
+  projectId: z.string().min(1, 'ID do projeto é obrigatório'),
+  projectName: z.string().min(1, 'Nome do projeto é obrigatório'),
+  amount: z.number().positive('Valor deve ser positivo')
+})
+
 // Schema de validação para entrada financeira
 const financialEntrySchema = z.object({
   type: z.nativeEnum(FinancialType),
@@ -15,10 +22,12 @@ const financialEntrySchema = z.object({
   isRecurring: z.boolean().default(false),
   recurringType: z.nativeEnum(RecurringType).nullable().optional(),
   projectId: z.string().nullable().optional(),
+  projectDistributions: z.array(projectDistributionSchema).nullable().optional(),
 }).transform((data) => ({
   ...data,
   recurringType: data.recurringType || undefined,
   projectId: data.projectId || undefined,
+  projectDistributions: data.projectDistributions || undefined,
 }))
 
 // GET - Listar entradas financeiras
@@ -103,6 +112,21 @@ export async function GET(request: NextRequest) {
                 }
               }
             }
+          },
+          payment: {
+            select: {
+              id: true,
+              paymentProjects: {
+                include: {
+                  project: {
+                    select: {
+                      id: true,
+                      name: true
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         orderBy: { date: 'desc' },
@@ -124,6 +148,12 @@ export async function GET(request: NextRequest) {
       recurringType: entry.recurringType,
       projectName: entry.project?.name,
       clientName: entry.project?.client?.name,
+      paymentId: entry.paymentId,
+      projectDistributions: entry.payment?.paymentProjects?.map((pp: any) => ({
+        projectId: pp.project.id,
+        projectName: pp.project.name,
+        amount: pp.amount
+      })) || [],
       createdAt: entry.createdAt.toISOString()
     }))
 
@@ -239,6 +269,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validar distribuição de projetos se fornecida
+    if (validatedData.projectDistributions && validatedData.projectDistributions.length > 0) {
+      // Verificar se todos os projetos existem
+      const projectIds = validatedData.projectDistributions.map(d => d.projectId)
+      const projects = await prisma.project.findMany({
+        where: { id: { in: projectIds } }
+      })
+
+      if (projects.length !== projectIds.length) {
+        return NextResponse.json(
+          { error: 'Um ou mais projetos não foram encontrados' },
+          { status: 404 }
+        )
+      }
+
+      // Verificar se a soma das distribuições é igual ao valor total
+      const totalDistributed = validatedData.projectDistributions.reduce((sum, dist) => sum + dist.amount, 0)
+      if (Math.abs(totalDistributed - validatedData.amount) > 0.01) {
+        return NextResponse.json(
+          { error: `A soma das distribuições (${totalDistributed}) deve ser igual ao valor total (${validatedData.amount})` },
+          { status: 400 }
+        )
+      }
+
+      // Não deve ter projectId se tem distribuições
+      if (validatedData.projectId) {
+        return NextResponse.json(
+          { error: 'Não é possível ter projeto único e distribuição de projetos ao mesmo tempo' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Validar recurringType se isRecurring for true
     if (validatedData.isRecurring && !validatedData.recurringType) {
       return NextResponse.json(
@@ -259,31 +322,97 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const entry = await prisma.financialEntry.create({
-      data: {
-        type: validatedData.type,
-        category: validatedData.category,
-        description: validatedData.description,
-        amount: validatedData.amount,
-        date: entryDate,
-        isRecurring: validatedData.isRecurring,
-        recurringType: validatedData.recurringType,
-        projectId: validatedData.projectId,
-      },
-      include: {
-        project: {
-          select: {
-            id: true,
-            name: true,
-            client: {
-              select: {
-                name: true,
+    let entry
+    let payment = null
+
+    // Se há distribuição de projetos, criar um Payment e suas distribuições
+    if (validatedData.projectDistributions && validatedData.projectDistributions.length > 0) {
+      // Buscar o primeiro projeto para obter o cliente (assumindo que todos os projetos são do mesmo cliente)
+      const firstProject = await prisma.project.findUnique({
+        where: { id: validatedData.projectDistributions[0].projectId },
+        include: { client: true }
+      })
+
+      if (!firstProject) {
+        return NextResponse.json(
+          { error: 'Projeto não encontrado' },
+          { status: 404 }
+        )
+      }
+
+      // Criar o Payment
+      payment = await prisma.payment.create({
+        data: {
+          amount: validatedData.amount,
+          description: validatedData.description,
+          paymentDate: entryDate,
+          method: 'BANK_TRANSFER', // Valor padrão, pode ser ajustado conforme necessário
+          status: 'COMPLETED',
+          clientId: firstProject.clientId,
+          paymentProjects: {
+            create: validatedData.projectDistributions.map(dist => ({
+              projectId: dist.projectId,
+              amount: dist.amount
+            }))
+          }
+        },
+        include: {
+          client: true,
+          paymentProjects: {
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  name: true
+                }
               }
             }
           }
         }
-      }
-    })
+      })
+
+      // Criar a entrada financeira sem projeto específico (já que está distribuída)
+      entry = await prisma.financialEntry.create({
+        data: {
+          type: validatedData.type,
+          category: validatedData.category,
+          description: validatedData.description,
+          amount: validatedData.amount,
+          date: entryDate,
+          isRecurring: validatedData.isRecurring,
+          recurringType: validatedData.recurringType,
+          projectId: null, // Não vincula a um projeto específico
+          paymentId: payment.id, // Vincula com o pagamento distribuído
+        }
+      })
+    } else {
+      // Lógica original para entrada sem distribuição
+      entry = await prisma.financialEntry.create({
+        data: {
+          type: validatedData.type,
+          category: validatedData.category,
+          description: validatedData.description,
+          amount: validatedData.amount,
+          date: entryDate,
+          isRecurring: validatedData.isRecurring,
+          recurringType: validatedData.recurringType,
+          projectId: validatedData.projectId,
+        },
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              client: {
+                select: {
+                  name: true,
+                }
+              }
+            }
+          }
+        }
+      })
+    }
 
     // Transformar para o frontend
     const transformedEntry = {
@@ -295,9 +424,15 @@ export async function POST(request: NextRequest) {
       date: entry.date.toISOString(),
       isRecurring: entry.isRecurring,
       recurringType: entry.recurringType,
-      projectName: entry.project?.name,
-      clientName: entry.project?.client?.name,
-      createdAt: entry.createdAt.toISOString()
+      projectName: entry.project?.name || null,
+      clientName: entry.project?.client?.name || (payment?.client?.name) || null,
+      createdAt: entry.createdAt.toISOString(),
+      projectDistributions: payment ? payment.paymentProjects.map(pp => ({
+        projectId: pp.projectId,
+        projectName: pp.project.name,
+        amount: pp.amount
+      })) : (validatedData.projectDistributions || null),
+      paymentId: payment?.id || null
     }
 
     return NextResponse.json(transformedEntry, { status: 201 })

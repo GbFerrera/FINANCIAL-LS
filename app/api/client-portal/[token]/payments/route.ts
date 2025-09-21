@@ -78,7 +78,8 @@ export async function POST(
         description: description.trim(),
         amount: parseFloat(amount),
         date: date ? new Date(date) : new Date(),
-        projectId: projectId || null
+        projectId: projectId || null,
+        paymentId: payment.id // Vincula com o pagamento
       }
     })
 
@@ -156,6 +157,14 @@ export async function GET(
         description: payment.description,
         date: payment.paymentDate.toISOString(),
         createdAt: payment.createdAt.toISOString(),
+        method: payment.method,
+        status: payment.status,
+        projectDistributions: payment.paymentProjects.map(pp => ({
+          projectId: pp.projectId,
+          projectName: pp.project.name,
+          amount: pp.amount
+        })),
+        // Manter compatibilidade com código existente
         projectName: payment.paymentProjects[0]?.project?.name || null
       }))
     })

@@ -106,9 +106,16 @@ export async function PUT(
     const body = await request.json()
     const validatedData = updateFinancialEntrySchema.parse(body)
 
-    // Verificar se a entrada existe
+    // Verificar se a entrada existe e buscar informações do pagamento relacionado
     const existingEntry = await prisma.financialEntry.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        payment: {
+          include: {
+            paymentProjects: true
+          }
+        }
+      }
     })
 
     if (!existingEntry) {
@@ -248,12 +255,28 @@ export async function DELETE(
       )
     }
 
+    // Se a entrada está vinculada a um pagamento, excluir também os PaymentProject relacionados
+    if (existingEntry.paymentId) {
+      // Excluir todos os PaymentProject relacionados ao pagamento
+      await prisma.paymentProject.deleteMany({
+        where: {
+          paymentId: existingEntry.paymentId
+        }
+      })
+
+      // Excluir o pagamento relacionado
+      await prisma.payment.delete({
+        where: { id: existingEntry.paymentId }
+      })
+    }
+
+    // Excluir a entrada financeira
     await prisma.financialEntry.delete({
       where: { id: params.id }
     })
 
     return NextResponse.json(
-      { message: 'Entrada financeira excluída com sucesso' },
+      { message: 'Entrada financeira e registros relacionados excluídos com sucesso' },
       { status: 200 }
     )
   } catch (error) {

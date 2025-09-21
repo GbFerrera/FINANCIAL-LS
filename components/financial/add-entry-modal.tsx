@@ -39,6 +39,7 @@ interface FinancialEntry {
   isRecurring: boolean
   recurringType?: string
   projectName?: string
+  paymentId?: string // Novo campo para vincular com pagamento
   attachments?: Array<{
     id: string
     filename: string
@@ -226,6 +227,16 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Debug: verificar quais campos estão vazios
+    console.log('FormData:', formData)
+    console.log('Campos vazios:', {
+      type: !formData.type,
+      category: !formData.category,
+      description: !formData.description,
+      amount: !formData.amount,
+      date: !formData.date
+    })
+    
     if (!formData.type || !formData.category || !formData.description || !formData.amount || !formData.date) {
       toast.error('Preencha todos os campos obrigatórios')
       return
@@ -406,15 +417,16 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{editingEntry ? 'Editar Entrada Financeira' : 'Nova Entrada Financeira'}</DialogTitle>
           <DialogDescription>
             {editingEntry ? 'Edite os dados da entrada financeira.' : 'Adicione uma nova entrada financeira ao sistema.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex-1 overflow-y-auto pr-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
           {/* Type */}
           <div>
             <Label className="text-sm font-medium">
@@ -523,9 +535,9 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="">
             {/* Date */}
-            <div>
+            <div className="mb-5">
               <Label className="text-sm font-medium">
                 Data *
               </Label>
@@ -588,7 +600,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 // Distribuição entre múltiplos projetos
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">
+                    <Label className="text-sm font-medium text-blue-700">
                       Distribuição por Projetos
                     </Label>
                     <Button
@@ -596,20 +608,29 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       variant="outline"
                       size="sm"
                       onClick={addProjectDistribution}
+                      className="border-blue-200 text-blue-700 hover:bg-blue-50"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Adicionar Projeto
                     </Button>
                   </div>
 
+                  {projectDistributions.length === 0 && (
+                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                      <Plus className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm">Clique em "Adicionar Projeto" para começar a distribuir</p>
+                    </div>
+                  )}
+
                   {projectDistributions.map((distribution, index) => (
-                    <div key={index} className="flex items-center space-x-2 p-3 border rounded-lg">
+                    <div key={index} className="flex items-center space-x-3 p-4 border-2 border-gray-100 rounded-lg hover:border-blue-200 transition-colors bg-white shadow-sm">
                       <div className="flex-1">
+                        <Label className="text-xs text-gray-600 mb-1 block">Projeto</Label>
                         <Select
                           value={distribution.projectId}
                           onValueChange={(value) => updateProjectDistribution(index, 'projectId', value)}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="border-gray-200 focus:border-blue-400">
                             <SelectValue placeholder="Selecione um projeto" />
                           </SelectTrigger>
                           <SelectContent>
@@ -621,7 +642,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="w-32">
+                      <div className="w-36">
+                        <Label className="text-xs text-gray-600 mb-1 block">Valor</Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
                           <Input
@@ -630,45 +652,67 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                             min="0"
                             value={distribution.amount || ''}
                             onChange={(e) => updateProjectDistribution(index, 'amount', parseFloat(e.target.value) || 0)}
-                            className="pl-10"
+                            className="pl-10 border-gray-200 focus:border-blue-400"
                             placeholder="0,00"
                           />
                         </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeProjectDistribution(index)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="pt-5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeProjectDistribution(index)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-9 w-9 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
 
                   {projectDistributions.length > 0 && (
-                    <div className="p-3 bg-gray-50 rounded-lg space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Valor Total:</span>
-                        <span className="font-medium">{formatCurrency(parseFloat(formData.amount) || 0)}</span>
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 space-y-3">
+                      <h4 className="text-sm font-semibold text-blue-800 mb-3">Resumo da Distribuição</h4>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <div className="text-xs text-gray-600 mb-1">Valor Total</div>
+                          <div className="text-lg font-bold text-gray-800">{formatCurrency(parseFloat(formData.amount) || 0)}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-gray-600 mb-1">Distribuído</div>
+                          <div className="text-lg font-bold text-blue-600">{formatCurrency(projectDistributions.reduce((sum, dist) => sum + dist.amount, 0))}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-gray-600 mb-1">Restante</div>
+                          <div className={`text-lg font-bold ${remainingAmount < 0 ? 'text-red-600' : remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                            {formatCurrency(remainingAmount)}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Distribuído:</span>
-                        <span className="font-medium">{formatCurrency(projectDistributions.reduce((sum, dist) => sum + dist.amount, 0))}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Restante:</span>
-                        <span className={`font-medium ${remainingAmount < 0 ? 'text-red-600' : remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                          {formatCurrency(remainingAmount)}
-                        </span>
-                      </div>
+                      
                       {remainingAmount !== 0 && (
-                        <div className="text-xs text-gray-600 mt-1">
-                          {remainingAmount < 0 
-                            ? '⚠️ Valor distribuído excede o total' 
-                            : '⚠️ Ainda há valor para distribuir'
-                          }
+                        <div className={`text-center p-3 rounded-md ${remainingAmount < 0 ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`}>
+                          <div className="flex items-center justify-center space-x-2">
+                            <span className="text-lg">
+                              {remainingAmount < 0 ? '⚠️' : '💡'}
+                            </span>
+                            <span className="text-sm font-medium">
+                              {remainingAmount < 0 
+                                ? 'Valor distribuído excede o total!' 
+                                : 'Ainda há valor para distribuir'
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {remainingAmount === 0 && projectDistributions.length > 0 && (
+                        <div className="text-center p-3 bg-green-100 text-green-800 rounded-md">
+                          <div className="flex items-center justify-center space-x-2">
+                            <span className="text-lg">✅</span>
+                            <span className="text-sm font-medium">Distribuição completa!</span>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -818,6 +862,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
             </Button>
           </div>
         </form>
+        </div>
       </DialogContent>
     </Dialog>
   )

@@ -46,6 +46,12 @@ interface FinancialEntry {
   isRecurring: boolean
   recurringType?: string
   projectName?: string
+  paymentId?: string // Novo campo para vincular com pagamento
+  projectDistributions?: Array<{
+    projectId: string
+    projectName: string
+    amount: number
+  }>
   attachments?: Array<{
     id: string
     filename: string
@@ -375,6 +381,7 @@ export default function FinancialPage() {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredEntries.map((entry) => {
                       const TypeIcon = getTypeIcon(entry.type)
+                      const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
                       return (
                         <tr key={entry.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -390,6 +397,11 @@ export default function FinancialPage() {
                             {entry.isRecurring && (
                               <div className="text-xs text-gray-500">Recorrente</div>
                             )}
+                            {hasDistributions && (
+                              <div className="text-xs text-purple-600 font-medium mt-1">
+                                Distribuído entre {entry.projectDistributions.length} projeto{entry.projectDistributions.length > 1 ? 's' : ''}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {entry.category}
@@ -398,12 +410,32 @@ export default function FinancialPage() {
                             <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
                               {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}
                             </div>
+                            {hasDistributions && (
+                              <div className="mt-2 space-y-1">
+                                {entry.projectDistributions.map((dist, index) => (
+                                  <div key={index} className="text-xs bg-purple-50 px-2 py-1 rounded border border-purple-200">
+                                    <span className="font-medium text-purple-700">{dist.projectName}:</span>
+                                    <span className="text-purple-600 ml-1">{formatCurrency(dist.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(entry.date)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {entry.projectName || '-'}
+                            {hasDistributions ? (
+                              <div className="space-y-1">
+                                {entry.projectDistributions.map((dist, index) => (
+                                  <div key={index} className="text-xs bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                    <span className="text-blue-700 font-medium">{dist.projectName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              entry.projectName || '-'
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex items-center justify-end space-x-2">

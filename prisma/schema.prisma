@@ -188,6 +188,10 @@ model FinancialEntry {
   // Relacionamentos
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id])
+  
+  // Vinculação com pagamento (para entradas geradas a partir de pagamentos distribuídos)
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
 
   @@map("financial_entries")
 }
@@ -208,6 +212,9 @@ model Payment {
   
   // Vinculação com projetos
   paymentProjects PaymentProject[]
+  
+  // Entradas financeiras geradas a partir deste pagamento
+  financialEntries FinancialEntry[]
 
   @@map("payments")
 }

@@ -22,7 +22,9 @@ import {
   TrendingUp,
   TrendingDown,
   Calculator,
-  Bell
+  Bell,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react"
 import toast from "react-hot-toast"
 
@@ -83,6 +85,12 @@ interface ProjectData {
     createdAt: string
     projectId?: string
     projectName?: string
+    paymentId?: string
+    projectDistributions?: Array<{
+      projectId: string
+      projectName: string
+      amount: number
+    }>
   }>
 }
 
@@ -127,6 +135,7 @@ export default function ClientPortalPage() {
   const [projects, setProjects] = useState<ProjectData[]>([])
   const [payments, setPayments] = useState<PaymentData[]>([])
   const [projectPaymentSummaries, setProjectPaymentSummaries] = useState<ProjectPaymentSummary[]>([])
+  const [financialEntries, setFinancialEntries] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'files' | 'messages' | 'financial'>('overview')
   const [newComment, setNewComment] = useState('')
@@ -135,6 +144,7 @@ export default function ClientPortalPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [hasNewMessages, setHasNewMessages] = useState(false)
+  const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
 
   // Calculate payment summaries from projects and financial entries
   const calculatePaymentSummaries = (projects: ProjectData[], payments: PaymentData[]) => {
@@ -205,6 +215,7 @@ export default function ClientPortalPage() {
       setClient(data.client)
       setProjects(data.projects)
       setPayments(data.payments || [])
+      setFinancialEntries(data.financialEntries || [])
       
       // Calculate payment summaries from the data we received
       const calculatedSummaries = calculatePaymentSummaries(
@@ -340,6 +351,16 @@ export default function ClientPortalPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(value)
+  }
+
+  const toggleEntryExpansion = (entryId: string) => {
+    const newExpanded = new Set(expandedEntries)
+    if (newExpanded.has(entryId)) {
+      newExpanded.delete(entryId)
+    } else {
+      newExpanded.add(entryId)
+    }
+    setExpandedEntries(newExpanded)
   }
 
   const formatDate = (dateString: string) => {
@@ -640,7 +661,7 @@ export default function ClientPortalPage() {
                   
                   const allFinancials = selectedProjectId
                     ? (projectData?.financialEntries || [])
-                    : projects.flatMap(p => p.financialEntries || [])
+                    : financialEntries
                   
                   const totalIncome = allFinancials
                     .filter(entry => entry.type === 'INCOME')
@@ -836,54 +857,118 @@ export default function ClientPortalPage() {
                               <p className="text-gray-500">Não há registros financeiros para o período selecionado.</p>
                             </div>
                           ) : (
-                            allFinancials.map((entry) => (
-                              <div key={entry.id} className="px-6 py-5 hover:bg-gray-50 transition-colors duration-150">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-4">
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                                      entry.type === 'INCOME' 
-                                        ? 'bg-green-100 border-2 border-green-200' 
-                                        : 'bg-red-100 border-2 border-red-200'
-                                    }`}>
-                                      {entry.type === 'INCOME' ? (
-                                        <TrendingUp className="h-6 w-6 text-green-600" />
-                                      ) : (
-                                        <TrendingDown className="h-6 w-6 text-red-600" />
-                                      )}
-                                    </div>
-                                    <div>
-                                      <h4 className="text-base font-semibold text-gray-900">{entry.description}</h4>
-                                      <div className="flex items-center space-x-2 mt-1">
-                                        <span className="text-sm text-gray-500">{formatDate(entry.date)}</span>
-                                        <span className="text-gray-300">•</span>
-                                        <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                            allFinancials.map((entry) => {
+                              const isExpanded = expandedEntries.has(entry.id)
+                              const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
+                              
+                              return (
+                                <div key={entry.id} className="border-b border-gray-100 last:border-b-0">
+                                  <div className="px-6 py-5 hover:bg-gray-50 transition-colors duration-150">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center space-x-4">
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
                                           entry.type === 'INCOME' 
-                                            ? 'bg-green-100 text-green-700' 
-                                            : 'bg-red-100 text-red-700'
+                                            ? 'bg-green-100 border-2 border-green-200' 
+                                            : 'bg-red-100 border-2 border-red-200'
                                         }`}>
-                                          {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
-                                        </span>
-                                        {entry.projectName && (
-                                          <>
+                                          {entry.type === 'INCOME' ? (
+                                            <TrendingUp className="h-6 w-6 text-green-600" />
+                                          ) : (
+                                            <TrendingDown className="h-6 w-6 text-red-600" />
+                                          )}
+                                        </div>
+                                        <div className="flex-1">
+                                          <div className="flex items-center space-x-2">
+                                            <h4 className="text-base font-semibold text-gray-900">{entry.description}</h4>
+                                            {hasDistributions && (
+                                              <button
+                                                onClick={() => toggleEntryExpansion(entry.id)}
+                                                className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+                                                title={isExpanded ? "Recolher distribuição" : "Ver distribuição por projetos"}
+                                              >
+                                                {isExpanded ? (
+                                                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                                                ) : (
+                                                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                                                )}
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div className="flex items-center space-x-2 mt-1">
+                                            <span className="text-sm text-gray-500">{formatDate(entry.date)}</span>
                                             <span className="text-gray-300">•</span>
-                                            <span className="text-sm font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                              {entry.projectName}
+                                            <span className={`text-sm font-medium px-2 py-1 rounded-full ${
+                                              entry.type === 'INCOME' 
+                                                ? 'bg-green-100 text-green-700' 
+                                                : 'bg-red-100 text-red-700'
+                                            }`}>
+                                              {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
                                             </span>
-                                          </>
+                                            {entry.projectName && !hasDistributions && (
+                                              <>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="text-sm font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                                  {entry.projectName}
+                                                </span>
+                                              </>
+                                            )}
+                                            {hasDistributions && (
+                                              <>
+                                                <span className="text-gray-300">•</span>
+                                                <span className="text-sm font-medium px-2 py-1 rounded-full bg-purple-100 text-purple-700">
+                                                  Distribuído entre {entry.projectDistributions?.length || 0} projeto{(entry.projectDistributions?.length || 0) > 1 ? 's' : ''}
+                                                </span>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className={`text-xl font-bold ${
+                                          entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                                        }`}>
+                                          {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(entry.amount)}
+                                        </p>
+                                        {hasDistributions && (
+                                          <div className="mt-2 space-y-1">
+                                            {entry.projectDistributions?.map((dist, index) => (
+                                              <div key={index} className="text-xs bg-purple-50 px-2 py-1 rounded border border-purple-200">
+                                                <span className="font-medium text-purple-700">{dist.projectName}:</span>
+                                                <span className="text-purple-600 ml-1">{formatCurrency(dist.amount)}</span>
+                                              </div>
+                                            ))}
+                                          </div>
                                         )}
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="text-right">
-                                    <p className={`text-xl font-bold ${
-                                      entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
-                                    }`}>
-                                      {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(entry.amount)}
-                                    </p>
-                                  </div>
+                                  
+                                  {/* Distribuições expandidas */}
+                                  {hasDistributions && isExpanded && (
+                                    <div className="px-6 pb-4 bg-gray-50">
+                                      <div className="border-l-2 border-purple-200 pl-4">
+                                        <h5 className="text-sm font-medium text-gray-700 mb-3">Distribuição por Projetos:</h5>
+                                        <div className="space-y-2">
+                                          {entry.projectDistributions?.map((dist, index) => (
+                                            <div key={index} className="flex items-center justify-between py-2 px-3 bg-white rounded-md border border-gray-200">
+                                              <div className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                                <span className="text-sm font-medium text-gray-900">{dist.projectName}</span>
+                                              </div>
+                                              <span className={`text-sm font-semibold ${
+                                                entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                                              }`}>
+                                                {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(dist.amount)}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            ))
+                              )
+                            })
                           )}
                         </div>
                       </div>

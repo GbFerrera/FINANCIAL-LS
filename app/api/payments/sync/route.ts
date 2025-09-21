@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
               description: payment.description || `Pagamento recebido de ${payment.client.name}`,
               amount: payment.amount,
               date: payment.paymentDate,
-              isRecurring: false
+              isRecurring: false,
+              paymentId: payment.id // Vincular entrada financeira ao pagamento
             }
           })
 

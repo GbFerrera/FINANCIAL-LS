@@ -85,29 +85,64 @@ export async function GET(
           orderBy: {
             createdAt: 'asc'
           }
-        },
-        financials: {
-          select: {
-            id: true,
-            type: true,
-            description: true,
-            amount: true,
-            date: true,
-            createdAt: true,
-            project: {
-              select: {
-                id: true,
-                name: true
-              }
-            }
-          },
-          orderBy: {
-            date: 'desc'
-          }
         }
       },
       orderBy: {
         createdAt: 'desc'
+      }
+    })
+
+    // Get all financial entries related to this client
+    const clientProjectIds = projects.map(p => p.id)
+    
+    const allFinancialEntries = await prisma.financialEntry.findMany({
+      where: {
+        OR: [
+          // Entradas vinculadas diretamente aos projetos do cliente
+          {
+            projectId: {
+              in: clientProjectIds
+            }
+          },
+          // Entradas com pagamentos que têm distribuições para projetos do cliente
+          {
+            payment: {
+              paymentProjects: {
+                some: {
+                  projectId: {
+                    in: clientProjectIds
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        payment: {
+          select: {
+            id: true,
+            paymentProjects: {
+              include: {
+                project: {
+                  select: {
+                    id: true,
+                    name: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        date: 'desc'
       }
     })
 
@@ -159,19 +194,27 @@ export async function GET(
           type: comment.type,
           createdAt: comment.createdAt.toISOString(),
           authorName: comment.author?.name || null
-        })),
-        financialEntries: project.financials.map(financial => ({
-          id: financial.id,
-          type: financial.type,
-          amount: financial.amount,
-          description: financial.description,
-          date: financial.date.toISOString(),
-          createdAt: financial.createdAt.toISOString(),
-          projectId: financial.project?.id || null,
-          projectName: financial.project?.name || null
         }))
       }
     })
+
+    // Transform all financial entries for the client
+    const transformedFinancialEntries = allFinancialEntries.map(financial => ({
+      id: financial.id,
+      type: financial.type,
+      amount: financial.amount,
+      description: financial.description,
+      date: financial.date.toISOString(),
+      createdAt: financial.createdAt.toISOString(),
+      projectId: financial.project?.id || null,
+      projectName: financial.project?.name || null,
+      paymentId: financial.paymentId,
+      projectDistributions: financial.payment?.paymentProjects?.map((pp: any) => ({
+        projectId: pp.project.id,
+        projectName: pp.project.name,
+        amount: pp.amount
+      })) || []
+    }))
 
     // Get client's payments with project information
     const payments = await prisma.payment.findMany({
@@ -191,6 +234,34 @@ export async function GET(
       },
       orderBy: {
         paymentDate: 'desc'
+      }
+    })
+
+    // Get financial entries that represent single-project payments (paymentId is null and projectId is not null)
+    const singleProjectPayments = await prisma.financialEntry.findMany({
+      where: {
+        AND: [
+          { paymentId: null },
+          { projectId: { not: null } },
+          { type: 'INCOME' }, // Assumindo que pagamentos são do tipo INCOME
+          {
+            project: {
+              clientId: client.id
+            }
+          }
+        ]
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            budget: true
+          }
+        }
+      },
+      orderBy: {
+        date: 'desc'
       }
     })
 
@@ -217,16 +288,45 @@ export async function GET(
         totalDistributed,
         remainingAmount,
         projectPayments,
-        createdAt: payment.createdAt.toISOString()
+        createdAt: payment.createdAt.toISOString(),
+        isFromFinancialEntry: false
       }
     })
 
+    // Transform single-project payments from financial entries
+    const transformedSingleProjectPayments = singleProjectPayments.map(entry => {
+      const projectPayments = [{
+        projectId: entry.project!.id,
+        projectName: entry.project!.name,
+        projectBudget: entry.project!.budget || 0,
+        amountPaid: entry.amount
+      }]
+
+      return {
+        id: entry.id,
+        amount: entry.amount,
+        description: entry.description,
+        paymentDate: entry.date.toISOString(),
+        method: 'BANK_TRANSFER', // Valor padrão para entradas financeiras
+        status: 'COMPLETED',
+        totalDistributed: entry.amount,
+        remainingAmount: 0,
+        projectPayments,
+        createdAt: entry.createdAt.toISOString(),
+        isFromFinancialEntry: true
+      }
+    })
+
+    // Combine both types of payments and sort by date
+    const allPayments = [...transformedPayments, ...transformedSingleProjectPayments]
+      .sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
+
     // Calculate project payment summaries
     const projectPaymentSummaries = transformedProjects.map(project => {
-      const projectPayments = payments.flatMap(payment => 
-        payment.paymentProjects
-          .filter(pp => pp.project.id === project.id)
-          .map(pp => pp.amount)
+      const projectPayments = allPayments.flatMap(payment => 
+        payment.projectPayments
+          .filter(pp => pp.projectId === project.id)
+          .map(pp => pp.amountPaid)
       )
       
       const totalPaid = projectPayments.reduce((sum, amount) => sum + amount, 0)
@@ -245,8 +345,9 @@ export async function GET(
     return NextResponse.json({
       client,
       projects: transformedProjects,
-      payments: transformedPayments,
-      projectPaymentSummaries
+      payments: allPayments,
+      projectPaymentSummaries,
+      financialEntries: transformedFinancialEntries
     })
   } catch (error) {
     console.error('Erro ao buscar dados do portal do cliente:', error)
