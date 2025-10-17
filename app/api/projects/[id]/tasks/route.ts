@@ -20,7 +20,7 @@ const taskSchema = z.object({
   endTime: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable().transform(val => val === '' ? null : val),
   milestoneId: z.string().optional().nullable().transform(val => val === '' ? null : val),
-  estimatedHours: z.number().optional(),
+  estimatedMinutes: z.number().optional(),
 })
 
 // POST - Criar nova tarefa
@@ -87,11 +87,11 @@ export async function POST(
         status: validatedData.status,
         priority: validatedData.priority,
         dueDate: validatedData.dueDate ? new Date(validatedData.dueDate) : null,
-        startTime: validatedData.startTime ? new Date(validatedData.startTime) : null,
+        startTime: validatedData.startTime,
         endTime: validatedData.endTime ? new Date(validatedData.endTime) : null,
         assigneeId: validatedData.assigneeId,
         milestoneId: validatedData.milestoneId,
-        estimatedHours: validatedData.estimatedHours,
+        estimatedMinutes: validatedData.estimatedMinutes,
         projectId: params.id
       },
       include: {

@@ -20,23 +20,21 @@ export async function GET(
       )
     }
 
-    // Buscar usuário pelo token usando query raw
-    const users = await prisma.$queryRaw`
-      SELECT id, name, email, role, avatar 
-      FROM users 
-      WHERE "accessToken" = ${token}
-    ` as Array<{
-      id: string;
-      name: string;
-      email: string;
-      role: string;
-      avatar: string | null;
-    }>
-    const user = users[0]
+    // Buscar usuário pelo token
+    const user = await prisma.user.findUnique({
+      where: { accessToken: token },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatar: true
+      }
+    })
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Token inválido ou expirado' },
+        { error: 'Token de acesso inválido' },
         { status: 401 }
       )
     }
@@ -91,8 +89,8 @@ export async function GET(
         dueDate: true,
         startTime: true,
         endTime: true,
-        estimatedHours: true,
-        actualHours: true,
+        estimatedMinutes: true,
+        actualMinutes: true,
         createdAt: true,
         updatedAt: true,
         project: {
@@ -143,8 +141,8 @@ export async function GET(
         status: true,
         startTime: true,
         endTime: true,
-        estimatedHours: true,
-        actualHours: true,
+        estimatedMinutes: true,
+        actualMinutes: true,
         completedAt: true
       }
     })
@@ -153,7 +151,7 @@ export async function GET(
       totalTasks: allUserTasks.length,
       completedTasks: allUserTasks.filter(t => t.status === 'COMPLETED').length,
       totalEstimatedHours: allUserTasks.reduce((sum, task) => sum + calculateEstimatedTime(task), 0),
-      totalActualHours: allUserTasks.reduce((sum, task) => sum + (task.actualHours || 0), 0),
+      totalActualHours: allUserTasks.reduce((sum, task) => sum + (task.actualMinutes || 0), 0),
       efficiency: 0
     }
 
@@ -174,7 +172,7 @@ export async function GET(
         inProgress: categorizedTasks.inProgress.length,
         completed: categorizedTasks.completed.length,
         totalEstimatedHours: tasks.reduce((sum, task) => sum + calculateEstimatedTime(task), 0),
-        totalActualHours: tasks.reduce((sum, task) => sum + (task.actualHours || 0), 0)
+        totalActualHours: tasks.reduce((sum, task) => sum + (task.actualMinutes || 0), 0)
       },
       stats
     })
@@ -255,7 +253,7 @@ export async function PATCH(
         id: true,
         title: true,
         status: true,
-        actualHours: true,
+        actualMinutes: true,
         completedAt: true
       }
     })

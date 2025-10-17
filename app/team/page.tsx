@@ -22,7 +22,8 @@ import {
   Trash2,
   Shield,
   Clock,
-  CheckCircle
+  CheckCircle,
+  BarChart3
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Input } from "@/components/ui/input"
@@ -265,6 +266,13 @@ export default function TeamPage() {
             </p>
           </div>
           <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => router.push('/team/performance')} 
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Performance
+            </button>
             <button 
               onClick={() => router.push('/team/chat')} 
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"

@@ -64,7 +64,7 @@ export async function GET(
             status: true,
             priority: true,
             dueDate: true,
-            estimatedHours: true,
+            estimatedMinutes: true,
             startTime: true,
             endTime: true,
             milestone: {

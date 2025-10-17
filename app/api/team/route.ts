@@ -42,30 +42,35 @@ export async function GET(request: NextRequest) {
       where.role = role
     }
 
-    // Usar query raw para incluir accessToken
-    const usersRaw = await prisma.$queryRaw`
-      SELECT 
-        id, name, email, role, avatar, "accessToken", 
-        "createdAt" as "joinedAt", "updatedAt" as "lastActive"
-      FROM users
-      ORDER BY "createdAt" DESC
-      LIMIT ${limit} OFFSET ${skip}
-    ` as Array<{
-      id: string;
-      name: string;
-      email: string;
-      role: string;
-      avatar: string | null;
-      accessToken: string | null;
-      joinedAt: Date;
-      lastActive: Date;
-    }>
+    // Buscar usuários usando Prisma ORM
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatar: true,
+        accessToken: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit
+    })
 
     const total = await prisma.user.count({ where })
-    const users = usersRaw
+    
+    // Mapear para o formato esperado
+    const formattedUsers = users.map(user => ({
+      ...user,
+      joinedAt: user.createdAt,
+      lastActive: user.updatedAt
+    }))
 
     return NextResponse.json({
-      users,
+      users: formattedUsers,
       pagination: {
         page,
         limit,

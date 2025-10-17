@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react"
 import { Toaster } from "react-hot-toast"
+import { WebSocketProvider } from "@/contexts/WebSocketContext"
 
 interface ProvidersProps {
   children: React.ReactNode
@@ -10,7 +11,9 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <SessionProvider>
-      {children}
+      <WebSocketProvider>
+        {children}
+      </WebSocketProvider>
       <Toaster
         position="top-right"
         toastOptions={{

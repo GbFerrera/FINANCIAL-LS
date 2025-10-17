@@ -17,7 +17,13 @@ import {
   Bell,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Kanban,
+  Target,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Activity
 } from "lucide-react"
 
 interface DashboardLayoutProps {
@@ -26,10 +32,21 @@ interface DashboardLayoutProps {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Projetos", href: "/projects", icon: FolderOpen },
+  { 
+    name: "Projetos", 
+    href: "/projects", 
+    icon: FolderOpen,
+    submenu: [
+      { name: "Todos os Projetos", href: "/projects", icon: FolderOpen },
+      { name: "Gestão Scrum", href: "/projects/scrum", icon: Kanban },
+      { name: "Sprints", href: "/projects/sprints", icon: Target },
+      { name: "Backlog", href: "/projects/backlog", icon: Calendar }
+    ]
+  },
   { name: "Clientes", href: "/clients", icon: Building2 },
   { name: "Financeiro", href: "/financial", icon: DollarSign },
   { name: "Equipe", href: "/team", icon: Users },
+  { name: "Supervisor", href: "/supervisor/dashboard", icon: Activity },
   { name: "Relatórios", href: "/reports", icon: BarChart3 },
   { name: "Configurações", href: "/settings", icon: Settings },
 ]
@@ -177,11 +194,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const router = useRouter()
   const [currentPath, setCurrentPath] = useState('')
+  const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
   // Use useEffect to set the current path only on the client side
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCurrentPath(window.location.pathname)
+      
+      // Auto-expand menu if current path matches submenu item
+      navigation.forEach(item => {
+        if (item.submenu) {
+          const hasActiveSubmenu = item.submenu.some(subItem => 
+            window.location.pathname.startsWith(subItem.href)
+          )
+          if (hasActiveSubmenu && !expandedMenus.includes(item.name)) {
+            setExpandedMenus(prev => [...prev, item.name])
+          }
+        }
+      })
     }
   }, [])
 
@@ -190,6 +220,16 @@ function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean
     if (onNavigate) {
       onNavigate()
     }
+  }
+
+  const toggleSubmenu = (menuName: string) => {
+    if (collapsed) return // Não permitir expansão quando sidebar está colapsada
+    
+    setExpandedMenus(prev => 
+      prev.includes(menuName) 
+        ? prev.filter(name => name !== menuName)
+        : [...prev, menuName]
+    )
   }
 
   return (
@@ -207,24 +247,80 @@ function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean
         <nav className="flex-1 px-2 space-y-1">
           {navigation.map((item) => {
             const isActive = currentPath === item.href
+            const hasSubmenu = item.submenu && item.submenu.length > 0
+            const isExpanded = expandedMenus.includes(item.name)
+            const hasActiveSubmenu = hasSubmenu && item.submenu?.some(subItem => 
+              currentPath.startsWith(subItem.href)
+            )
+
             return (
-              <button
-                key={item.name}
-                onClick={() => handleNavigation(item.href)}
-                className={`${
-                  isActive
-                    ? 'bg-indigo-50 border-indigo-500 text-indigo-700'
-                    : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'pl-2 pr-2'} py-2 border-l-4 text-sm font-medium transition-colors`}
-                {...(collapsed ? { title: item.name } : {})}
-              >
-                <item.icon
+              <div key={item.name}>
+                {/* Menu principal */}
+                <button
+                  onClick={() => {
+                    if (hasSubmenu && !collapsed) {
+                      toggleSubmenu(item.name)
+                    } else {
+                      handleNavigation(item.href)
+                    }
+                  }}
                   className={`${
-                    isActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'
-                  } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-6 w-6`}
-                />
-                {!collapsed && item.name}
-              </button>
+                    isActive || hasActiveSubmenu
+                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700'
+                      : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'pl-2 pr-2'} py-2 border-l-4 text-sm font-medium transition-colors`}
+                  {...(collapsed ? { title: item.name } : {})}
+                >
+                  <item.icon
+                    className={`${
+                      isActive || hasActiveSubmenu ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'
+                    } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-6 w-6`}
+                  />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left">{item.name}</span>
+                      {hasSubmenu && (
+                        <div className="ml-2">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </button>
+
+                {/* Submenu */}
+                {hasSubmenu && !collapsed && isExpanded && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {item.submenu?.map((subItem) => {
+                      const isSubActive = currentPath === subItem.href || 
+                        (subItem.href !== '/projects' && currentPath.startsWith(subItem.href))
+                      
+                      return (
+                        <button
+                          key={subItem.name}
+                          onClick={() => handleNavigation(subItem.href)}
+                          className={`${
+                            isSubActive
+                              ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-transparent'
+                          } group w-full flex items-center pl-2 pr-2 py-2 border-l-4 text-sm transition-colors`}
+                        >
+                          <subItem.icon
+                            className={`${
+                              isSubActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'
+                            } mr-3 flex-shrink-0 h-5 w-5`}
+                          />
+                          {subItem.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             )
           })}
         </nav>

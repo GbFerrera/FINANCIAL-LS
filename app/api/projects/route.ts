@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const status = searchParams.get('status')
     const clientId = searchParams.get('clientId')
+    const includeScrum = searchParams.get('includeScrum') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
     const skip = (page - 1) * limit
@@ -65,6 +66,27 @@ export async function GET(request: NextRequest) {
               company: true,
             }
           },
+          ...(includeScrum && {
+            sprints: {
+              include: {
+                tasks: {
+                  select: {
+                    id: true,
+                    storyPoints: true,
+                    status: true
+                  }
+                }
+              }
+            },
+            tasks: {
+              where: { sprintId: null }, // Apenas tarefas do backlog
+              select: {
+                id: true,
+                storyPoints: true,
+                status: true
+              }
+            }
+          }),
           _count: {
             select: {
               tasks: true,
