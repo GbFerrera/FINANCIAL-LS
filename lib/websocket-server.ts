@@ -1,4 +1,4 @@
-import { WebSocket, WebSocketServer } from 'ws'
+import { WebSocketServer, WebSocket } from 'ws'
 import { IncomingMessage } from 'http'
 import { parse } from 'url'
 
@@ -46,7 +46,6 @@ class WebSocketManager {
       // Adicionar cliente à lista
       this.clients.set(userId, ws)
 
-      console.log(`WebSocket conectado: ${userId} (${userRole})`)
 
       // Heartbeat
       ws.on('pong', () => {
@@ -64,10 +63,9 @@ class WebSocketManager {
 
       ws.on('close', () => {
         this.clients.delete(userId)
-        console.log(`WebSocket desconectado: ${userId}`)
       })
 
-      ws.on('error', (error) => {
+      ws.on('error', (error: Error) => {
         console.error(`Erro WebSocket ${userId}:`, error)
       })
     })
