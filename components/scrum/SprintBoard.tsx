@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Calendar, Target, Users, Filter } from 'lucide-react'
+import { Plus, Calendar, Target, Users, Filter, BarChart3, Clock, ChevronDown, ChevronRight, CheckSquare, Square, ArrowRight } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { TaskCard } from './TaskCard'
 import { SprintHeader } from './SprintHeader'
@@ -68,6 +68,10 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
   const [milestones, setMilestones] = useState<any[]>([])
   const [selectedMilestone, setSelectedMilestone] = useState<string>('all')
   const [filteredBacklog, setFilteredBacklog] = useState<Task[]>([])
+  const [expandedCollaborators, setExpandedCollaborators] = useState<{[key: string]: boolean}>({})
+  const [showDailyProgress, setShowDailyProgress] = useState(false)
+  const [selectedTasks, setSelectedTasks] = useState<string[]>([])
+  const [selectionMode, setSelectionMode] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -243,6 +247,63 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
     setShowEditSprintStatus(true)
   }
 
+  // Funções para seleção múltipla de tarefas
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTasks(prev => 
+      prev.includes(taskId) 
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    )
+  }
+
+  const selectAllTasks = () => {
+    setSelectedTasks(filteredBacklog.map(task => task.id))
+  }
+
+  const clearSelection = () => {
+    setSelectedTasks([])
+  }
+
+  const moveSelectedTasksToSprint = async (targetSprintId: string) => {
+    if (selectedTasks.length === 0) return
+
+    try {
+      // Buscar a sprint de destino para saber quantas tarefas já tem
+      const targetSprint = sprints.find(s => s.id === targetSprintId)
+      let destinationIndex = targetSprint ? targetSprint.tasks.length : 0
+
+      // Mover cada tarefa selecionada para a sprint
+      for (const taskId of selectedTasks) {
+        const response = await fetch(`/api/tasks/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId,
+            destinationSprintId: targetSprintId,
+            destinationIndex: destinationIndex,
+            sourceSprintId: null // Vem do backlog
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error('Erro na API:', errorData)
+          throw new Error(errorData.error || 'Erro ao mover tarefa')
+        }
+
+        destinationIndex++ // Incrementar para próxima tarefa
+      }
+
+      toast.success(`${selectedTasks.length} tarefas movidas para a sprint`)
+      clearSelection()
+      setSelectionMode(false)
+      fetchData() // Recarregar dados
+    } catch (error) {
+      console.error('Erro ao mover tarefas:', error)
+      toast.error(`Erro ao mover tarefas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
+    }
+  }
+
   const getSprintProgress = (sprint: Sprint) => {
     const completedTasks = sprint.tasks.filter(task => task.status === 'COMPLETED').length
     const totalTasks = sprint.tasks.length
@@ -256,6 +317,75 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
       .reduce((sum, task) => sum + (task.storyPoints || 0), 0)
     
     return { total: totalPoints, completed: completedPoints }
+  }
+
+  // Função para gerar os dias da sprint (sem problemas de fuso horário)
+  const getSprintDays = (sprint: Sprint) => {
+    const startDateStr = sprint.startDate.split('T')[0] // YYYY-MM-DD
+    const endDateStr = sprint.endDate.split('T')[0] // YYYY-MM-DD
+    
+    const [startYear, startMonth, startDay] = startDateStr.split('-').map(Number)
+    const [endYear, endMonth, endDay] = endDateStr.split('-').map(Number)
+    
+    const startDate = new Date(startYear, startMonth - 1, startDay) // Mês é 0-indexed
+    const endDate = new Date(endYear, endMonth - 1, endDay)
+    
+    const days = []
+    
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+      days.push(new Date(date))
+    }
+    
+    return days
+  }
+
+  // Função para calcular progresso diário por colaborador
+  const getDailyProgressByCollaborator = (sprint: Sprint) => {
+    const days = getSprintDays(sprint)
+    
+    return days.map(day => {
+      const dayStr = day.toISOString().split('T')[0]
+      
+      // Buscar tarefas para este dia
+      const tasksForDay = sprint.tasks.filter(task => {
+        const taskStartDate = task.startDate ? task.startDate.split('T')[0] : null
+        const taskDueDate = task.dueDate ? task.dueDate.split('T')[0] : null
+        return taskStartDate === dayStr || taskDueDate === dayStr
+      })
+      
+      // Agrupar por colaborador
+      const collaborators = [...new Set(tasksForDay.map(task => task.assignee?.id).filter(Boolean))]
+      
+      const collaboratorProgress = collaborators.map(collaboratorId => {
+        const collaboratorTasks = tasksForDay.filter(task => task.assignee?.id === collaboratorId)
+        const collaborator = collaboratorTasks[0]?.assignee
+        
+        const completedTasks = collaboratorTasks.filter(task => task.status === 'COMPLETED')
+        const inProgressTasks = collaboratorTasks.filter(task => task.status === 'IN_PROGRESS')
+        const todoTasks = collaboratorTasks.filter(task => task.status === 'TODO')
+        
+        return {
+          collaboratorId,
+          collaboratorName: collaborator?.name || 'Sem responsável',
+          collaboratorEmail: collaborator?.email || '',
+          tasks: collaboratorTasks,
+          total: collaboratorTasks.length,
+          completed: completedTasks.length,
+          inProgress: inProgressTasks.length,
+          todo: todoTasks.length,
+          completedTasks,
+          inProgressTasks,
+          todoTasks
+        }
+      }).filter(c => c.total > 0)
+      
+      return {
+        date: day,
+        dateStr: dayStr,
+        collaborators: collaboratorProgress,
+        totalTasks: tasksForDay.length
+      }
+    }).filter(day => day.collaborators.length > 0)
   }
 
   if (loading) {
@@ -377,6 +507,179 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                       )}
                     </Droppable>
                   </CardContent>
+                  
+                  {/* Visualização Diária por Colaborador */}
+                  <CardContent className="pt-0">
+                    <div className="border-t pt-4">
+                      <div 
+                        className="flex items-center gap-2 mb-4 cursor-pointer hover:bg-gray-50 p-2 rounded-md -m-2"
+                        onClick={() => setShowDailyProgress(!showDailyProgress)}
+                      >
+                        {showDailyProgress ? (
+                          <ChevronDown className="w-5 h-5 text-gray-500" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5 text-gray-500" />
+                        )}
+                        <Users className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-semibold text-gray-900">Progresso Diário por Colaborador</h3>
+                        <Badge variant="outline" className="ml-auto text-xs">
+                          {showDailyProgress ? 'Clique para fechar' : 'Clique para expandir'}
+                        </Badge>
+                      </div>
+                      
+                      {showDailyProgress && (() => {
+                        const dailyProgress = getDailyProgressByCollaborator(sprint)
+                        
+                        if (dailyProgress.length === 0) {
+                          return (
+                            <div className="text-center py-4 text-gray-500">
+                              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                              <p className="text-sm">Nenhuma tarefa agendada com datas específicas</p>
+                            </div>
+                          )
+                        }
+                        
+                        return (
+                          <div className="space-y-4">
+                            {dailyProgress.map((day: any) => (
+                              <div key={day.dateStr} className="bg-white rounded-lg border p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Calendar className="w-4 h-4 text-gray-600" />
+                                  <span className="font-medium text-gray-900">
+                                    {day.date.toLocaleDateString('pt-BR', { 
+                                      weekday: 'long', 
+                                      day: '2-digit', 
+                                      month: '2-digit' 
+                                    })}
+                                  </span>
+                                  {day.dateStr === new Date().toISOString().split('T')[0] && (
+                                    <Badge variant="default" className="bg-blue-600">Hoje</Badge>
+                                  )}
+                                  <Badge variant="outline" className="ml-auto text-xs">
+                                    {day.totalTasks} tarefas
+                                  </Badge>
+                                </div>
+                                
+                                <div className="space-y-3">
+                                  {day.collaborators.map((collaborator: any) => {
+                                    const collaboratorKey = `${day.dateStr}-${collaborator.collaboratorId}`
+                                    const isExpanded = expandedCollaborators[collaboratorKey]
+                                    
+                                    return (
+                                      <div key={collaborator.collaboratorId} className="bg-gray-50 rounded-md p-3">
+                                        <div 
+                                          className="flex items-center justify-between cursor-pointer"
+                                          onClick={() => setExpandedCollaborators(prev => ({
+                                            ...prev,
+                                            [collaboratorKey]: !prev[collaboratorKey]
+                                          }))}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            {isExpanded ? (
+                                              <ChevronDown className="w-4 h-4 text-gray-500" />
+                                            ) : (
+                                              <ChevronRight className="w-4 h-4 text-gray-500" />
+                                            )}
+                                            <Users className="w-4 h-4 text-blue-600" />
+                                            <span className="font-medium text-sm text-gray-900">
+                                              {collaborator.collaboratorName}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Badge variant="outline" className="text-xs">
+                                              {collaborator.total} tarefas
+                                            </Badge>
+                                            <div className="text-xs text-gray-500">
+                                              {collaborator.total > 0 ? Math.round((collaborator.completed / collaborator.total) * 100) : 0}%
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Resumo sempre visível */}
+                                        <div className="mt-2 flex items-center gap-4 text-xs">
+                                          {collaborator.completed > 0 && (
+                                            <span className="text-green-600">✓ {collaborator.completed}</span>
+                                          )}
+                                          {collaborator.inProgress > 0 && (
+                                            <span className="text-blue-600">⚡ {collaborator.inProgress}</span>
+                                          )}
+                                          {collaborator.todo > 0 && (
+                                            <span className="text-gray-600">○ {collaborator.todo}</span>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Barra de progresso */}
+                                        <div className="mt-2">
+                                          <div className="w-full bg-gray-200 rounded-full h-2">
+                                            <div 
+                                              className="bg-green-500 h-2 rounded-full transition-all duration-300" 
+                                              style={{ 
+                                                width: `${collaborator.total > 0 ? (collaborator.completed / collaborator.total) * 100 : 0}%` 
+                                              }}
+                                            ></div>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Detalhes das tarefas (expansível) */}
+                                        {isExpanded && (
+                                          <div className="mt-3 space-y-2 border-t pt-3">
+                                            {collaborator.tasks
+                                              .sort((a: Task, b: Task) => {
+                                                // Ordenar por horário de início (startTime)
+                                                if (a.startTime && b.startTime) {
+                                                  return a.startTime.localeCompare(b.startTime)
+                                                }
+                                                // Tarefas com horário primeiro
+                                                if (a.startTime && !b.startTime) return -1
+                                                if (!a.startTime && b.startTime) return 1
+                                                
+                                                // Se não tem horário, ordenar por status
+                                                const statusOrder = { 'IN_PROGRESS': 0, 'TODO': 1, 'IN_REVIEW': 2, 'COMPLETED': 3 }
+                                                const aStatus = statusOrder[a.status] ?? 4
+                                                const bStatus = statusOrder[b.status] ?? 4
+                                                if (aStatus !== bStatus) return aStatus - bStatus
+                                                
+                                                // Por último, ordenar por título
+                                                return a.title.localeCompare(b.title)
+                                              })
+                                              .map((task: Task) => (
+                                              <div key={task.id} className="flex items-center justify-between text-xs bg-white rounded p-2">
+                                                <div className="flex items-center gap-2">
+                                                  <div className={`w-2 h-2 rounded-full ${
+                                                    task.status === 'COMPLETED' ? 'bg-green-500' :
+                                                    task.status === 'IN_PROGRESS' ? 'bg-blue-500' :
+                                                    'bg-gray-400'
+                                                  }`}></div>
+                                                  <span className="font-medium truncate max-w-[200px]">
+                                                    {task.title}
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <Badge 
+                                                    variant={task.priority === 'URGENT' ? 'destructive' : 'outline'} 
+                                                    className="text-xs"
+                                                  >
+                                                    {task.priority}
+                                                  </Badge>
+                                                  {task.startTime && (
+                                                    <span className="text-gray-500">{task.startTime}</span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </CardContent>
                 </Card>
               )
             })}
@@ -480,6 +783,65 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                 </Badge>
               </div>
 
+              {/* Controles de Seleção Múltipla */}
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                <Button
+                  variant={selectionMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setSelectionMode(!selectionMode)
+                    if (!selectionMode) clearSelection()
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  {selectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  {selectionMode ? 'Cancelar Seleção' : 'Selecionar Tarefas'}
+                </Button>
+
+                {selectionMode && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllTasks}
+                      disabled={selectedTasks.length === filteredBacklog.length}
+                    >
+                      Selecionar Todas
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearSelection}
+                      disabled={selectedTasks.length === 0}
+                    >
+                      Limpar Seleção
+                    </Button>
+
+                    {selectedTasks.length > 0 && sprints.filter(s => s.status === 'ACTIVE').length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">
+                          {selectedTasks.length} selecionadas
+                        </Badge>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const activeSprint = sprints.find(s => s.status === 'ACTIVE')
+                            if (activeSprint) {
+                              moveSelectedTasksToSprint(activeSprint.id)
+                            }
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                          Mover para Sprint Ativa
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
               {sprintId && sprintProjects.length > 0 && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-600 mb-2">
@@ -528,7 +890,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                       filteredBacklog
                         .sort((a, b) => a.order - b.order)
                         .map((task, index) => (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
+                        <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={selectionMode}>
                           {(provided, snapshot) => (
                             <div
                               ref={provided.innerRef}
@@ -536,13 +898,27 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                               {...provided.dragHandleProps}
                               className={`${
                                 snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
-                              }`}
+                              } ${selectionMode ? 'cursor-pointer' : ''}`}
+                              onClick={selectionMode ? () => toggleTaskSelection(task.id) : undefined}
                             >
-                              <TaskCard 
-                                task={task} 
-                                onEdit={handleEditTask}
-                                onDelete={handleDeleteTask}
-                              />
+                              <div className="relative">
+                                {selectionMode && (
+                                  <div className="absolute top-2 left-2 z-10">
+                                    {selectedTasks.includes(task.id) ? (
+                                      <CheckSquare className="w-5 h-5 text-blue-600 bg-white rounded border-2 border-blue-600" />
+                                    ) : (
+                                      <Square className="w-5 h-5 text-gray-400 bg-white rounded border-2 border-gray-300" />
+                                    )}
+                                  </div>
+                                )}
+                                <div className={`${selectionMode && selectedTasks.includes(task.id) ? 'ring-2 ring-blue-500 ring-offset-2' : ''} rounded-lg`}>
+                                  <TaskCard 
+                                    task={task} 
+                                    onEdit={handleEditTask}
+                                    onDelete={handleDeleteTask}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           )}
                         </Draggable>

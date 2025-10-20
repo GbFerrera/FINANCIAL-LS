@@ -113,10 +113,37 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
               tasksByDay[taskDay].push(task)
             }
           } else {
-            // Se não tem data específica, colocar na segunda-feira
-            const mondayKey = format(weekDays[1], 'yyyy-MM-dd')
-            tasksByDay[mondayKey].push(task)
+            // Se não tem data específica, colocar no domingo (primeiro dia da semana)
+            const sundayKey = format(weekDays[0], 'yyyy-MM-dd')
+            tasksByDay[sundayKey].push(task)
           }
+        })
+
+        // Ordenar tarefas por horário de início em cada dia
+        Object.keys(tasksByDay).forEach(dayKey => {
+          tasksByDay[dayKey].sort((a, b) => {
+            // Primeiro por status (IN_PROGRESS primeiro)
+            const statusOrder = { 'IN_PROGRESS': 0, 'TODO': 1, 'COMPLETED': 2 }
+            const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 3) - 
+                              (statusOrder[b.status as keyof typeof statusOrder] || 3)
+            if (statusDiff !== 0) return statusDiff
+
+            // Depois por horário de início
+            if (a.startTime && b.startTime) {
+              return a.startTime.localeCompare(b.startTime)
+            }
+            if (a.startTime && !b.startTime) return -1
+            if (!a.startTime && b.startTime) return 1
+
+            // Por último por prioridade
+            const priorityOrder = { 'URGENT': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 }
+            const priorityDiff = (priorityOrder[a.priority as keyof typeof priorityOrder] || 4) - 
+                                (priorityOrder[b.priority as keyof typeof priorityOrder] || 4)
+            if (priorityDiff !== 0) return priorityDiff
+
+            // Por último por título (ordem alfabética)
+            return a.title.localeCompare(b.title)
+          })
         })
 
         setWeeklyTasks(tasksByDay)
