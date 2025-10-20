@@ -22,6 +22,22 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { TaskTimer } from './TaskTimer'
 
+// Função para formatar data sem problemas de fuso horário
+const formatDateSafe = (dateString: string) => {
+  // Se a data já está no formato ISO, extrair apenas a parte da data
+  if (dateString.includes('T')) {
+    dateString = dateString.split('T')[0]
+  }
+  
+  // Dividir a data em partes (YYYY-MM-DD)
+  const [year, month, day] = dateString.split('-')
+  
+  // Criar data local sem conversão de fuso horário
+  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  
+  return date.toLocaleDateString('pt-BR')
+}
+
 interface Task {
   id: string
   title: string
@@ -72,7 +88,7 @@ export function TaskListView({ token }: TaskListViewProps) {
     try {
       setLoading(true)
       const endpoint = dateFilter === 'today' 
-        ? `/api/collaborator-portal/${token}/today-tasks`
+        ? `/api/collaborator-portal/${token}/today-tasks-simple`
         : `/api/collaborator-portal/${token}/all-tasks`
       
       const response = await fetch(endpoint)
@@ -348,7 +364,7 @@ export function TaskListView({ token }: TaskListViewProps) {
                             {task.dueDate && (
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
-                                {format(new Date(task.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
+                                {formatDateSafe(task.dueDate)}
                               </span>
                             )}
                             

@@ -20,6 +20,30 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, 
 import { ptBR } from 'date-fns/locale'
 import { TaskTimer } from './TaskTimer'
 
+// Função para formatar data sem problemas de fuso horário
+const formatDateSafe = (dateString: string) => {
+  // Se a data já está no formato ISO, extrair apenas a parte da data
+  if (dateString.includes('T')) {
+    dateString = dateString.split('T')[0]
+  }
+  
+  // Dividir a data em partes (YYYY-MM-DD)
+  const [year, month, day] = dateString.split('-')
+  
+  // Criar data local sem conversão de fuso horário
+  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  
+  return date.toLocaleDateString('pt-BR')
+}
+
+// Função para obter data segura no formato YYYY-MM-DD
+const getDateStringSafe = (dateString: string) => {
+  if (dateString.includes('T')) {
+    return dateString.split('T')[0]
+  }
+  return dateString
+}
+
 interface Task {
   id: string
   title: string
@@ -83,7 +107,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
           // Verificar se a tarefa tem data de início ou vencimento na semana
           const taskDate = task.startDate || task.dueDate
           if (taskDate) {
-            const taskDay = format(new Date(taskDate), 'yyyy-MM-dd')
+            const taskDay = getDateStringSafe(taskDate)
             if (tasksByDay[taskDay]) {
               tasksByDay[taskDay].push(task)
             }

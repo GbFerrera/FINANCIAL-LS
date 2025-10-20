@@ -20,6 +20,39 @@ import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { TaskTimer } from './TaskTimer'
 
+// Função para formatar data sem problemas de fuso horário
+const formatDateSafe = (dateString: string) => {
+  // Se a data já está no formato ISO, extrair apenas a parte da data
+  if (dateString.includes('T')) {
+    dateString = dateString.split('T')[0]
+  }
+  
+  // Dividir a data em partes (YYYY-MM-DD)
+  const [year, month, day] = dateString.split('-')
+  
+  // Criar data local sem conversão de fuso horário
+  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  
+  return date.toLocaleDateString('pt-BR')
+}
+
+// Função para formatar data no padrão dd/MM ou dd/MM/yyyy
+const formatDatePattern = (dateString: string, pattern: 'dd/MM' | 'dd/MM/yyyy') => {
+  // Se a data já está no formato ISO, extrair apenas a parte da data
+  if (dateString.includes('T')) {
+    dateString = dateString.split('T')[0]
+  }
+  
+  // Dividir a data em partes (YYYY-MM-DD)
+  const [year, month, day] = dateString.split('-')
+  
+  if (pattern === 'dd/MM') {
+    return `${day}/${month}`
+  } else {
+    return `${day}/${month}/${year}`
+  }
+}
+
 interface Task {
   id: string
   title: string
@@ -189,7 +222,7 @@ export function SprintView({ token }: SprintViewProps) {
                     <div className="text-right text-sm text-gray-500">
                       <div className="flex items-center gap-1 mb-1">
                         <Calendar className="w-4 h-4" />
-                        {format(new Date(sprint.startDate), 'dd/MM', { locale: ptBR })} - {format(new Date(sprint.endDate), 'dd/MM/yyyy', { locale: ptBR })}
+                        {formatDatePattern(sprint.startDate, 'dd/MM')} - {formatDatePattern(sprint.endDate, 'dd/MM/yyyy')}
                       </div>
                       {daysRemaining >= 0 ? (
                         <span className="text-blue-600">{daysRemaining} dias restantes</span>
@@ -237,7 +270,7 @@ export function SprintView({ token }: SprintViewProps) {
                                 {task.dueDate && (
                                   <span className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
-                                    {format(new Date(task.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
+                                    {formatDateSafe(task.dueDate)}
                                   </span>
                                 )}
                                 {task.estimatedMinutes && (

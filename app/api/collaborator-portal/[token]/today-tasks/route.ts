@@ -32,18 +32,38 @@ export async function GET(
     const startOfToday = startOfDay(today)
     const endOfToday = endOfDay(today)
 
-    // Buscar tarefas de hoje (que têm dueDate hoje ou startDate hoje)
+    console.log('Buscando tarefas para colaborador:', collaborator.id, 'token:', token)
+    console.log('Data de hoje:', today.toISOString(), 'startOfToday:', startOfToday.toISOString(), 'endOfToday:', endOfToday.toISOString())
+
+    // Buscar tarefas relevantes para hoje (critério mais amplo)
     const tasks = await prisma.task.findMany({
       where: {
         assigneeId: collaborator.id,
+        AND: [
+          // Excluir tarefas completadas há mais de 1 dia
+          {
+            NOT: {
+              AND: [
+                { status: 'COMPLETED' },
+                {
+                  updatedAt: {
+                    lt: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24 horas atrás
+                  }
+                }
+              ]
+            }
+          }
+        ],
         OR: [
           {
+            // Tarefas que vencem hoje
             dueDate: {
               gte: startOfToday,
               lte: endOfToday
             }
           },
           {
+            // Tarefas que iniciam hoje
             startDate: {
               gte: startOfToday,
               lte: endOfToday
@@ -52,6 +72,21 @@ export async function GET(
           {
             // Tarefas em progresso (independente da data)
             status: 'IN_PROGRESS'
+          },
+          {
+            // Tarefas TODO sem data específica (backlog disponível)
+            AND: [
+              { status: 'TODO' },
+              { dueDate: null },
+              { startDate: null }
+            ]
+          },
+          {
+            // Tarefas que vencem nos próximos 3 dias
+            dueDate: {
+              gte: startOfToday,
+              lte: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+            }
           },
           {
             // Tarefas que foram trabalhadas hoje (têm time entries de hoje)
@@ -63,6 +98,18 @@ export async function GET(
                 }
               }
             }
+          },
+          {
+            // Tarefas completadas hoje
+            AND: [
+              { status: 'COMPLETED' },
+              {
+                updatedAt: {
+                  gte: startOfToday,
+                  lte: endOfToday
+                }
+              }
+            ]
           }
         ]
       },
@@ -98,6 +145,9 @@ export async function GET(
         { dueDate: 'asc' }
       ]
     })
+
+    console.log('Tarefas encontradas:', tasks.length)
+    console.log('Títulos das tarefas:', tasks.map(t => `${t.title} (${t.status}) - Due: ${t.dueDate} - Start: ${t.startDate}`))
 
     // Calcular tempo trabalhado hoje para cada tarefa
     const tasksWithTodayTime = tasks.map(task => {
