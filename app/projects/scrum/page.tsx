@@ -55,7 +55,7 @@ export default function ScrumOverviewPage() {
   const fetchProjects = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/projects?includeScrum=true')
+      const response = await fetch('/api/projects?includeScrum=true&limit=1000')
       if (response.ok) {
         const data = await response.json()
         // A API retorna { projects: [], pagination: {} }

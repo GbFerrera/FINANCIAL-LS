@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Plus, Calendar, Target, Users } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { TaskCard } from './TaskCard'
 import { SprintHeader } from './SprintHeader'
 import { CreateTaskModal } from './CreateTaskModal'
 import { CreateSprintModal } from './CreateSprintModal'
+import { EditSprintStatusModal } from './EditSprintStatusModal'
 
 interface Task {
   id: string
@@ -41,19 +43,24 @@ interface Sprint {
 
 interface SprintBoardProps {
   projectId: string
+  sprintId?: string
 }
 
-export function SprintBoard({ projectId }: SprintBoardProps) {
+export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [backlog, setBacklog] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [showCreateSprint, setShowCreateSprint] = useState(false)
   const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [sprintProjects, setSprintProjects] = useState<any[]>([])
+  const [showEditSprintStatus, setShowEditSprintStatus] = useState(false)
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
 
   useEffect(() => {
     fetchData()
-  }, [projectId])
+  }, [projectId, sprintId])
 
   const fetchData = async () => {
     try {
@@ -66,11 +73,31 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
         setSprints(Array.isArray(sprintsData) ? sprintsData : [])
       }
       
+      // Buscar projetos da sprint se sprintId for fornecido
+      if (sprintId) {
+        const sprintProjectsResponse = await fetch(`/api/sprints/${sprintId}/projects`)
+        if (sprintProjectsResponse.ok) {
+          const projectsData = await sprintProjectsResponse.json()
+          setSprintProjects(projectsData)
+        }
+      } else {
+        setSprintProjects([])
+      }
+
       // Buscar backlog
       const backlogResponse = await fetch(`/api/backlog?projectId=${projectId}`)
       if (backlogResponse.ok) {
         const backlogData = await backlogResponse.json()
-        setBacklog(Array.isArray(backlogData) ? backlogData : [])
+        let filteredBacklog = Array.isArray(backlogData) ? backlogData : []
+        
+        // Se um sprintId específico for fornecido, filtrar apenas tarefas que precisam ser feitas
+        if (sprintId) {
+          filteredBacklog = filteredBacklog.filter(task => 
+            task.status === 'TODO' || task.status === 'IN_PROGRESS' || task.status === 'IN_REVIEW'
+          )
+        }
+        
+        setBacklog(filteredBacklog)
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
@@ -112,7 +139,41 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
       fetchData()
     } catch (error) {
       console.error('Erro ao mover tarefa:', error)
+      // Recarregar dados em caso de erro
+      fetchData()
     }
+  }
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task)
+    setShowCreateTask(true)
+  }
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao excluir tarefa')
+      }
+
+      toast.success('Tarefa excluída com sucesso!')
+      fetchData() // Recarregar dados
+    } catch (error) {
+      console.error('Erro ao excluir tarefa:', error)
+      toast.error('Erro ao excluir tarefa')
+    }
+  }
+
+  const handleEditSprint = (sprint: Sprint) => {
+    setEditingSprint(sprint)
+    setShowEditSprintStatus(true)
   }
 
   const getSprintProgress = (sprint: Sprint) => {
@@ -211,7 +272,7 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                       sprint={sprint}
                       progress={progress}
                       storyPoints={storyPoints}
-                      onEdit={() => {}}
+                      onEdit={() => handleEditSprint(sprint)}
                     />
                   </CardHeader>
                   <CardContent>
@@ -235,7 +296,11 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                                       snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
                                     }`}
                                   >
-                                    <TaskCard task={task} />
+                                    <TaskCard 
+                                      task={task} 
+                                      onEdit={handleEditTask}
+                                      onDelete={handleDeleteTask}
+                                    />
                                   </div>
                                 )}
                               </Draggable>
@@ -263,7 +328,7 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                       sprint={sprint}
                       progress={progress}
                       storyPoints={storyPoints}
-                      onEdit={() => {}}
+                      onEdit={() => handleEditSprint(sprint)}
                     />
                   </CardHeader>
                   <CardContent>
@@ -287,7 +352,11 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                                       snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
                                     }`}
                                   >
-                                    <TaskCard task={task} />
+                                    <TaskCard 
+                                      task={task} 
+                                      onEdit={handleEditTask}
+                                      onDelete={handleDeleteTask}
+                                    />
                                   </div>
                                 )}
                               </Draggable>
@@ -304,13 +373,32 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
           {/* Backlog */}
           <Card className="border-gray-200">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 flex-wrap">
                 <Target className="w-5 h-5" />
                 Backlog
+                {sprintId && (
+                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-200">
+                    Filtrado: Tarefas pendentes
+                  </Badge>
+                )}
                 <Badge variant="secondary" className="ml-2">
                   {backlog.length} tarefas
                 </Badge>
               </CardTitle>
+              {sprintId && sprintProjects.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Projetos incluídos nesta sprint:</strong>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {sprintProjects.map((project: any) => (
+                      <Badge key={project.id} variant="outline" className="text-xs">
+                        {project.name} - {project.client.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <Droppable droppableId="backlog" direction="horizontal">
@@ -324,8 +412,15 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                       <div className="flex-1 flex items-center justify-center text-gray-500">
                         <div className="text-center">
                           <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Nenhuma tarefa no backlog</p>
-                          <p className="text-xs text-gray-400">Clique em "Nova Tarefa" para começar</p>
+                          <p className="text-sm">
+                            {sprintId ? 'Nenhuma tarefa pendente no backlog' : 'Nenhuma tarefa no backlog'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {sprintId 
+                              ? 'Todas as tarefas estão concluídas ou não há tarefas pendentes' 
+                              : 'Clique em "Nova Tarefa" para começar'
+                            }
+                          </p>
                         </div>
                       </div>
                     ) : (
@@ -342,7 +437,11 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                                 snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
                               }`}
                             >
-                              <TaskCard task={task} />
+                              <TaskCard 
+                                task={task} 
+                                onEdit={handleEditTask}
+                                onDelete={handleDeleteTask}
+                              />
                             </div>
                           )}
                         </Draggable>
@@ -370,7 +469,7 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
                       sprint={sprint}
                       progress={progress}
                       storyPoints={storyPoints}
-                      onEdit={() => {}}
+                      onEdit={() => handleEditSprint(sprint)}
                       isCompleted
                     />
                   </CardHeader>
@@ -383,16 +482,30 @@ export function SprintBoard({ projectId }: SprintBoardProps) {
       {/* Modais */}
       <CreateTaskModal
         isOpen={showCreateTask}
-        onClose={() => setShowCreateTask(false)}
+        onClose={() => {
+          setShowCreateTask(false)
+          setEditingTask(null)
+        }}
         projectId={projectId}
         sprintId={selectedSprintId}
         onSuccess={fetchData}
+        editingTask={editingTask}
+        sprintProjects={sprintProjects}
       />
 
       <CreateSprintModal
         isOpen={showCreateSprint}
         onClose={() => setShowCreateSprint(false)}
-        projectId={projectId}
+        onSuccess={fetchData}
+      />
+
+      <EditSprintStatusModal
+        isOpen={showEditSprintStatus}
+        onClose={() => {
+          setShowEditSprintStatus(false)
+          setEditingSprint(null)
+        }}
+        sprint={editingSprint}
         onSuccess={fetchData}
       />
     </div>

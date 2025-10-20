@@ -69,12 +69,12 @@ model Project {
   client     Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   milestones Milestone[]
   tasks      Task[]
-  sprints    Sprint[]
   comments   Comment[]
   files      ProjectFile[]
   team       ProjectTeam[]
   financials FinancialEntry[]
   paymentProjects PaymentProject[]
+  sprints    SprintProject[] // Relacionamento many-to-many com sprints
 
   @@map("projects")
 }
@@ -145,11 +145,22 @@ model Sprint {
   updatedAt   DateTime    @updatedAt
 
   // Relacionamentos
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks     Task[]
+  projects  SprintProject[] // Relacionamento many-to-many com projetos
 
   @@map("sprints")
+}
+
+model SprintProject {
+  id        String   @id @default(cuid())
+  sprintId  String
+  sprint    Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([sprintId, projectId])
+  @@map("sprint_projects")
 }
 
 model Comment {

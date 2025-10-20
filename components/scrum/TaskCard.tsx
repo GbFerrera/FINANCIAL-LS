@@ -11,8 +11,18 @@ import {
   CheckCircle2,
   Circle,
   PlayCircle,
-  PauseCircle
+  PauseCircle,
+  MoreVertical,
+  Edit,
+  Trash2
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
 
 interface Task {
   id: string
@@ -28,14 +38,17 @@ interface Task {
     avatar?: string
   }
   dueDate?: string
+  order: number
 }
 
 interface TaskCardProps {
   task: Task
   onClick?: () => void
+  onEdit?: (task: Task) => void
+  onDelete?: (taskId: string) => void
 }
 
-export function TaskCard({ task, onClick }: TaskCardProps) {
+export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
   const getStatusIcon = () => {
     switch (task.status) {
       case 'TODO':
@@ -139,11 +152,53 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
               {getStatusLabel()}
             </Badge>
           </div>
-          {task.storyPoints && (
-            <Badge variant="outline" className="text-xs font-mono">
-              {task.storyPoints} SP
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {task.storyPoints && (
+              <Badge variant="outline" className="text-xs font-mono">
+                {task.storyPoints} SP
+              </Badge>
+            )}
+            {(onEdit || onDelete) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 hover:bg-gray-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  {onEdit && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEdit(task)
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Editar
+                    </DropdownMenuItem>
+                  )}
+                  {onDelete && (
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete(task.id)
+                      }}
+                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Excluir
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       </CardHeader>
       

@@ -14,12 +14,13 @@ import {
 
 interface ProjectScrumPageProps {
   params: { id: string }
-  searchParams: { tab?: string }
+  searchParams: { tab?: string; sprint?: string }
 }
 
 export default function ProjectScrumPage({ params, searchParams }: ProjectScrumPageProps) {
   const projectId = params.id
   const activeTab = searchParams.tab || 'board'
+  const sprintId = searchParams.sprint
 
   return (
     <DashboardLayout>
@@ -40,7 +41,7 @@ export default function ProjectScrumPage({ params, searchParams }: ProjectScrumP
       </TabsList>
 
       <TabsContent value="board" className="space-y-6">
-        <SprintBoard projectId={projectId} />
+        <SprintBoard projectId={projectId} sprintId={sprintId} />
       </TabsContent>
 
       <TabsContent value="dashboard" className="space-y-6">

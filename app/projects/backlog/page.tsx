@@ -78,7 +78,7 @@ export default function BacklogPage() {
       // Buscar todas as tarefas do backlog
       const [tasksRes, projectsRes, teamRes] = await Promise.all([
         fetch('/api/backlog/all'),
-        fetch('/api/projects'),
+        fetch('/api/projects?limit=1000'),
         fetch('/api/team')
       ])
 

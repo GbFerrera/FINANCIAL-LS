@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toast } from 'react-hot-toast'
 import { addDays, format } from 'date-fns'
 
@@ -24,6 +25,7 @@ const sprintSchema = z.object({
   endDate: z.string().min(1, 'Data de fim é obrigatória'),
   goal: z.string().optional(),
   capacity: z.number().min(0).optional(),
+  projectIds: z.array(z.string()).min(1, 'Selecione pelo menos um projeto'),
 }).refine((data) => {
   const start = new Date(data.startDate)
   const end = new Date(data.endDate)
@@ -35,33 +37,70 @@ const sprintSchema = z.object({
 
 type SprintFormData = z.infer<typeof sprintSchema>
 
+interface Project {
+  id: string
+  name: string
+  client: {
+    name: string
+  }
+}
+
 interface CreateSprintModalProps {
   isOpen: boolean
   onClose: () => void
-  projectId: string
   onSuccess: () => void
 }
 
 export function CreateSprintModal({
   isOpen,
   onClose,
-  projectId,
   onSuccess
 }: CreateSprintModalProps) {
   const [loading, setLoading] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors }
   } = useForm<SprintFormData>({
     resolver: zodResolver(sprintSchema),
     defaultValues: {
       startDate: format(new Date(), 'yyyy-MM-dd'),
       endDate: format(addDays(new Date(), 14), 'yyyy-MM-dd'), // Sprint de 2 semanas por padrão
+      projectIds: []
     }
   })
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchProjects()
+    }
+  }, [isOpen])
+
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch('/api/projects?includeClient=true&limit=1000')
+      if (response.ok) {
+        const data = await response.json()
+        setProjects(data.projects || [])
+      }
+    } catch (error) {
+      console.error('Erro ao carregar projetos:', error)
+    }
+  }
+
+  const handleProjectToggle = (projectId: string) => {
+    const newSelection = selectedProjects.includes(projectId)
+      ? selectedProjects.filter(id => id !== projectId)
+      : [...selectedProjects, projectId]
+    
+    setSelectedProjects(newSelection)
+    setValue('projectIds', newSelection)
+  }
 
   const onSubmit = async (data: SprintFormData) => {
     try {
@@ -69,11 +108,10 @@ export function CreateSprintModal({
 
       const sprintData = {
         ...data,
-        projectId,
         status: 'PLANNING'
       }
 
-      const response = await fetch('/api/sprints', {
+      const response = await fetch('/api/sprints/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sprintData)
@@ -97,6 +135,7 @@ export function CreateSprintModal({
 
   const handleClose = () => {
     reset()
+    setSelectedProjects([])
     onClose()
   }
 
@@ -130,6 +169,32 @@ export function CreateSprintModal({
               placeholder="Descreva o foco desta sprint (opcional)"
               rows={3}
             />
+          </div>
+
+          {/* Seleção de Projetos */}
+          <div>
+            <Label>Projetos *</Label>
+            <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border rounded-md p-3">
+              {projects.length === 0 ? (
+                <p className="text-sm text-gray-500">Carregando projetos...</p>
+              ) : (
+                projects.map((project) => (
+                  <div key={project.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={project.id}
+                      checked={selectedProjects.includes(project.id)}
+                      onCheckedChange={() => handleProjectToggle(project.id)}
+                    />
+                    <Label htmlFor={project.id} className="text-sm cursor-pointer">
+                      {project.name} - {project.client.name}
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
+            {errors.projectIds && (
+              <p className="text-sm text-red-500 mt-1">{errors.projectIds.message}</p>
+            )}
           </div>
 
           {/* Objetivo */}

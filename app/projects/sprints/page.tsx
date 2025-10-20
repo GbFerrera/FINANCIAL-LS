@@ -16,11 +16,13 @@ import {
   Edit,
   Play,
   Pause,
-  CheckCircle2
+  CheckCircle2,
+  Plus
 } from 'lucide-react'
 import Link from 'next/link'
 import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
 
 interface Sprint {
   id: string
@@ -31,13 +33,21 @@ interface Sprint {
   endDate: string
   goal?: string
   capacity?: number
-  project: {
+  project?: {
     id: string
     name: string
     client: {
       name: string
     }
   }
+  projects?: Array<{
+    id: string
+    name: string
+    client: {
+      id: string
+      name: string
+    }
+  }>
   tasks: Array<{
     id: string
     storyPoints?: number
@@ -51,6 +61,7 @@ export default function SprintsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [showCreateSprint, setShowCreateSprint] = useState(false)
 
   useEffect(() => {
     fetchSprints()
@@ -66,7 +77,10 @@ export default function SprintsPage() {
       const response = await fetch('/api/sprints/all')
       if (response.ok) {
         const data = await response.json()
+        console.log('Sprints carregadas:', data)
         setSprints(data)
+      } else {
+        console.error('Erro na resposta:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Erro ao carregar sprints:', error)
@@ -80,11 +94,16 @@ export default function SprintsPage() {
 
     // Filtro por texto
     if (searchTerm) {
-      filtered = filtered.filter(sprint => 
-        sprint.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sprint.project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        sprint.project.client.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      filtered = filtered.filter(sprint => {
+        const searchLower = searchTerm.toLowerCase()
+        return sprint.name.toLowerCase().includes(searchLower) ||
+          sprint.project?.name.toLowerCase().includes(searchLower) ||
+          sprint.project?.client.name.toLowerCase().includes(searchLower) ||
+          (sprint.projects && sprint.projects.some(p => 
+            p.name.toLowerCase().includes(searchLower) ||
+            p.client.name.toLowerCase().includes(searchLower)
+          ))
+      })
     }
 
     // Filtro por status
@@ -200,6 +219,13 @@ export default function SprintsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Todas as Sprints</h1>
           <p className="text-gray-600">Visualize e gerencie todas as sprints dos seus projetos</p>
         </div>
+        <Button
+          onClick={() => setShowCreateSprint(true)}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Nova Sprint
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -246,8 +272,16 @@ export default function SprintsPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <CardTitle className="text-lg line-clamp-1">{sprint.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{sprint.project.name}</p>
-                    <p className="text-xs text-gray-500">{sprint.project.client.name}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {sprint.project?.name || (sprint.projects && sprint.projects.length > 0 
+                        ? `${sprint.projects.length} projeto${sprint.projects.length > 1 ? 's' : ''}` 
+                        : 'Nenhum projeto')}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {sprint.project?.client?.name || (sprint.projects && sprint.projects.length > 0 
+                        ? sprint.projects.map(p => p.client.name).join(', ')
+                        : 'Sem cliente')}
+                    </p>
                   </div>
                   <Badge className={`${getStatusColor(sprint.status)} flex items-center gap-1 ml-2`}>
                     {getStatusIcon(sprint.status)}
@@ -303,7 +337,7 @@ export default function SprintsPage() {
 
                   {/* Ações */}
                   <div className="flex gap-2 pt-2">
-                    <Link href={`/projects/${sprint.project.id}/scrum?sprint=${sprint.id}`} className="flex-1">
+                    <Link href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Eye className="w-4 h-4 mr-2" />
                         Ver
@@ -337,6 +371,13 @@ export default function SprintsPage() {
         </Card>
       )}
       </div>
+
+      {/* Modal de Criação de Sprint */}
+      <CreateSprintModal
+        isOpen={showCreateSprint}
+        onClose={() => setShowCreateSprint(false)}
+        onSuccess={fetchSprints}
+      />
     </DashboardLayout>
   )
 }

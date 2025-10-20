@@ -37,12 +37,28 @@ const taskSchema = z.object({
 
 type TaskFormData = z.infer<typeof taskSchema>
 
+interface Task {
+  id: string
+  title: string
+  description?: string
+  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
+  storyPoints?: number
+  assigneeId?: string
+  dueDate?: string
+  startDate?: string
+  startTime?: string
+  estimatedMinutes?: number
+}
+
 interface CreateTaskModalProps {
   isOpen: boolean
   onClose: () => void
-  projectId: string
+  projectId?: string
   sprintId?: string | null
   onSuccess: () => void
+  editingTask?: Task | null
+  sprintProjects?: Project[]
 }
 
 interface User {
@@ -51,16 +67,28 @@ interface User {
   email: string
 }
 
+interface Project {
+  id: string
+  name: string
+  client: {
+    name: string
+  }
+}
+
 export function CreateTaskModal({
   isOpen,
   onClose,
   projectId,
   sprintId,
-  onSuccess
+  onSuccess,
+  editingTask,
+  sprintProjects: propSprintProjects = []
 }: CreateTaskModalProps) {
   const [loading, setLoading] = useState(false)
   const [teamMembers, setTeamMembers] = useState<User[]>([])
   const [estimatedEndTime, setEstimatedEndTime] = useState<string>('')
+  const [sprintProjects, setSprintProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
 
   const {
     register,
@@ -79,9 +107,43 @@ export function CreateTaskModal({
 
   useEffect(() => {
     if (isOpen) {
+      // Usar projetos passados como prop ou buscar da API
+      if (propSprintProjects.length > 0) {
+        console.log('Usando projetos passados como prop:', propSprintProjects)
+        setSprintProjects(propSprintProjects)
+      } else if (sprintId) {
+        console.log('Buscando projetos da API para sprintId:', sprintId)
+        fetchSprintProjects()
+      }
+      
+      // Definir projeto inicial
+      if (projectId) {
+        setSelectedProjectId(projectId)
+      }
+      
       fetchTeamMembers()
+      
+      // Se estiver editando, preencher o formulário
+      if (editingTask) {
+        setValue('title', editingTask.title)
+        setValue('description', editingTask.description || '')
+        setValue('priority', editingTask.priority)
+        setValue('storyPoints', editingTask.storyPoints || 1)
+        setValue('assigneeId', editingTask.assigneeId)
+        setValue('dueDate', editingTask.dueDate ? editingTask.dueDate.split('T')[0] : '')
+        setValue('startDate', editingTask.startDate ? editingTask.startDate.split('T')[0] : '')
+        setValue('startTime', editingTask.startTime || '')
+        setValue('estimatedMinutes', editingTask.estimatedMinutes)
+      } else {
+        // Limpar formulário para nova tarefa
+        reset({
+          priority: 'MEDIUM',
+          storyPoints: 1
+        })
+        setSelectedProjectId(projectId || '')
+      }
     }
-  }, [isOpen, projectId])
+  }, [isOpen, projectId, sprintId, editingTask, setValue, reset])
 
   // Calcular horário de fim estimado
   useEffect(() => {
@@ -101,17 +163,76 @@ export function CreateTaskModal({
     }
   }, [watch('startTime'), watch('estimatedMinutes')])
 
+  // Debug useEffect
+  useEffect(() => {
+    console.log('sprintProjects state changed:', sprintProjects.length, sprintProjects)
+  }, [sprintProjects])
+
+  const fetchSprintProjects = async () => {
+    try {
+      console.log('Buscando projetos da sprint:', sprintId)
+      const response = await fetch(`/api/sprints/${sprintId}/projects`)
+      if (response.ok) {
+        const projects = await response.json()
+        console.log('Projetos encontrados:', projects)
+        setSprintProjects(projects)
+        
+        // Se não há projeto selecionado e há projetos na sprint, selecionar o primeiro
+        if (!selectedProjectId && projects.length > 0) {
+          setSelectedProjectId(projects[0].id)
+        }
+      } else {
+        console.error('Erro na resposta da API:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar projetos da sprint:', error)
+    }
+  }
+
   const fetchTeamMembers = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}/team`)
-      if (response.ok) {
-        const data = await response.json()
+      const currentProjectId = selectedProjectId || projectId
+      if (!currentProjectId) {
+        // Se não há projeto definido, buscar todos os usuários
+        const usersResponse = await fetch('/api/users')
+        if (usersResponse.ok) {
+          const allUsers = await usersResponse.json()
+          setTeamMembers(allUsers)
+        }
+        return
+      }
+
+      // Primeiro, tenta buscar os membros da equipe do projeto
+      const teamResponse = await fetch(`/api/projects/${currentProjectId}/team`)
+      if (teamResponse.ok) {
+        const teamData = await teamResponse.json()
         // A API retorna um array de projectTeam com user aninhado
-        const users = data.map((member: any) => member.user)
-        setTeamMembers(users)
+        const teamUsers = teamData.map((member: any) => member.user)
+        
+        if (teamUsers.length > 0) {
+          setTeamMembers(teamUsers)
+          return
+        }
+      }
+      
+      // Se não houver membros na equipe do projeto, busca todos os usuários disponíveis
+      const usersResponse = await fetch('/api/users')
+      if (usersResponse.ok) {
+        const allUsers = await usersResponse.json()
+        setTeamMembers(allUsers)
       }
     } catch (error) {
       console.error('Erro ao carregar membros da equipe:', error)
+      // Em caso de erro, tenta buscar todos os usuários como fallback
+      try {
+        const usersResponse = await fetch('/api/users')
+        if (usersResponse.ok) {
+          const allUsers = await usersResponse.json()
+          setTeamMembers(allUsers)
+        }
+      } catch (fallbackError) {
+        console.error('Erro ao carregar usuários como fallback:', fallbackError)
+      }
     }
   }
 
@@ -119,28 +240,37 @@ export function CreateTaskModal({
     try {
       setLoading(true)
 
+      const currentProjectId = selectedProjectId || projectId
+      if (!currentProjectId) {
+        toast.error('Selecione um projeto para a tarefa')
+        return
+      }
+
       const taskData = {
         ...data,
-        projectId,
+        projectId: currentProjectId,
         sprintId,
-        status: 'TODO',
+        status: editingTask ? editingTask.status : 'TODO',
         ...(data.dueDate && { dueDate: new Date(data.dueDate).toISOString() }),
         ...(data.startDate && { startDate: new Date(data.startDate).toISOString() }),
         ...(data.startTime && { startTime: data.startTime }),
         ...(data.estimatedMinutes && { estimatedMinutes: data.estimatedMinutes })
       }
 
-      const response = await fetch('/api/projects/tasks', {
-        method: 'POST',
+      const url = editingTask ? `/api/tasks/${editingTask.id}` : '/api/projects/tasks'
+      const method = editingTask ? 'PATCH' : 'POST'
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData)
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao criar tarefa')
+        throw new Error(editingTask ? 'Erro ao editar tarefa' : 'Erro ao criar tarefa')
       }
 
-      toast.success('Tarefa criada com sucesso!')
+      toast.success(editingTask ? 'Tarefa editada com sucesso!' : 'Tarefa criada com sucesso!')
       reset()
       onSuccess()
       onClose()
@@ -161,7 +291,7 @@ export function CreateTaskModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Nova Tarefa</DialogTitle>
+          <DialogTitle>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -223,10 +353,44 @@ export function CreateTaskModal({
             </div>
           </div>
 
+          {/* Seleção de Projeto (apenas quando há múltiplos projetos na sprint) */}
+          {sprintProjects.length > 0 && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <Label className="text-blue-900 font-medium">Projeto da Sprint *</Label>
+              <p className="text-sm text-blue-700 mb-3">
+                Esta sprint inclui múltiplos projetos. Selecione para qual projeto esta tarefa pertence.
+              </p>
+              <Select
+                value={selectedProjectId}
+                onValueChange={(value) => {
+                  setSelectedProjectId(value)
+                  // Recarregar membros da equipe quando projeto mudar
+                  fetchTeamMembers()
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar projeto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sprintProjects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name} - {project.client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             {/* Responsável */}
             <div>
               <Label>Responsável</Label>
+              {sprintProjects.length > 0 && selectedProjectId && (
+                <p className="text-xs text-gray-600 mb-2">
+                  Colaboradores do projeto selecionado
+                </p>
+              )}
               <Select
                 value={watch('assigneeId') || 'none'}
                 onValueChange={(value) => setValue('assigneeId', value === 'none' ? undefined : value)}
@@ -332,7 +496,10 @@ export function CreateTaskModal({
               disabled={loading}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              {loading ? 'Criando...' : 'Criar Tarefa'}
+              {loading 
+                ? (editingTask ? 'Salvando...' : 'Criando...') 
+                : (editingTask ? 'Salvar Alterações' : 'Criar Tarefa')
+              }
             </Button>
           </div>
         </form>

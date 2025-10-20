@@ -19,7 +19,13 @@ export async function GET(request: NextRequest) {
     }
 
     const sprints = await prisma.sprint.findMany({
-      where: { projectId },
+      where: {
+        projects: {
+          some: {
+            projectId: projectId
+          }
+        }
+      },
       include: {
         tasks: {
           select: {
@@ -39,11 +45,24 @@ export async function GET(request: NextRequest) {
             updatedAt: true,
             assignee: {
               select: { id: true, name: true, email: true, avatar: true }
+            },
+            project: {
+              select: { id: true, name: true }
             }
           }
         },
-        project: {
-          select: { id: true, name: true }
+        projects: {
+          include: {
+            project: {
+              select: { 
+                id: true, 
+                name: true,
+                client: {
+                  select: { name: true }
+                }
+              }
+            }
+          }
         }
       },
       orderBy: { createdAt: 'desc' }
@@ -64,24 +83,42 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description, projectId, startDate, endDate, goal, capacity } = body
+    const { name, description, projectIds, startDate, endDate, goal, capacity } = body
 
-    if (!name || !projectId || !startDate || !endDate) {
+    if (!name || !projectIds || !Array.isArray(projectIds) || projectIds.length === 0 || !startDate || !endDate) {
       return NextResponse.json({ 
-        error: 'Nome, projeto, data de início e fim são obrigatórios' 
+        error: 'Nome, projetos, data de início e fim são obrigatórios' 
       }, { status: 400 })
     }
 
-    const sprint = await prisma.sprint.create({
-      data: {
-        name,
-        description,
-        projectId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        goal,
-        capacity
-      },
+    // Criar sprint e relacionamentos com projetos em uma transação
+    const sprint = await prisma.$transaction(async (tx) => {
+      // Criar a sprint
+      const newSprint = await tx.sprint.create({
+        data: {
+          name,
+          description,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          goal,
+          capacity
+        }
+      })
+
+      // Criar relacionamentos com os projetos
+      await tx.sprintProject.createMany({
+        data: projectIds.map((projectId: string) => ({
+          sprintId: newSprint.id,
+          projectId
+        }))
+      })
+
+      return newSprint
+    })
+
+    // Buscar sprint completa com relacionamentos
+    const fullSprint = await prisma.sprint.findUnique({
+      where: { id: sprint.id },
       include: {
         tasks: {
           select: {
@@ -101,11 +138,24 @@ export async function POST(request: NextRequest) {
             updatedAt: true,
             assignee: {
               select: { id: true, name: true, email: true, avatar: true }
+            },
+            project: {
+              select: { id: true, name: true }
             }
           }
         },
-        project: {
-          select: { id: true, name: true }
+        projects: {
+          include: {
+            project: {
+              select: { 
+                id: true, 
+                name: true,
+                client: {
+                  select: { name: true }
+                }
+              }
+            }
+          }
         }
       }
     })
