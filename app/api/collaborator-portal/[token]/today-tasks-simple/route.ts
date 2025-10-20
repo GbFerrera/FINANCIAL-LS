@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
-import { startOfDay, endOfDay } from 'date-fns'
+import { startOfDay, endOfDay, format } from 'date-fns'
 
 const prisma = new PrismaClient()
 
@@ -28,22 +28,67 @@ export async function GET(
       )
     }
 
-    console.log('Buscando tarefas simples para colaborador:', collaborator.id)
+    console.log('=== HOJE TASKS SIMPLE DEBUG ===')
+    console.log('Token recebido:', token)
+    console.log('Colaborador encontrado:', collaborator)
+    console.log('Buscando tarefas para colaborador ID:', collaborator.id)
 
-    // Buscar tarefas com critério mais simples e inclusivo
+    const today = new Date()
+    const todayStr = format(today, 'yyyy-MM-dd')
+    const startOfToday = startOfDay(today)
+    
+    console.log('Data de hoje:', todayStr)
+    console.log('Início do dia:', startOfToday)
+
+    // Primeiro, vamos ver todas as tarefas do colaborador para debug
+    const allTasks = await prisma.task.findMany({
+      where: {
+        assigneeId: collaborator.id
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        dueDate: true,
+        startDate: true,
+        createdAt: true
+      }
+    })
+    
+    console.log('Total de tarefas do colaborador:', allTasks.length)
+    console.log('Exemplos de tarefas:', allTasks.slice(0, 3).map(t => ({
+      title: t.title,
+      status: t.status,
+      dueDate: t.dueDate,
+      startDate: t.startDate
+    })))
+
+    // Primeiro teste: buscar tarefas não concluídas
+    const incompleteTasks = await prisma.task.findMany({
+      where: {
+        assigneeId: collaborator.id,
+        status: {
+          in: ['TODO', 'IN_PROGRESS']
+        }
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        dueDate: true,
+        startDate: true
+      }
+    })
+    
+    console.log('Tarefas não concluídas:', incompleteTasks.length)
+    console.log('Exemplos não concluídas:', incompleteTasks.slice(0, 3))
+
+    // TEMPORÁRIO: Buscar todas as tarefas não concluídas para debug
     const tasks = await prisma.task.findMany({
       where: {
         assigneeId: collaborator.id,
-        // Mostrar tarefas que não foram completadas há mais de 1 dia
-        NOT: {
-          AND: [
-            { status: 'COMPLETED' },
-            {
-              updatedAt: {
-                lt: new Date(Date.now() - 24 * 60 * 60 * 1000)
-              }
-            }
-          ]
+        status: {
+          in: ['TODO', 'IN_PROGRESS'] // Apenas tarefas não concluídas
         }
       },
       include: {
@@ -63,22 +108,37 @@ export async function GET(
       },
       orderBy: [
         { status: 'asc' }, // IN_PROGRESS primeiro
-        { startTime: 'asc' }, // Horário de início primeiro
+        { dueDate: 'asc' }, // Tarefas atrasadas primeiro
         { startDate: 'asc' }, // Data de início
-        { dueDate: 'asc' }, // Data de vencimento
+        { startTime: 'asc' }, // Horário de início
         { priority: 'desc' }, // URGENT primeiro
         { createdAt: 'desc' }
       ]
     })
 
-    console.log('Tarefas simples encontradas:', tasks.length)
+    console.log('Tarefas atrasadas e para hoje encontradas:', tasks.length)
+
+    // Separar tarefas atrasadas das de hoje para estatísticas
+    const overdueTasks = tasks.filter(task => 
+      (task.dueDate && new Date(task.dueDate) < startOfToday) ||
+      (task.startDate && new Date(task.startDate) < startOfToday)
+    )
+    const todayTasks = tasks.filter(task => 
+      (task.dueDate && new Date(task.dueDate) >= startOfToday && new Date(task.dueDate) < endOfDay(today)) ||
+      (task.startDate && format(new Date(task.startDate), 'yyyy-MM-dd') === todayStr)
+    )
+
+    console.log('Tarefas atrasadas:', overdueTasks.length)
+    console.log('Tarefas para hoje:', todayTasks.length)
 
     return NextResponse.json({
       collaborator,
       tasks,
       date: new Date().toISOString(),
       totalTasks: tasks.length,
-      message: 'Versão simplificada - mostra tarefas ativas'
+      overdueTasks: overdueTasks.length,
+      todayTasks: todayTasks.length,
+      message: 'TEMPORÁRIO: Mostra todas as tarefas não concluídas para debug'
     })
 
   } catch (error) {

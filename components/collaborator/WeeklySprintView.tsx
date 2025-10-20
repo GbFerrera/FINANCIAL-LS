@@ -8,17 +8,17 @@ import {
   Calendar, 
   Target, 
   Clock, 
-  Play, 
-  Pause, 
   CheckCircle2,
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Timer
+  Timer,
+  Grid3X3,
+  List
 } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { TaskTimer } from './TaskTimer'
+import { ContributionHeatmap } from '@/components/dashboard/contribution-heatmap'
 
 // Função para formatar data sem problemas de fuso horário
 const formatDateSafe = (dateString: string) => {
@@ -76,6 +76,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
   const [weeklyTasks, setWeeklyTasks] = useState<Record<string, Task[]>>({})
   const [loading, setLoading] = useState(true)
   const [collaborator, setCollaborator] = useState<any>(null)
+  const [viewType, setViewType] = useState<'columns' | 'list'>('columns')
 
   const weekStart = startOfWeek(currentWeek, { locale: ptBR })
   const weekEnd = endOfWeek(currentWeek, { locale: ptBR })
@@ -189,126 +190,246 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
             {format(weekStart, 'dd/MM', { locale: ptBR })} - {format(weekEnd, 'dd/MM/yyyy', { locale: ptBR })}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigateWeek('prev')}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={goToCurrentWeek}
-          >
-            Hoje
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigateWeek('next')}
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+        <div className="flex items-center gap-4">
+          {/* Controles de visualização */}
+          <div className="flex items-center gap-1 border rounded-lg p-1">
+            <Button
+              variant={viewType === 'columns' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewType('columns')}
+              className="h-8 px-3"
+            >
+              <Grid3X3 className="w-4 h-4 mr-1" />
+              Colunas
+            </Button>
+            <Button
+              variant={viewType === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewType('list')}
+              className="h-8 px-3"
+            >
+              <List className="w-4 h-4 mr-1" />
+              Lista
+            </Button>
+          </div>
+
+          {/* Navegação da semana */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigateWeek('prev')}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={goToCurrentWeek}
+            >
+              Hoje
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigateWeek('next')}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Grid dos dias da semana */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
-        {weekDays.map((day, index) => {
-          const dayKey = format(day, 'yyyy-MM-dd')
-          const dayTasks = weeklyTasks[dayKey] || []
-          const isCurrentDay = isToday(day)
+      {/* Conteúdo baseado no tipo de visualização */}
+      {viewType === 'columns' ? (
+        /* Visualização em Colunas */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+          {weekDays.map((day, index) => {
+            const dayKey = format(day, 'yyyy-MM-dd')
+            const dayTasks = weeklyTasks[dayKey] || []
+            const isCurrentDay = isToday(day)
 
-          return (
-            <Card 
-              key={dayKey} 
-              className={`${isCurrentDay ? 'ring-2 ring-blue-500 bg-blue-50' : ''} min-h-[300px]`}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className={`text-sm font-medium ${isCurrentDay ? 'text-blue-700' : 'text-gray-700'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="capitalize">{getDayName(day)}</span>
+            return (
+              <Card 
+                key={dayKey} 
+                className={`${isCurrentDay ? 'ring-2 ring-blue-500 bg-blue-50' : ''} min-h-[300px]`}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center justify-between">
+                    <span className={isCurrentDay ? 'text-blue-700' : 'text-gray-700'}>
+                      {format(day, 'EEEE', { locale: ptBR })}
+                    </span>
                     <span className={`text-xs ${isCurrentDay ? 'text-blue-600' : 'text-gray-500'}`}>
                       {format(day, 'dd/MM')}
                     </span>
-                  </div>
-                  {isCurrentDay && (
-                    <Badge variant="default" className="mt-1 text-xs">
-                      Hoje
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              
-              <CardContent className="space-y-3">
-                {dayTasks.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-4">
-                    Nenhuma tarefa
-                  </p>
-                ) : (
-                  dayTasks.map(task => (
-                    <div key={task.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
-                      <div className="space-y-2">
-                        {/* Sprint info */}
-                        {task.sprint && (
-                          <div className="flex items-center gap-1">
-                            <Target className="w-3 h-3 text-blue-500" />
-                            <span className="text-xs text-blue-600 font-medium">
-                              {task.sprint.name}
-                            </span>
+                    {isCurrentDay && (
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                        Hoje
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                
+                <CardContent className="space-y-3">
+                  {dayTasks.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">
+                      Nenhuma tarefa
+                    </p>
+                  ) : (
+                    dayTasks.map(task => (
+                      <div key={task.id} className="border rounded-lg p-2 hover:bg-gray-50 transition-colors">
+                        <div className="space-y-1">
+                          {/* Task title with priority indicator */}
+                          <div className="flex items-start gap-2">
+                            <div className={`w-2 h-2 rounded-full mt-1.5 ${getPriorityColor(task.priority)}`} />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
+                                {task.title}
+                              </h4>
+                            </div>
                           </div>
-                        )}
-                        
-                        {/* Task title and priority */}
-                        <div className="flex items-start gap-2">
-                          <div className={`w-2 h-2 rounded-full mt-1 ${getPriorityColor(task.priority)}`} />
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium text-gray-900 truncate">
-                              {task.title}
-                            </h4>
-                            <p className="text-xs text-gray-500">{task.project.name}</p>
-                          </div>
-                        </div>
 
-                        {/* Status and info */}
-                        <div className="flex items-center justify-between">
-                          <Badge variant="outline" className={`${getStatusColor(task.status)} text-xs`}>
-                            {getStatusIcon(task.status)}
-                            <span className="ml-1">
-                              {task.status === 'TODO' ? 'A Fazer' :
-                               task.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Concluída'}
-                            </span>
-                          </Badge>
-                          
-                          {task.estimatedMinutes && (
-                            <span className="text-xs text-gray-500 flex items-center gap-1">
-                              <Timer className="w-3 h-3" />
-                              {Math.floor(task.estimatedMinutes / 60)}h {task.estimatedMinutes % 60}min
-                            </span>
+                          {/* Project and time info */}
+                          <div className="flex items-center justify-between text-xs text-gray-500 ml-4">
+                            <span className="truncate">{task.project.name}</span>
+                            
+                            {task.startTime && (
+                              <span className="flex items-center gap-1 font-mono">
+                                <Clock className="w-3 h-3" />
+                                {task.startTime}
+                              </span>
+                            )}
+                            
+                            {!task.startTime && task.estimatedMinutes && (
+                              <span className="flex items-center gap-1">
+                                <Timer className="w-3 h-3" />
+                                {Math.floor(task.estimatedMinutes / 60)}h {task.estimatedMinutes % 60}min
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Status badge */}
+                          <div className="ml-4">
+                            <Badge variant="outline" className={`${getStatusColor(task.status)} text-xs px-2 py-0.5`}>
+                              {getStatusIcon(task.status)}
+                              <span className="ml-1">
+                                {task.status === 'TODO' ? 'A Fazer' :
+                                 task.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Concluída'}
+                              </span>
+                            </Badge>
+                          </div>
+
+                          {/* Sprint info (if exists) */}
+                          {task.sprint && (
+                            <div className="flex items-center gap-1 ml-4">
+                              <Target className="w-3 h-3 text-blue-500" />
+                              <span className="text-xs text-blue-600 font-medium truncate">
+                                {task.sprint.name}
+                              </span>
+                            </div>
                           )}
                         </div>
-
-                        {/* Timer controls */}
-                        <div className="flex justify-center pt-2">
-                          <TaskTimer 
-                            taskId={task.id}
-                            taskTitle={task.title}
-                            currentStatus={task.status}
-                            userId={collaborator?.id || ''}
-                            onStatusChange={fetchWeeklyTasks}
-                          />
-                        </div>
                       </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      ) : (
+        /* Visualização em Lista */
+        <div className="space-y-4">
+          {weekDays.map((day, index) => {
+            const dayKey = format(day, 'yyyy-MM-dd')
+            const dayTasks = weeklyTasks[dayKey] || []
+            const isCurrentDay = isToday(day)
+
+            return (
+              <Card key={dayKey} className={isCurrentDay ? 'ring-2 ring-blue-500 bg-blue-50' : ''}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-medium flex items-center gap-3">
+                    <span className={isCurrentDay ? 'text-blue-700' : 'text-gray-700'}>
+                      {format(day, 'EEEE, dd/MM', { locale: ptBR })}
+                    </span>
+                    {isCurrentDay && (
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                        Hoje
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {dayTasks.length} tarefa{dayTasks.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                
+                <CardContent>
+                  {dayTasks.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">
+                      Nenhuma tarefa agendada para este dia
+                    </p>
+                  ) : (
+                    <div className="grid gap-3">
+                      {dayTasks.map(task => (
+                        <div key={task.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-start gap-3">
+                            {/* Priority indicator */}
+                            <div className={`w-3 h-3 rounded-full mt-1 ${getPriorityColor(task.priority)}`} />
+                            
+                            {/* Task content */}
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-start justify-between">
+                                <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
+                                  {task.title}
+                                </h4>
+                                
+                                {task.startTime && (
+                                  <span className="flex items-center gap-1 text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                    <Clock className="w-3 h-3" />
+                                    {task.startTime}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center gap-4 text-xs text-gray-500">
+                                <span>{task.project.name}</span>
+                                
+                                {task.sprint && (
+                                  <span className="flex items-center gap-1">
+                                    <Target className="w-3 h-3 text-blue-500" />
+                                    {task.sprint.name}
+                                  </span>
+                                )}
+                                
+                                {!task.startTime && task.estimatedMinutes && (
+                                  <span className="flex items-center gap-1">
+                                    <Timer className="w-3 h-3" />
+                                    {Math.floor(task.estimatedMinutes / 60)}h {task.estimatedMinutes % 60}min
+                                  </span>
+                                )}
+                              </div>
+                              
+                              <div>
+                                <Badge variant="outline" className={`${getStatusColor(task.status)} text-xs`}>
+                                  {getStatusIcon(task.status)}
+                                  <span className="ml-1">
+                                    {task.status === 'TODO' ? 'A Fazer' :
+                                     task.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Concluída'}
+                                  </span>
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* Resumo da semana */}
       <Card>
@@ -348,6 +469,13 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Heatmap de Produtividade */}
+      <ContributionHeatmap 
+        token={token}
+        title="Minha Produtividade Diária"
+        showStats={true}
+      />
     </div>
   )
 }

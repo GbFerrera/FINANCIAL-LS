@@ -15,6 +15,10 @@ interface ContributionData {
   date: string
   count: number
   totalHours?: number
+  totalActualHours?: number
+  totalEstimatedHours?: number
+  efficiency?: number
+  projectsCount?: number
   tasks?: Array<{
     id: string
     title: string
@@ -24,7 +28,13 @@ interface ContributionData {
     description?: string
     estimatedHours?: number
     actualHours?: number
+    actualMinutes?: number
+    estimatedMinutes?: number
     project?: {
+      id: string
+      name: string
+    }
+    sprint?: {
       id: string
       name: string
     }
@@ -112,22 +122,29 @@ export function ContributionHeatmap({
         return
       }
 
+      console.log('Fazendo requisição para:', apiUrl)
       const response = await fetch(apiUrl)
       
       if (!response.ok) {
-        throw new Error('Erro ao carregar dados de contribuições')
+        console.error('Erro na resposta da API:', response.status, response.statusText)
+        throw new Error(`Erro ao carregar dados de contribuições: ${response.status}`)
       }
 
       const data = await response.json()
+      console.log('Dados recebidos da API:', data)
       
       // Processar dados da API para o formato esperado pelo componente
       const processedContributions = data.contributions.map((contrib: any) => ({
         date: contrib.date,
         count: contrib.count,
         totalHours: contrib.totalHours || 0,
-        tasks: [], // A API atual não retorna tarefas detalhadas
+        totalActualHours: contrib.totalActualHours || 0,
+        totalEstimatedHours: contrib.totalEstimatedHours || 0,
+        efficiency: contrib.efficiency || 100,
+        tasks: contrib.tasks || [],
         pendingTasks: [],
-        projects: [],
+        projects: contrib.projects || [],
+        projectsCount: contrib.projectsCount || 0,
         pendingCount: 0
       }))
       
@@ -137,16 +154,48 @@ export function ContributionHeatmap({
         currentStreak: 0,
         longestStreak: 0,
         averagePerDay: 0,
-        totalHours: 0
+        totalHours: 0,
+        totalActualHours: 0,
+        totalEstimatedHours: 0,
+        overallEfficiency: 100,
+        projectsWorked: 0,
+        projectStats: []
       })
       
     } catch (error) {
       console.error('Erro ao buscar contribuições:', error)
-      // Em caso de erro, usar dados de exemplo
-      generateSampleData()
+      // Em caso de erro, mostrar dados vazios ao invés de dados fictícios
+      generateEmptyData()
     } finally {
       setLoading(false)
     }
+  }
+
+  const generateEmptyData = () => {
+    const emptyData: ContributionData[] = []
+    const today = new Date()
+    
+    for (let i = 0; i < 365; i++) {
+      const date = subDays(today, i)
+      emptyData.push({
+        date: format(date, 'yyyy-MM-dd'),
+        count: 0,
+        tasks: [],
+        pendingTasks: [],
+        totalHours: 0,
+        projects: [],
+        pendingCount: 0
+      })
+    }
+    
+    setContributions(emptyData)
+    setStats({
+      totalContributions: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      averagePerDay: 0,
+      totalHours: 0
+    })
   }
 
   const generateSampleData = () => {
@@ -285,21 +334,30 @@ export function ContributionHeatmap({
     const date = format(parseISO(value.date), 'dd/MM/yyyy', { locale: ptBR })
     const count = value.count || 0
     const contributionData = contributions.find(c => c.date === value.date)
-    const pendingCount = contributionData?.pendingCount || 0
     
-    if (count === 0 && pendingCount === 0) {
+    if (!contributionData || count === 0) {
       return `${date}: Nenhuma atividade`
-    } else if (count === 0 && pendingCount > 0) {
-      return `${date}: ${pendingCount} tarefa${pendingCount > 1 ? 's' : ''} pendente${pendingCount > 1 ? 's' : ''}`
-    } else if (count === 1 && pendingCount === 0) {
-      return `${date}: 1 atividade concluída`
-    } else if (count > 1 && pendingCount === 0) {
-      return `${date}: ${count} atividades concluídas`
-    } else if (count === 1 && pendingCount > 0) {
-      return `${date}: 1 atividade concluída, ${pendingCount} pendente${pendingCount > 1 ? 's' : ''}`
-    } else {
-      return `${date}: ${count} atividades concluídas, ${pendingCount} pendente${pendingCount > 1 ? 's' : ''}`
     }
+    
+    const hours = contributionData.totalActualHours || 0
+    const projects = contributionData.projectsCount || 0
+    const efficiency = contributionData.efficiency || 100
+    
+    let tooltip = `${date}: ${count} tarefa${count > 1 ? 's' : ''} concluída${count > 1 ? 's' : ''}`
+    
+    if (hours > 0) {
+      tooltip += `\n${formatTime(hours)} trabalhadas`
+    }
+    
+    if (projects > 0) {
+      tooltip += `\n${projects} projeto${projects > 1 ? 's' : ''}`
+    }
+    
+    if (contributionData.totalEstimatedHours && contributionData.totalEstimatedHours > 0) {
+      tooltip += `\nEficiência: ${efficiency}%`
+    }
+    
+    return tooltip
   }
 
   // Funções para lidar com interações do mouse
