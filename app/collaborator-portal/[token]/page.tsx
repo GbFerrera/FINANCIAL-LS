@@ -15,7 +15,7 @@ interface PageProps {
 
 export default function CollaboratorPortalPage({ params }: PageProps) {
   const { token } = use(params)
-  const [viewMode, setViewMode] = useState<'weekly' | 'list'>('weekly')
+  const [viewMode, setViewMode] = useState<'weekly' | 'list'>('list')
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

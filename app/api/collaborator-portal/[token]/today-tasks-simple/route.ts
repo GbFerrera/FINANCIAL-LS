@@ -63,8 +63,10 @@ export async function GET(
       },
       orderBy: [
         { status: 'asc' }, // IN_PROGRESS primeiro
+        { startTime: 'asc' }, // Horário de início primeiro
+        { startDate: 'asc' }, // Data de início
+        { dueDate: 'asc' }, // Data de vencimento
         { priority: 'desc' }, // URGENT primeiro
-        { dueDate: 'asc' },
         { createdAt: 'desc' }
       ]
     })

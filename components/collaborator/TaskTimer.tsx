@@ -41,6 +41,10 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const { sendTimerEvent, isConnected } = useSocket()
 
+  // Debug logs
+  console.log('TaskTimer props:', { taskId, taskTitle, currentStatus, userId })
+  console.log('Socket status:', { isConnected })
+
   useEffect(() => {
     fetchTimeEntries()
     checkActiveTimer()
@@ -132,12 +136,23 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
   }
 
   const startTimer = async () => {
+    console.log('Iniciando timer para tarefa:', taskId, 'usuário:', userId)
+    
+    if (!userId) {
+      console.error('UserId não fornecido!')
+      toast.error('Erro: ID do usuário não encontrado')
+      return
+    }
+    
     try {
+      console.log('Fazendo requisição para start-timer...')
       const response = await fetch(`/api/tasks/${taskId}/start-timer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
       })
+      
+      console.log('Resposta da API start-timer:', response.status)
 
       if (response.ok) {
         const entry = await response.json()

@@ -38,6 +38,63 @@ const formatDateSafe = (dateString: string) => {
   return date.toLocaleDateString('pt-BR')
 }
 
+// Função para ordenar tarefas por horário de início
+const sortTasksByStartTime = (tasks: Task[]) => {
+  return tasks.sort((a, b) => {
+    // Prioridade 1: Tarefas em progresso primeiro
+    if (a.status === 'IN_PROGRESS' && b.status !== 'IN_PROGRESS') return -1
+    if (b.status === 'IN_PROGRESS' && a.status !== 'IN_PROGRESS') return 1
+    
+    // Prioridade 2: Tarefas com horário de início definido
+    const aHasStartTime = a.startTime && a.startDate
+    const bHasStartTime = b.startTime && b.startDate
+    
+    if (aHasStartTime && !bHasStartTime) return -1
+    if (bHasStartTime && !aHasStartTime) return 1
+    
+    // Se ambas têm horário, ordenar por data e hora
+    if (aHasStartTime && bHasStartTime) {
+      const aDateTime = new Date(`${a.startDate}T${a.startTime}`)
+      const bDateTime = new Date(`${b.startDate}T${b.startTime}`)
+      return aDateTime.getTime() - bDateTime.getTime()
+    }
+    
+    // Prioridade 3: Tarefas com data de início (sem horário)
+    const aHasStartDate = a.startDate
+    const bHasStartDate = b.startDate
+    
+    if (aHasStartDate && !bHasStartDate) return -1
+    if (bHasStartDate && !aHasStartDate) return 1
+    
+    if (aHasStartDate && bHasStartDate) {
+      return new Date(a.startDate!).getTime() - new Date(b.startDate!).getTime()
+    }
+    
+    // Prioridade 4: Tarefas com data de vencimento
+    const aHasDueDate = a.dueDate
+    const bHasDueDate = b.dueDate
+    
+    if (aHasDueDate && !bHasDueDate) return -1
+    if (bHasDueDate && !aHasDueDate) return 1
+    
+    if (aHasDueDate && bHasDueDate) {
+      return new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime()
+    }
+    
+    // Prioridade 5: Por prioridade da tarefa
+    const priorityOrder = { 'URGENT': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 }
+    const aPriority = priorityOrder[a.priority] ?? 4
+    const bPriority = priorityOrder[b.priority] ?? 4
+    
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority
+    }
+    
+    // Prioridade 6: Por data de criação (mais recente primeiro)
+    return 0 // Fallback se não houver outros critérios
+  })
+}
+
 interface Task {
   id: string
   title: string
@@ -135,6 +192,9 @@ export function TaskListView({ token }: TaskListViewProps) {
         filtered = filtered.filter(task => task.sprint?.id === sprintFilter)
       }
     }
+
+    // Aplicar ordenação por horário de início
+    filtered = sortTasksByStartTime(filtered)
 
     setFilteredTasks(filtered)
   }
@@ -390,7 +450,7 @@ export function TaskListView({ token }: TaskListViewProps) {
                             taskId={task.id}
                             taskTitle={task.title}
                             currentStatus={task.status}
-                            userId={collaborator?.userId || ''}
+                            userId={collaborator?.id || ''}
                             onStatusChange={fetchTasks}
                           />
                         </div>

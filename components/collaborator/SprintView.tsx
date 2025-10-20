@@ -293,7 +293,7 @@ export function SprintView({ token }: SprintViewProps) {
                                 taskId={task.id}
                                 taskTitle={task.title}
                                 currentStatus={task.status}
-                                userId={collaborator?.userId || ''}
+                                userId={collaborator?.id || ''}
                                 onStatusChange={fetchSprints}
                               />
                             </div>

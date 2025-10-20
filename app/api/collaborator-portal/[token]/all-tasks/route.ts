@@ -61,9 +61,12 @@ export async function GET(
         }
       },
       orderBy: [
+        { status: 'asc' }, // IN_PROGRESS primeiro
+        { startTime: 'asc' }, // Horário de início primeiro
+        { startDate: 'asc' }, // Data de início
+        { dueDate: 'asc' }, // Data de vencimento
         { sprint: { status: 'asc' } }, // Sprints ativas primeiro
         { priority: 'desc' }, // Prioridade alta primeiro
-        { dueDate: 'asc' }, // Vencimento mais próximo primeiro
         { createdAt: 'desc' } // Mais recentes primeiro
       ]
     })
