@@ -38,6 +38,9 @@ interface Task {
     avatar?: string
   }
   dueDate?: string
+  startDate?: string
+  startTime?: string
+  estimatedMinutes?: number
   order: number
 }
 
@@ -46,6 +49,22 @@ interface TaskCardProps {
   onClick?: () => void
   onEdit?: (task: Task) => void
   onDelete?: (taskId: string) => void
+}
+
+// Função para formatar data sem problemas de fuso horário
+const formatDateSafe = (dateString: string) => {
+  // Se a data já está no formato ISO, extrair apenas a parte da data
+  if (dateString.includes('T')) {
+    dateString = dateString.split('T')[0]
+  }
+  
+  // Dividir a data em partes (YYYY-MM-DD)
+  const [year, month, day] = dateString.split('-')
+  
+  // Criar data local sem conversão de fuso horário
+  const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
+  
+  return date.toLocaleDateString('pt-BR')
 }
 
 export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
@@ -216,6 +235,39 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
             </p>
           )}
 
+          {/* Informações de Tempo e Data */}
+          {(task.startDate || task.startTime || task.estimatedMinutes) && (
+            <div className="bg-gray-50 p-2 rounded-md space-y-1">
+              {/* Data e Hora de Início */}
+              {(task.startDate || task.startTime) && (
+                <div className="flex items-center gap-1 text-xs text-gray-700">
+                  <Clock className="w-3 h-3 text-green-600" />
+                  <span className="font-medium">Início:</span>
+                  {task.startDate && (
+                    <span>{formatDateSafe(task.startDate)}</span>
+                  )}
+                  {task.startTime && (
+                    <span className="text-green-600 font-mono">{task.startTime}</span>
+                  )}
+                </div>
+              )}
+              
+              {/* Tempo Estimado */}
+              {task.estimatedMinutes && (
+                <div className="flex items-center gap-1 text-xs text-gray-700">
+                  <Clock className="w-3 h-3 text-blue-600" />
+                  <span className="font-medium">Estimado:</span>
+                  <span className="text-blue-600 font-mono">
+                    {task.estimatedMinutes >= 60 
+                      ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}min`
+                      : `${task.estimatedMinutes}min`
+                    }
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Metadados */}
           <div className="flex items-center justify-between text-xs text-gray-500">
             {/* Prioridade */}
@@ -228,7 +280,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
             {task.dueDate && (
               <div className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                <span>{new Date(task.dueDate).toLocaleDateString('pt-BR')}</span>
+                <span>{formatDateSafe(task.dueDate)}</span>
               </div>
             )}
           </div>

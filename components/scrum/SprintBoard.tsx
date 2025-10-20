@@ -5,13 +5,15 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus, Calendar, Target, Users } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Plus, Calendar, Target, Users, Filter } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { TaskCard } from './TaskCard'
 import { SprintHeader } from './SprintHeader'
 import { CreateTaskModal } from './CreateTaskModal'
 import { CreateSprintModal } from './CreateSprintModal'
 import { EditSprintStatusModal } from './EditSprintStatusModal'
+import { SprintTimeline } from './SprintTimeline'
 
 interface Task {
   id: string
@@ -26,7 +28,13 @@ interface Task {
     email: string
     avatar?: string
   }
+  dueDate?: string
+  startDate?: string
+  startTime?: string
+  estimatedMinutes?: number
   order: number
+  projectId?: string
+  milestoneId?: string
 }
 
 interface Sprint {
@@ -57,48 +65,107 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
   const [sprintProjects, setSprintProjects] = useState<any[]>([])
   const [showEditSprintStatus, setShowEditSprintStatus] = useState(false)
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
+  const [milestones, setMilestones] = useState<any[]>([])
+  const [selectedMilestone, setSelectedMilestone] = useState<string>('all')
+  const [filteredBacklog, setFilteredBacklog] = useState<Task[]>([])
 
   useEffect(() => {
     fetchData()
   }, [projectId, sprintId])
 
+  // Filtrar backlog por milestone
+  useEffect(() => {
+    if (selectedMilestone === 'all') {
+      setFilteredBacklog(backlog)
+    } else if (selectedMilestone === 'none') {
+      setFilteredBacklog(backlog.filter(task => !task.milestoneId))
+    } else {
+      setFilteredBacklog(backlog.filter(task => task.milestoneId === selectedMilestone))
+    }
+  }, [backlog, selectedMilestone])
+
   const fetchData = async () => {
     try {
       setLoading(true)
       
-      // Buscar sprints
-      const sprintsResponse = await fetch(`/api/sprints?projectId=${projectId}`)
-      if (sprintsResponse.ok) {
-        const sprintsData = await sprintsResponse.json()
-        setSprints(Array.isArray(sprintsData) ? sprintsData : [])
+      // Buscar sprints - se sprintId específico, buscar apenas essa sprint
+      if (sprintId) {
+        // Buscar sprint específica
+        const sprintResponse = await fetch(`/api/sprints/${sprintId}`)
+        if (sprintResponse.ok) {
+          const sprintData = await sprintResponse.json()
+          setSprints([sprintData]) // Mostrar apenas a sprint específica
+        }
+      } else {
+        // Buscar todas as sprints do projeto
+        const sprintsResponse = await fetch(`/api/sprints?projectId=${projectId}`)
+        if (sprintsResponse.ok) {
+          const sprintsData = await sprintsResponse.json()
+          setSprints(Array.isArray(sprintsData) ? sprintsData : [])
+        }
       }
       
-      // Buscar projetos da sprint se sprintId for fornecido
+      // Buscar projetos da sprint e backlog se sprintId for fornecido
+      let currentSprintProjects: any[] = []
       if (sprintId) {
         const sprintProjectsResponse = await fetch(`/api/sprints/${sprintId}/projects`)
         if (sprintProjectsResponse.ok) {
           const projectsData = await sprintProjectsResponse.json()
+          currentSprintProjects = projectsData
           setSprintProjects(projectsData)
         }
-      } else {
-        setSprintProjects([])
-      }
 
-      // Buscar backlog
-      const backlogResponse = await fetch(`/api/backlog?projectId=${projectId}`)
-      if (backlogResponse.ok) {
-        const backlogData = await backlogResponse.json()
-        let filteredBacklog = Array.isArray(backlogData) ? backlogData : []
-        
-        // Se um sprintId específico for fornecido, filtrar apenas tarefas que precisam ser feitas
-        if (sprintId) {
+        // Buscar backlog de todos os projetos da sprint
+        const backlogResponse = await fetch(`/api/sprints/${sprintId}/backlog`)
+        if (backlogResponse.ok) {
+          const backlogData = await backlogResponse.json()
+          let filteredBacklog = Array.isArray(backlogData) ? backlogData : []
+          
+          // Filtrar apenas tarefas que precisam ser feitas
           filteredBacklog = filteredBacklog.filter(task => 
             task.status === 'TODO' || task.status === 'IN_PROGRESS' || task.status === 'IN_REVIEW'
           )
+          
+          setBacklog(filteredBacklog)
         }
+      } else {
+        setSprintProjects([])
         
-        setBacklog(filteredBacklog)
+        // Se não há sprintId, buscar backlog do projeto específico
+        const backlogResponse = await fetch(`/api/backlog?projectId=${projectId}`)
+        if (backlogResponse.ok) {
+          const backlogData = await backlogResponse.json()
+          const filteredBacklog = Array.isArray(backlogData) ? backlogData : []
+          setBacklog(filteredBacklog)
+        }
       }
+
+      // Buscar milestones dos projetos
+      let allMilestones: any[] = []
+      
+      if (sprintId && currentSprintProjects.length > 0) {
+        // Se há sprint específica com múltiplos projetos, buscar milestones de todos
+        for (const project of currentSprintProjects) {
+          const milestonesResponse = await fetch(`/api/milestones?projectId=${project.id}`)
+          if (milestonesResponse.ok) {
+            const milestonesData = await milestonesResponse.json()
+            if (Array.isArray(milestonesData)) {
+              allMilestones = [...allMilestones, ...milestonesData]
+            }
+          }
+        }
+      } else if (projectId) {
+        // Se é projeto único, buscar milestones apenas desse projeto
+        const milestonesResponse = await fetch(`/api/milestones?projectId=${projectId}`)
+        if (milestonesResponse.ok) {
+          const milestonesData = await milestonesResponse.json()
+          if (Array.isArray(milestonesData)) {
+            allMilestones = milestonesData
+          }
+        }
+      }
+      
+      setMilestones(allMilestones)
     } catch (error) {
       console.error('Erro ao carregar dados:', error)
     } finally {
@@ -314,6 +381,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               )
             })}
 
+         
+
           {/* Sprints em Planejamento */}
           {(sprints || [])
             .filter(sprint => sprint.status === 'PLANNING')
@@ -382,9 +451,35 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                   </Badge>
                 )}
                 <Badge variant="secondary" className="ml-2">
-                  {backlog.length} tarefas
+                  {filteredBacklog.length} tarefas
                 </Badge>
               </CardTitle>
+              
+              {/* Filtro por Milestone */}
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">Filtrar por milestone:</span>
+                </div>
+                <Select value={selectedMilestone} onValueChange={setSelectedMilestone}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Todas as milestones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as milestones</SelectItem>
+                    <SelectItem value="none">Sem milestone</SelectItem>
+                    {milestones.map((milestone) => (
+                      <SelectItem key={milestone.id} value={milestone.id}>
+                        {milestone.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Badge variant="outline" className="text-xs">
+                  {filteredBacklog.length} de {backlog.length} tarefas
+                </Badge>
+              </div>
+
               {sprintId && sprintProjects.length > 0 && (
                 <div className="mt-2">
                   <p className="text-sm text-gray-600 mb-2">
@@ -408,23 +503,29 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     {...provided.droppableProps}
                     className="flex gap-4 min-h-[200px] overflow-x-auto pb-4"
                   >
-                    {backlog.length === 0 ? (
+                    {filteredBacklog.length === 0 ? (
                       <div className="flex-1 flex items-center justify-center text-gray-500">
                         <div className="text-center">
                           <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
                           <p className="text-sm">
-                            {sprintId ? 'Nenhuma tarefa pendente no backlog' : 'Nenhuma tarefa no backlog'}
+                            {selectedMilestone === 'all' 
+                              ? (sprintId ? 'Nenhuma tarefa pendente no backlog' : 'Nenhuma tarefa no backlog')
+                              : 'Nenhuma tarefa encontrada para esta milestone'
+                            }
                           </p>
                           <p className="text-xs text-gray-400">
-                            {sprintId 
-                              ? 'Todas as tarefas estão concluídas ou não há tarefas pendentes' 
-                              : 'Clique em "Nova Tarefa" para começar'
+                            {selectedMilestone === 'all'
+                              ? (sprintId 
+                                  ? 'Todas as tarefas estão concluídas ou não há tarefas pendentes' 
+                                  : 'Clique em "Nova Tarefa" para começar'
+                                )
+                              : 'Tente selecionar outra milestone ou "Todas as milestones"'
                             }
                           </p>
                         </div>
                       </div>
                     ) : (
-                      backlog
+                      filteredBacklog
                         .sort((a, b) => a.order - b.order)
                         .map((task, index) => (
                         <Draggable key={task.id} draggableId={task.id} index={index}>
@@ -491,6 +592,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
         onSuccess={fetchData}
         editingTask={editingTask}
         sprintProjects={sprintProjects}
+        milestones={milestones}
       />
 
       <CreateSprintModal

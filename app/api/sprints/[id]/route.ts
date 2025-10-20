@@ -15,28 +15,112 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const sprint = await prisma.sprint.findUnique({
-      where: { id: params.id },
-      include: {
-        tasks: {
-          include: {
-            assignee: {
-              select: { id: true, name: true, email: true, avatar: true }
-            }
-          },
-          orderBy: { order: 'asc' }
-        },
-        project: {
-          select: { id: true, name: true }
-        }
-      }
-    })
+    const sprintId = params.id
 
-    if (!sprint) {
+    // Buscar sprint usando raw SQL
+    const sprintData = await prisma.$queryRaw`
+      SELECT 
+        id,
+        name,
+        description,
+        status,
+        "startDate",
+        "endDate",
+        goal,
+        capacity,
+        "createdAt",
+        "updatedAt"
+      FROM sprints
+      WHERE id = ${sprintId}
+    ` as any[]
+
+    if (sprintData.length === 0) {
       return NextResponse.json({ error: 'Sprint não encontrada' }, { status: 404 })
     }
 
-    return NextResponse.json(sprint)
+    const sprint = sprintData[0]
+
+    // Buscar tarefas da sprint
+    const tasks = await prisma.$queryRaw`
+      SELECT 
+        t.id,
+        t.title,
+        t.description,
+        t.status,
+        t.priority,
+        t."storyPoints",
+        t."assigneeId",
+        t."dueDate",
+        t."startDate",
+        t."startTime",
+        t."estimatedMinutes",
+        t."order",
+        t."projectId",
+        u.id as assignee_id,
+        u.name as assignee_name,
+        u.email as assignee_email,
+        u.avatar as assignee_avatar
+      FROM tasks t
+      LEFT JOIN users u ON t."assigneeId" = u.id
+      WHERE t."sprintId" = ${sprintId}
+      ORDER BY t."order" ASC
+    ` as any[]
+
+    // Formatar tarefas
+    const formattedTasks = tasks.map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      storyPoints: task.storyPoints,
+      assigneeId: task.assigneeId,
+      dueDate: task.dueDate,
+      startDate: task.startDate,
+      startTime: task.startTime,
+      estimatedMinutes: task.estimatedMinutes,
+      order: task.order,
+      projectId: task.projectId,
+      assignee: task.assignee_id ? {
+        id: task.assignee_id,
+        name: task.assignee_name,
+        email: task.assignee_email,
+        avatar: task.assignee_avatar
+      } : null
+    }))
+
+    // Buscar projetos da sprint
+    const projects = await prisma.$queryRaw`
+      SELECT 
+        p.id,
+        p.name,
+        c.id as client_id,
+        c.name as client_name
+      FROM sprint_projects sp
+      JOIN projects p ON sp."projectId" = p.id
+      JOIN clients c ON p."clientId" = c.id
+      WHERE sp."sprintId" = ${sprintId}
+    ` as any[]
+
+    const formattedProjects = projects.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      client: {
+        id: p.client_id,
+        name: p.client_name
+      }
+    }))
+
+    // Retornar sprint com tarefas e projetos
+    const result = {
+      ...sprint,
+      tasks: formattedTasks,
+      projects: formattedProjects,
+      // Manter compatibilidade com frontend antigo
+      project: formattedProjects.length > 0 ? formattedProjects[0] : null
+    }
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Erro ao buscar sprint:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })

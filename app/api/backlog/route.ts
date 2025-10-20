@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'ID do projeto é obrigatório' }, { status: 400 })
     }
 
+    console.log('Buscando backlog para projeto:', projectId)
+
     // Busca todas as tarefas que não estão em nenhuma sprint (backlog)
     const backlogTasks = await prisma.task.findMany({
       where: { 
@@ -34,6 +36,9 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { order: 'asc' }
     })
+
+    console.log('Tarefas encontradas no backlog:', backlogTasks.length)
+    console.log('Títulos das tarefas:', backlogTasks.map(t => t.title))
 
     return NextResponse.json(backlogTasks)
   } catch (error) {

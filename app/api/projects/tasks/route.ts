@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    console.log('Dados recebidos para criar tarefa:', body)
+    
     const { 
       title, 
       description, 
@@ -20,6 +22,7 @@ export async function POST(request: NextRequest) {
       priority, 
       storyPoints, 
       assigneeId, 
+      milestoneId,
       dueDate,
       startDate,
       startTime,
@@ -51,6 +54,7 @@ export async function POST(request: NextRequest) {
     })
 
     const nextOrder = (lastTask?.order || 0) + 1
+    console.log('Criando tarefa com order:', nextOrder, 'para projeto:', projectId)
 
     const task = await prisma.task.create({
       data: {
@@ -61,6 +65,7 @@ export async function POST(request: NextRequest) {
         priority: priority || 'MEDIUM',
         storyPoints,
         assigneeId: assigneeId || null,
+        milestoneId: milestoneId || null,
         dueDate: dueDate ? new Date(dueDate) : null,
         startDate: startDate ? new Date(startDate) : null,
         startTime: startTime || null,
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log('Tarefa criada com sucesso:', task.id, task.title)
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar tarefa:', error)

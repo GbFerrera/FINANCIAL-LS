@@ -29,6 +29,7 @@ const taskSchema = z.object({
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   storyPoints: z.number().min(0).optional(),
   assigneeId: z.string().optional(),
+  milestoneId: z.string().optional(),
   dueDate: z.string().optional(),
   startDate: z.string().optional(),
   startTime: z.string().optional(),
@@ -45,6 +46,7 @@ interface Task {
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   storyPoints?: number
   assigneeId?: string
+  milestoneId?: string
   dueDate?: string
   startDate?: string
   startTime?: string
@@ -59,6 +61,7 @@ interface CreateTaskModalProps {
   onSuccess: () => void
   editingTask?: Task | null
   sprintProjects?: Project[]
+  milestones?: any[]
 }
 
 interface User {
@@ -82,7 +85,8 @@ export function CreateTaskModal({
   sprintId,
   onSuccess,
   editingTask,
-  sprintProjects: propSprintProjects = []
+  sprintProjects: propSprintProjects = [],
+  milestones: propMilestones = []
 }: CreateTaskModalProps) {
   const [loading, setLoading] = useState(false)
   const [teamMembers, setTeamMembers] = useState<User[]>([])
@@ -130,6 +134,7 @@ export function CreateTaskModal({
         setValue('priority', editingTask.priority)
         setValue('storyPoints', editingTask.storyPoints || 1)
         setValue('assigneeId', editingTask.assigneeId)
+        setValue('milestoneId', editingTask.milestoneId)
         setValue('dueDate', editingTask.dueDate ? editingTask.dueDate.split('T')[0] : '')
         setValue('startDate', editingTask.startDate ? editingTask.startDate.split('T')[0] : '')
         setValue('startTime', editingTask.startTime || '')
@@ -409,6 +414,29 @@ export function CreateTaskModal({
               </Select>
             </div>
 
+            {/* Milestone */}
+            <div>
+              <Label>Milestone</Label>
+              <Select
+                value={watch('milestoneId') || 'none'}
+                onValueChange={(value) => setValue('milestoneId', value === 'none' ? undefined : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar milestone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {propMilestones.map((milestone) => (
+                    <SelectItem key={milestone.id} value={milestone.id}>
+                      {milestone.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             {/* Data de início */}
             <div>
               <Label htmlFor="startDate">Data de Início</Label>
