@@ -30,9 +30,9 @@ export async function GET(
 
 
 
-    // FORÇAR data de hoje como 2025-10-20 para teste
-    const todayStr = '2025-10-20'
-    const today = new Date(2025, 9, 20) // Mês 9 = outubro (0-indexed)
+    // Usar a data atual
+    const today = new Date()
+    const todayStr = format(today, 'yyyy-MM-dd')
     const startOfToday = startOfDay(today)
     
 
@@ -106,16 +106,14 @@ export async function GET(
     })
 
     
-    // FILTRO CORRETO: APENAS tarefas com startDate = 2025-10-20 ou em progresso
+    // FILTRO: Tarefas para hoje (com startDate ou dueDate = hoje) ou em progresso
     const filteredTasks = tasks.filter(task => {
-  
-      
       // 1. Tarefas em progresso sempre aparecem
       if (task.status === 'IN_PROGRESS') {
         return true
       }
       
-      // 2. APENAS tarefas com startDate = 2025-10-20
+      // 2. Tarefas com startDate = hoje
       if (task.startDate) {
         // Converter para string se necessário
         let taskDateStr: string
@@ -131,12 +129,29 @@ export async function GET(
           taskDateStr = taskDateStr.split('T')[0]
         }
         
-     
-        
-        if (taskDateStr === '2025-10-20') {
+        if (taskDateStr === todayStr) {
           return true
+        }
+      }
+      
+      // 3. Tarefas com dueDate = hoje
+      if (task.dueDate) {
+        // Converter para string se necessário
+        let taskDueDateStr: string
+        if (typeof task.dueDate === 'string') {
+          taskDueDateStr = task.dueDate
         } else {
-          return false
+          // Se for Date, converter para ISO string e extrair data
+          taskDueDateStr = task.dueDate.toISOString()
+        }
+        
+        // Extrair apenas a parte da data (YYYY-MM-DD)
+        if (taskDueDateStr.includes('T')) {
+          taskDueDateStr = taskDueDateStr.split('T')[0]
+        }
+        
+        if (taskDueDateStr === todayStr) {
+          return true
         }
       }
       

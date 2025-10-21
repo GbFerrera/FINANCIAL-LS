@@ -64,7 +64,8 @@ export async function PATCH(
         ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
         ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
         ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
-        ...(updates.sprintId !== undefined && { sprintId: updates.sprintId }),
+        // Não alterar o sprintId a menos que seja explicitamente fornecido como valor (não undefined)
+        ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
         ...(updates.order !== undefined && { order: updates.order }),
         updatedAt: new Date()
       },

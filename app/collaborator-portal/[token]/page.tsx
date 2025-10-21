@@ -1,12 +1,11 @@
 'use client'
 
-import { use } from 'react'
+import { use, useEffect, useState } from 'react'
 import { WeeklySprintView } from '@/components/collaborator/WeeklySprintView'
 import { TaskListView } from '@/components/collaborator/TaskListView'
 import { ReportTaskModal } from '@/components/collaborator/ReportTaskModal'
 import { Button } from '@/components/ui/button'
-import { Target, Calendar, List } from 'lucide-react'
-import { useState } from 'react'
+import { Target, Calendar, List, User } from 'lucide-react'
 
 interface PageProps {
   params: Promise<{
@@ -17,6 +16,24 @@ interface PageProps {
 export default function CollaboratorPortalPage({ params }: PageProps) {
   const { token } = use(params)
   const [viewMode, setViewMode] = useState<'weekly' | 'list'>('list')
+  const [collaboratorName, setCollaboratorName] = useState<string>('')
+  
+  useEffect(() => {
+    // Buscar informações do colaborador
+    const fetchCollaboratorInfo = async () => {
+      try {
+        const response = await fetch(`/api/collaborator-portal/${token}`)
+        if (response.ok) {
+          const data = await response.json()
+          setCollaboratorName(data.user?.name || '')
+        }
+      } catch (error) {
+        console.error('Erro ao buscar informações do colaborador:', error)
+      }
+    }
+    
+    fetchCollaboratorInfo()
+  }, [token])
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -26,6 +43,12 @@ export default function CollaboratorPortalPage({ params }: PageProps) {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Portal do Colaborador</h1>
+              {collaboratorName && (
+                <div className="flex items-center gap-2 mt-1 mb-1">
+                  <User className="h-4 w-4 text-blue-500" />
+                  <span className="font-medium text-blue-600">{collaboratorName}</span>
+                </div>
+              )}
               <p className="text-gray-600">
                 Organize suas tarefas por sprint e dia da semana
               </p>

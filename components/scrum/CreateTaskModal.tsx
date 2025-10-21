@@ -254,7 +254,8 @@ export function CreateTaskModal({
       const taskData = {
         ...data,
         projectId: currentProjectId,
-        sprintId,
+        // Só incluir sprintId se for uma nova tarefa ou se estiver explicitamente definido
+        ...(editingTask ? {} : { sprintId }),
         status: editingTask ? editingTask.status : 'TODO',
         ...(data.dueDate && { dueDate: new Date(data.dueDate).toISOString() }),
         ...(data.startDate && { startDate: new Date(data.startDate).toISOString() }),
