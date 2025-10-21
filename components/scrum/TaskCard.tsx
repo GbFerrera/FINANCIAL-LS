@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { 
@@ -14,7 +15,11 @@ import {
   PauseCircle,
   MoreVertical,
   Edit,
-  Trash2
+  Trash2,
+  MessageSquare,
+  Paperclip,
+  Image,
+  FileText
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -42,6 +47,12 @@ interface Task {
   startTime?: string
   estimatedMinutes?: number
   order: number
+  attachments?: Array<{
+    id: string
+    originalName: string
+    fileType: string
+    fileSize: number
+  }>
 }
 
 interface TaskCardProps {
@@ -68,6 +79,9 @@ const formatDateSafe = (dateString: string) => {
 }
 
 export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
+  const [showMenu, setShowMenu] = useState(false)
+  const [showAttachments, setShowAttachments] = useState(false)
+
   const getStatusIcon = () => {
     switch (task.status) {
       case 'TODO':
@@ -143,6 +157,116 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
     }
   }
 
+  const isReportedTask = () => {
+    return task.description?.includes('Tarefa reportada por') || false
+  }
+
+  const hasAttachments = () => {
+    // Verificar se tem anexos no campo attachments ou na descrição
+    if (task.attachments && task.attachments.length > 0) {
+      return true
+    }
+    // Verificar se a descrição contém indicação de anexos
+    return task.description?.includes('📎 Anexos (') || false
+  }
+
+  const getAttachmentsCount = () => {
+    if (task.attachments && task.attachments.length > 0) {
+      return task.attachments.length
+    }
+    // Extrair número de anexos da descrição
+    const match = task.description?.match(/📎 Anexos \((\d+)\):/)
+    return match ? parseInt(match[1]) : 0
+  }
+
+  const getAttachmentsFromDescription = () => {
+    if (task.attachments && task.attachments.length > 0) {
+      return task.attachments
+    }
+    
+    // Extrair anexos da descrição
+    const attachments: Array<{name: string, type: string, filePath?: string}> = []
+    const lines = task.description?.split('\n') || []
+    
+    let inAttachmentsSection = false
+    for (const line of lines) {
+      if (line.includes('📎 Anexos (')) {
+        inAttachmentsSection = true
+        continue
+      }
+      
+      if (inAttachmentsSection && line.startsWith('• ')) {
+        const match = line.match(/• (.+) \((.+)\)/)
+        if (match) {
+          attachments.push({
+            name: match[1],
+            type: match[2],
+            // Tentar construir caminho baseado no nome do arquivo
+            filePath: match[1]
+          })
+        }
+      } else if (inAttachmentsSection && !line.startsWith('• ')) {
+        break
+      }
+    }
+    
+    return attachments
+  }
+
+  const handleAttachmentClick = async (attachment: any, fileName: string, fileType: string) => {
+    const isImage = fileType?.startsWith('image/')
+    const isPDF = fileType === 'application/pdf'
+    
+    if (!isImage && !isPDF) return
+    
+    // Se tem filePath (anexo real), tentar abrir
+    if ('filePath' in attachment && attachment.filePath && !attachment.filePath.startsWith('blob:')) {
+      window.open(`/api/files/${attachment.filePath}`, '_blank')
+      return
+    }
+    
+    // Se tem id (anexo real), tentar construir caminho
+    if ('id' in attachment && attachment.id) {
+      window.open(`/api/files/${attachment.id}`, '_blank')
+      return
+    }
+    
+    // Para anexos da descrição, tentar estratégias diferentes
+    const possiblePaths = [
+      fileName, // Nome original
+      fileName.toLowerCase(), // Nome em minúsculas
+      fileName.replace(/\s+/g, '_'), // Substituir espaços por underscore
+      fileName.replace(/\s+/g, '-'), // Substituir espaços por hífen
+    ]
+    
+    // Tentar cada possibilidade
+    for (const path of possiblePaths) {
+      try {
+        const response = await fetch(`/api/files/${path}`, { method: 'HEAD' })
+        if (response.ok) {
+          window.open(`/api/files/${path}`, '_blank')
+          return
+        }
+      } catch (error) {
+        // Continuar tentando
+        continue
+      }
+    }
+    
+    // Se nada funcionou, mostrar modal mais amigável
+    const shouldTryAnyway = confirm(
+      `📎 ${fileName}\n\n` +
+      `Este anexo foi enviado junto com a tarefa.\n` +
+      `Não foi possível localizar o arquivo automaticamente.\n\n` +
+      `Deseja tentar abrir mesmo assim?\n` +
+      `(Pode aparecer erro 404 se o arquivo não existir)`
+    )
+    
+    if (shouldTryAnyway) {
+      window.open(`/api/files/${fileName}`, '_blank')
+    }
+  }
+
   const getPriorityLabel = () => {
     switch (task.priority) {
       case 'LOW':
@@ -170,6 +294,25 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
             <Badge variant="secondary" className="text-xs">
               {getStatusLabel()}
             </Badge>
+            {isReportedTask() && (
+              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                <MessageSquare className="w-3 h-3 mr-1" />
+                Reportada
+              </Badge>
+            )}
+            {hasAttachments() && (
+              <Badge 
+                variant="outline" 
+                className="text-xs bg-green-50 text-green-700 border-green-200 cursor-pointer hover:bg-green-100 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowAttachments(!showAttachments)
+                }}
+              >
+                <Paperclip className="w-3 h-3 mr-1" />
+                {getAttachmentsCount()}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {task.storyPoints && (
@@ -297,6 +440,68 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
               <span className="text-xs text-gray-600 truncate">
                 {task.assignee.name}
               </span>
+            </div>
+          )}
+
+          {/* Lista de Anexos */}
+          {showAttachments && hasAttachments() && (
+            <div className="pt-3 border-t border-gray-200">
+              <h4 className="text-xs font-medium text-gray-700 mb-2">
+                Anexos ({getAttachmentsCount()})
+              </h4>
+              <div className="space-y-1">
+                {getAttachmentsFromDescription().map((attachment, index) => {
+                  // Lidar com ambos os formatos: {name, type} e {originalName, fileType}
+                  const fileName = 'name' in attachment ? attachment.name : attachment.originalName
+                  const fileType = 'type' in attachment ? attachment.type : attachment.fileType
+                  
+                  const isImage = fileType?.startsWith('image/')
+                  const isPDF = fileType === 'application/pdf'
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className={`flex items-center gap-2 p-2 bg-gray-50 rounded text-xs transition-colors ${
+                        isImage || isPDF ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-gray-100'
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAttachmentClick(attachment, fileName, fileType)
+                      }}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {isImage ? (
+                          <Image className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                        ) : isPDF ? (
+                          <FileText className="w-3 h-3 text-red-600 flex-shrink-0" />
+                        ) : (
+                          <Paperclip className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                        )}
+                        
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">
+                            {fileName}
+                          </p>
+                          <p className="text-gray-500">
+                            {isImage ? 'Imagem' : isPDF ? 'PDF' : 'Arquivo'}
+                            {(isImage || isPDF) && (
+                              <span className="ml-1 text-blue-600">• Clique para ver</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-400">
+                        {(isImage || isPDF) ? '👁️' : '📎'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              <p className="text-xs text-gray-500 mt-2 italic">
+                💡 Os anexos estão salvos no servidor e podem ser acessados pelos administradores
+              </p>
             </div>
           )}
         </div>

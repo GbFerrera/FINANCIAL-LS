@@ -1,0 +1,9 @@
+# Esta pasta armazena os arquivos enviados pelos usuários
+# Estrutura:
+# /uploads/tasks/{taskId}/ - Anexos de tarefas específicas
+# /uploads/ - Arquivos gerais
+
+# Tipos de arquivo permitidos:
+# - PDFs (.pdf)
+# - Imagens (.jpg, .jpeg, .png, .gif, .webp)
+# - Tamanho máximo: 10MB por arquivo

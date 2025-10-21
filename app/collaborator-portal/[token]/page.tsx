@@ -3,6 +3,7 @@
 import { use } from 'react'
 import { WeeklySprintView } from '@/components/collaborator/WeeklySprintView'
 import { TaskListView } from '@/components/collaborator/TaskListView'
+import { ReportTaskModal } from '@/components/collaborator/ReportTaskModal'
 import { Button } from '@/components/ui/button'
 import { Target, Calendar, List } from 'lucide-react'
 import { useState } from 'react'
@@ -31,6 +32,7 @@ export default function CollaboratorPortalPage({ params }: PageProps) {
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
+                <ReportTaskModal collaboratorToken={token} />
                 <Button
                   variant={viewMode === 'weekly' ? 'default' : 'outline'}
                   size="sm"
