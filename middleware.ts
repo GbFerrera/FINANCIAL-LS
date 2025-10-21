@@ -6,6 +6,8 @@ export async function middleware(request: NextRequest) {
   // Rotas públicas que não precisam de autenticação
   const publicPaths = [
     '/api/auth/.*',
+    '/auth/signin',
+    '/auth/error',
     '/login',
     '/register',
     '/api/files/.*', // Permitir acesso a arquivos sem autenticação
@@ -35,7 +37,7 @@ export async function middleware(request: NextRequest) {
       )
     }
     
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/auth/signin', request.url))
   }
 
   return NextResponse.next()
