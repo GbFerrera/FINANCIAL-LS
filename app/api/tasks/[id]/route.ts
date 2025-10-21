@@ -62,6 +62,8 @@ export async function PATCH(
         ...(updates.priority && { priority: updates.priority }),
         ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
         ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
+        ...(updates.startDate && { startDate: new Date(updates.startDate) }),
+        ...(updates.startTime !== undefined && { startTime: updates.startTime }),
         ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
         ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
         // Não alterar o sprintId a menos que seja explicitamente fornecido como valor (não undefined)
