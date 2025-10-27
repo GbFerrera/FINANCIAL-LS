@@ -11,6 +11,10 @@ export async function middleware(request: NextRequest) {
     '/login',
     '/register',
     '/api/files/.*', // Permitir acesso a arquivos sem autenticação
+    '/client-portal/.*', // Portal do cliente
+    '/collaborator-portal/.*', // Portal do colaborador
+    '/api/client-portal/.*', // APIs do portal do cliente
+    '/api/collaborator-portal/.*', // APIs do portal do colaborador
   ]
 
   const isPublicPath = publicPaths.some(path => {
