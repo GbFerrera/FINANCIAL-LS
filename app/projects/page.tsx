@@ -735,13 +735,22 @@ export default function ProjectsPage() {
 
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                          <button 
-                            onClick={() => router.push(`/projects/${project.id}`)}
-                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
-                          >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Ver Detalhes
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => router.push(`/projects/${project.id}`)}
+                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Ver Detalhes
+                            </button>
+                            <button 
+                              onClick={() => router.push(`/projects/${project.id}/canvas`)}
+                              className="inline-flex items-center px-3 py-1.5 border border-indigo-300 shadow-sm text-xs font-medium rounded text-indigo-700 bg-white hover:bg-indigo-50"
+                              title="Abrir Canvas (Excalidraw)"
+                            >
+                              Canvas
+                            </button>
+                          </div>
                           
                           {session?.user.role === 'ADMIN' && (
                             <div className="flex space-x-2">

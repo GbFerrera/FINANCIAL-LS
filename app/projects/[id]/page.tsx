@@ -755,14 +755,21 @@ export default function ProjectDetailsPage() {
                 Voltar aos Projetos
               </button>
               
-              {session?.user.role === 'ADMIN' && (
-                <div className="flex space-x-2">
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => params?.id && router.push(`/projects/${params.id}/canvas`)}
+                  className="inline-flex items-center px-3 py-1.5 border border-indigo-300 shadow-sm text-sm font-medium rounded text-indigo-700 bg-white hover:bg-indigo-50"
+                  title="Abrir Canvas (Excalidraw)"
+                >
+                  Canvas
+                </button>
+                {session?.user.role === 'ADMIN' && (
                   <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
                     <Edit className="h-4 w-4 mr-1" />
                     Editar
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="flex items-start justify-between">

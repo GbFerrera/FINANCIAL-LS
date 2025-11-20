@@ -10,6 +10,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model ExcalidrawProject {
+  id        String   @id @default(cuid())
+  title     String?
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("excalidraw_projects")
+}
+
 model User {
   id          String   @id @default(cuid())
   email       String   @unique
@@ -61,6 +71,7 @@ model Project {
   isPaused    Boolean       @default(false)
   pausedAt    DateTime?
   pauseReason String?
+  excalidrawScene Json?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
