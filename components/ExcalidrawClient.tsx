@@ -69,12 +69,27 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
         },
       };
 
+  const serializeFiles = (files?: Record<string, any>) => {
+    if (!files) return undefined;
+    const out: Record<string, any> = {};
+    for (const [id, f] of Object.entries(files)) {
+      out[id] = {
+        id: f.id ?? id,
+        created: f.created ?? Date.now(),
+        mimeType: f.mimeType ?? f.type ?? "image/png",
+        dataURL: f.dataURL ?? null,
+        fileName: f.fileName ?? undefined,
+      };
+    }
+    return out;
+  };
+
   const getScene = () => {
     const api = apiRef.current;
     if (!api) return latestSceneRef.current;
     const elements = api.getSceneElements();
     const appState = sanitizeAppState(api.getAppState());
-    const files = api.getFiles ? api.getFiles() : undefined;
+    const files = api.getFiles ? serializeFiles(api.getFiles()) : undefined;
     return { elements, appState, files } as SceneData;
   };
 
@@ -194,7 +209,7 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
             latestSceneRef.current = {
               elements,
               appState: sanitizeAppState(appState),
-              files,
+              files: serializeFiles(files),
             };
             setIsDirty(true);
             onChange?.(latestSceneRef.current);
