@@ -146,59 +146,9 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
   useImperativeHandle(ref, () => ({ getScene, updateScene, save, load }), [title, projectId]);
 
   return (
-    <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <div style={{ padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            onClick={() => projectId && router.push(`/projects/${projectId}`)}
-            disabled={!projectId}
-            style={{ border: "1px solid #333", borderRadius: 6, padding: "6px 12px" }}
-          >
-            Voltar para projeto
-          </button>
-        
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            onClick={() => (projectId ? load(projectId) : Promise.resolve()).catch(console.error)}
-            disabled={!isReady || !projectId}
-            style={{ border: "1px solid #333", borderRadius: 6, padding: "6px 12px" }}
-          >
-            Carregar
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await save();
-                setIsDirty(false);
-                setSaveStatus("success");
-                setTimeout(() => setSaveStatus(""), 2500);
-              } catch (e) {
-                console.error(e);
-                setSaveStatus("error");
-                setTimeout(() => setSaveStatus(""), 3000);
-              }
-            }}
-            disabled={!isReady || !projectId}
-            style={{
-              border: isDirty ? "1px solid #b91c1c" : "1px solid #333",
-              background: isDirty ? "#ef4444" : "transparent",
-              color: isDirty ? "#fff" : "inherit",
-              borderRadius: 6,
-              padding: "6px 12px",
-            }}
-          >
-            Salvar
-          </button>
-          {saveStatus === "success" && (
-            <span style={{ marginLeft: 4, color: "#16a34a" }}>Salvo com sucesso</span>
-          )}
-          {saveStatus === "error" && (
-            <span style={{ marginLeft: 4, color: "#b91c1c" }}>Erro ao salvar</span>
-          )}
-        </div>
-      </div>
-      <div style={{ flex: 1, minHeight: 0 }}>
+    <div style={{ height: "100vh", width: "100vw", display: "flex", flexDirection: "column", minHeight: 0, margin: 0, padding: 0 }}>
+     
+      <div style={{ flex: 1, minHeight: 0, width: "100%" }}>
         <ExcalidrawComponent
           excalidrawAPI={(api: ExcalidrawAPI) => {
             apiRef.current = api;

@@ -11,7 +11,7 @@ function ExcalidrawPageContent() {
   const searchParams = useSearchParams();
   const projectId = searchParams?.get("projectId") ?? undefined;
   return (
-    <div style={{ height: "100vh" }}>
+    <div style={{ height: "100vh", width: "100vw" }}>
       <ExcalidrawClient initialLoadId={projectId} />
     </div>
   );
@@ -19,7 +19,7 @@ function ExcalidrawPageContent() {
 
 export default function Page() {
   return (
-    <div style={{ height: "100vh", minHeight: 0 }}>
+    <div style={{ height: "100vh", width: "100vw", minHeight: 0 }}>
       <Suspense fallback={<div style={{ padding: 16 }}>Carregando…</div>}>
         <ExcalidrawPageContent />
       </Suspense>
