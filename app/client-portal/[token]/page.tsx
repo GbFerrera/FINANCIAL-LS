@@ -769,6 +769,16 @@ export default function ClientPortalPage() {
                   
                   const balance = totalIncome - totalExpenses
 
+                  // Resolver projectId mesmo quando o tipo não o declara explicitamente
+                  const resolveProjectId = (entry: ClientFinancialEntry): string | undefined => {
+                    const explicit = (entry as any).projectId as string | undefined
+                    if (explicit) return explicit
+                    const match = projects.find(p => p.name === entry.projectName)
+                    return match?.id
+                  }
+
+                  // Não precisamos calcular totais por projeto aqui, pois removemos a coluna agregada
+
                   return (
                     <>
                       {/* Cards de resumo financeiro */}
@@ -809,6 +819,10 @@ export default function ClientPortalPage() {
                           <p className="text-sm text-gray-600 mt-1">
                             {allFinancials.length} {allFinancials.length === 1 ? 'movimentação encontrada' : 'movimentações encontradas'}
                           </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-700">Total investido:</span>
+                            <span className="text-sm font-bold text-green-600">{formatCurrency(totalIncome)}</span>
+                          </div>
                         </div>
                         
                         <div className="block md:hidden divide-y divide-gray-100">
@@ -989,6 +1003,7 @@ export default function ClientPortalPage() {
                                           entry.projectName || '-'
                                         )}
                                       </td>
+                                      
                                     </tr>
                                   )
                                 })}

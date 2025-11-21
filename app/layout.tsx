@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SoftHouse Manager",
-  description: "Sistema de gestão para soft house - projetos, finanças e equipe",
+  title: "Link System - Administrativo",
+  description: "Gerenciador administrativo LS - projetos, finanças e equipe",
 };
 
 export default function RootLayout({
