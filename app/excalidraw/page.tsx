@@ -19,8 +19,10 @@ function ExcalidrawPageContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div style={{ padding: 16 }}>Carregando…</div>}>
-      <ExcalidrawPageContent />
-    </Suspense>
+    <div style={{ height: "100vh", minHeight: 0 }}>
+      <Suspense fallback={<div style={{ padding: 16 }}>Carregando…</div>}>
+        <ExcalidrawPageContent />
+      </Suspense>
+    </div>
   );
 }

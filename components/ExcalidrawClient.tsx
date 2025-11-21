@@ -146,7 +146,7 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
   useImperativeHandle(ref, () => ({ getScene, updateScene, save, load }), [title, projectId]);
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100vh", width: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>
       <div style={{ padding: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
@@ -198,7 +198,7 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
           )}
         </div>
       </div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
         <ExcalidrawComponent
           excalidrawAPI={(api: ExcalidrawAPI) => {
             apiRef.current = api;
