@@ -128,8 +128,28 @@ interface ProjectPaymentSummary {
   paymentPercentage: number
 }
 
+interface ProjectDistribution {
+  projectId: string
+  projectName: string
+  amount: number
+}
+
+interface ClientFinancialEntry {
+  id: string
+  type: 'INCOME' | 'EXPENSE'
+  category: string | null
+  description: string
+  amount: number
+  date: string
+  projectName?: string | null
+  paymentId?: string | null
+  projectDistributions?: ProjectDistribution[]
+  createdAt?: string
+}
+
 export default function ClientPortalPage() {
-  const params = useParams()
+  const routerParams = useParams() as { token?: string }
+  const tokenParam = routerParams?.token ?? ""
   const router = useRouter()
   const [client, setClient] = useState<ClientData | null>(null)
   const [projects, setProjects] = useState<ProjectData[]>([])
@@ -142,9 +162,15 @@ export default function ClientPortalPage() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [sendingComment, setSendingComment] = useState(false)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | 'IN_PROGRESS' | 'COMPLETED'>('all')
   const [isConnected, setIsConnected] = useState(false)
   const [hasNewMessages, setHasNewMessages] = useState(false)
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set())
+  // Estado para financeiro (rota dedicada)
+  const [finEntries, setFinEntries] = useState<ClientFinancialEntry[]>([])
+  const [finStats, setFinStats] = useState<any | null>(null)
+  const [finPage, setFinPage] = useState<number>(1)
+  const [finLimit, setFinLimit] = useState<number>(10)
 
   // Calculate payment summaries from projects and financial entries
   const calculatePaymentSummaries = (projects: ProjectData[], payments: PaymentData[]) => {
@@ -176,10 +202,10 @@ export default function ClientPortalPage() {
   };
 
   useEffect(() => {
-    if (params.token) {
-      fetchClientData(params.token as string)
+    if (tokenParam) {
+      fetchClientData(tokenParam)
     }
-  }, [params.token])
+  }, [tokenParam])
 
   useEffect(() => {
     let eventSource: EventSource | null = null
@@ -253,13 +279,13 @@ export default function ClientPortalPage() {
         }
         
         if (data.type === 'new_comments' && data.comments?.length > 0) {
-           // Se não estamos na aba de mensagens, mostrar notificação
-           if (activeTab !== 'messages') {
-             setHasNewMessages(true)
-           }
-           // Refresh data to show new comment
-           fetchClientData(params.token as string)
-         }
+          // Se não estamos na aba de mensagens, mostrar notificação
+          if (activeTab !== 'messages') {
+            setHasNewMessages(true)
+          }
+          // Atualiza dados para mostrar novo comentário
+          if (tokenParam) fetchClientData(tokenParam)
+        }
       } catch (error) {
         console.error('Error parsing SSE data:', error)
       }
@@ -281,12 +307,35 @@ export default function ClientPortalPage() {
     return eventSource
   }
 
+  // Buscar financeiro do cliente com filtros básicos
+  useEffect(() => {
+    const loadFinancial = async () => {
+      if (!tokenParam || activeTab !== 'financial') return
+      try {
+        const params = new URLSearchParams()
+        params.set('page', String(finPage))
+        params.set('limit', String(finLimit))
+        if (selectedProjectId) params.set('projectId', selectedProjectId)
+        const res = await fetch(`/api/client-portal/${tokenParam}/financial?${params.toString()}`)
+        if (!res.ok) throw new Error('Falha ao carregar financeiro do cliente')
+        const json = await res.json()
+        setFinEntries(json.entries || [])
+        setFinStats(json.stats || null)
+      } catch (err) {
+        console.error('[client-portal] erro ao buscar financeiro', err)
+        setFinEntries([])
+        setFinStats(null)
+      }
+    }
+    loadFinancial()
+  }, [tokenParam, activeTab, finPage, finLimit, selectedProjectId])
+
   const sendComment = async () => {
     if (!newComment.trim() || !selectedProject) return
     
     try {
       setSendingComment(true)
-      const response = await fetch(`/api/client-portal/${params.token}/comments`, {
+      const response = await fetch(`/api/client-portal/${tokenParam}/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -351,6 +400,32 @@ export default function ClientPortalPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(value)
+  }
+
+  // Helpers para ícone/cores das movimentações financeiras na tabela
+  const getTypeColor = (type: string) => {
+    return type === 'INCOME' ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
+  }
+
+  const getTypeIcon = (type: string) => {
+    return type === 'INCOME' ? TrendingUp : TrendingDown
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'PLANNING':
+        return 'Planejamento'
+      case 'IN_PROGRESS':
+        return 'Em Andamento'
+      case 'ON_HOLD':
+        return 'Pausado'
+      case 'COMPLETED':
+        return 'Concluído'
+      case 'CANCELLED':
+        return 'Cancelado'
+      default:
+        return status
+    }
   }
 
   const toggleEntryExpansion = (entryId: string) => {
@@ -433,7 +508,7 @@ export default function ClientPortalPage() {
         {/* Tabs */}
         <div className="bg-white shadow rounded-lg mb-6">
           <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8 px-6">
+            <nav className="-mb-px flex gap-6 px-4 overflow-x-auto sm:flex-wrap">
               {[
                 { id: 'overview', name: 'Visão Geral', icon: BarChart3 },
                 { id: 'projects', name: 'Projetos', icon: FileText },
@@ -447,7 +522,7 @@ export default function ClientPortalPage() {
                     className={`${activeTab === tab.id
                       ? 'border-indigo-500 text-indigo-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center relative`}
+                    } sm:whitespace-nowrap whitespace-normal py-4 px-2 border-b-2 font-medium text-sm flex items-center relative`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {tab.name}
@@ -638,18 +713,32 @@ export default function ClientPortalPage() {
                       <h2 className="text-2xl font-bold text-gray-900">Informações Financeiras</h2>
                       <p className="text-gray-600 mt-1">Acompanhe o desempenho financeiro dos seus projetos</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-700">Projeto:</span>
-                      <select 
-                        value={selectedProjectId || ''} 
-                        onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                        className="min-w-[200px] px-4 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                      >
-                        <option value="">Todos os projetos</option>
-                        {projects.map(project => (
-                          <option key={project.id} value={project.id}>{project.name}</option>
-                        ))}
-                      </select>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <span className="text-sm font-medium text-gray-700">Projeto:</span>
+                        <select 
+                          value={selectedProjectId || ''} 
+                          onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                          className="w-full sm:w-[220px] md:w-[260px] px-4 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="">Todos os projetos</option>
+                          {projects.map(project => (
+                            <option key={project.id} value={project.id}>{project.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <span className="text-sm font-medium text-gray-700">Status:</span>
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value as any)}
+                          className="w-full sm:w-[200px] px-4 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="all">Todos</option>
+                          <option value="IN_PROGRESS">Em andamento</option>
+                          <option value="COMPLETED">Concluídos</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -659,9 +748,12 @@ export default function ClientPortalPage() {
                     ? projects.find(p => p.id === selectedProjectId)
                     : null
                   
-                  const allFinancials = selectedProjectId
-                    ? (projectData?.financialEntries || [])
-                    : financialEntries
+                  const projectsForTotals = selectedProjectId
+                    ? (projectData ? [projectData] : [])
+                    : (statusFilter === 'all' ? projects : projects.filter(p => p.status === statusFilter))
+
+                  // Usa a nova rota dedicada ao financeiro do cliente
+                  const allFinancials: ClientFinancialEntry[] = finEntries || []
                   
                   const totalIncome = allFinancials
                     .filter(entry => entry.type === 'INCOME')
@@ -673,69 +765,237 @@ export default function ClientPortalPage() {
                   
                   const totalBudget = selectedProjectId
                     ? (projectData?.budget || 0)
-                    : projects.reduce((sum, p) => sum + (p.budget || 0), 0)
+                    : projectsForTotals.reduce((sum, p) => sum + (p.budget || 0), 0)
                   
                   const balance = totalIncome - totalExpenses
 
                   return (
                     <>
                       {/* Cards de resumo financeiro */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Orçamento Total</p>
-                              <p className="text-3xl font-bold text-blue-900 mt-2">
-                                {formatCurrency(totalBudget)}
-                              </p>
+                      
+
+                      {/* Resumo de Concluídos (retorno e restante) */}
+                      {(() => {
+                        const summariesByStatus = projectPaymentSummaries.map(s => ({
+                          ...s,
+                          status: projects.find(p => p.id === s.projectId)?.status || 'PLANNING'
+                        }))
+                        const concluded = summariesByStatus.filter(s => s.status === 'COMPLETED')
+                        if (concluded.length === 0) return null
+                        const concludedPaid = concluded.reduce((sum, s) => sum + s.totalPaid, 0)
+                        const concludedRemaining = concluded.reduce((sum, s) => sum + s.remainingBudget, 0)
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+                              <p className="text-sm font-semibold text-green-700 uppercase tracking-wide">Concluídos - Retorno Financeiro</p>
+                              <p className="text-3xl font-bold text-green-900 mt-2">{formatCurrency(concludedPaid)}</p>
+                              <p className="text-sm text-gray-600 mt-1">Somatório dos valores pagos em projetos concluídos</p>
                             </div>
-                            <div className="bg-blue-200 p-3 rounded-full">
-                              <DollarSign className="h-6 w-6 text-blue-700" />
+                            <div className="bg-orange-50 rounded-xl p-6 border border-orange-200">
+                              <p className="text-sm font-semibold text-orange-700 uppercase tracking-wide">Concluídos - Restante a repassar</p>
+                              <p className="text-3xl font-bold text-orange-900 mt-2">{formatCurrency(concludedRemaining)}</p>
+                              <p className="text-sm text-gray-600 mt-1">Saldo ainda não repassado frente ao orçamento</p>
                             </div>
                           </div>
+                        )
+                      })()}
+
+                        {/* Lista de movimentações financeiras (mantida para compatibilidade) */}
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Movimentações Financeiras {selectedProjectId && projectData ? `- ${projectData.name}` : ''}
+                          </h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {allFinancials.length} {allFinancials.length === 1 ? 'movimentação encontrada' : 'movimentações encontradas'}
+                          </p>
                         </div>
                         
-                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-green-700 uppercase tracking-wide">Receitas</p>
-                              <p className="text-3xl font-bold text-green-900 mt-2">
-                                {formatCurrency(totalIncome)}
-                              </p>
+                        <div className="block md:hidden divide-y divide-gray-100">
+                          {allFinancials.length === 0 ? (
+                            <div className="px-6 py-12 text-center">
+                              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                <DollarSign className="h-8 w-8 text-gray-400" />
+                              </div>
+                              <h4 className="text-lg font-medium text-gray-900 mb-2">Nenhuma movimentação encontrada</h4>
+                              <p className="text-gray-500">Não há registros financeiros para o período selecionado.</p>
                             </div>
-                            <div className="bg-green-200 p-3 rounded-full">
-                              <TrendingUp className="h-6 w-6 text-green-700" />
-                            </div>
-                          </div>
+                          ) : (
+                            allFinancials.map((entry: ClientFinancialEntry) => {
+                              const isExpanded = expandedEntries.has(entry.id)
+                              const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
+                              
+                              return (
+                                <div key={entry.id} className="border-b border-gray-100 last:border-b-0">
+                                  <div
+                                    className="px-4 py-4 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                                    onClick={() => (hasDistributions || !!entry.projectName) && toggleEntryExpansion(entry.id)}
+                                    role="button"
+                                    aria-expanded={isExpanded}
+                                  >
+                                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start">
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                          entry.type === 'INCOME' 
+                                            ? 'bg-green-100 border-2 border-green-200' 
+                                            : 'bg-red-100 border-2 border-red-200'
+                                        }`}>
+                                          {entry.type === 'INCOME' ? (
+                                            <TrendingUp className="h-5 w-5 text-green-600" />
+                                          ) : (
+                                            <TrendingDown className="h-5 w-5 text-red-600" />
+                                          )}
+                                        </div>
+                                        <div className="flex-1">
+                                          {/* Título principal: valor + tipo */}
+                                          <div className="flex items-center gap-2">
+                                            <p className={`text-xl font-bold ${
+                                              entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                                            }`}>
+                                              {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(entry.amount)}
+                                            </p>
+                                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                              entry.type === 'INCOME' 
+                                                ? 'bg-green-100 text-green-700' 
+                                                : 'bg-red-100 text-red-700'
+                                            }`}>
+                                              {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
+                                            </span>
+                                          </div>
+                                          {/* Descrição abaixo */}
+                                          <div className="mt-1">
+                                            <h4 className="text-sm font-semibold text-gray-900 break-words leading-snug">{entry.description}</h4>
+                                          </div>
+                                          {/* Data pequena abaixo */}
+                                          <div className="mt-0.5 text-xs text-gray-500">{formatDate(entry.date)}</div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 justify-end">
+                                        {(hasDistributions || !!entry.projectName) && (
+                                          isExpanded ? (
+                                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                                          ) : (
+                                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Distribuições expandidas */}
+                                  {hasDistributions && isExpanded && (
+                                    <div className="px-4 pb-3 bg-gray-50">
+                                      <div className="border-l-2 border-purple-200 pl-4">
+                                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium mb-2">
+                                          Distribuído entre {entry.projectDistributions?.length ?? 0} projeto{(entry.projectDistributions?.length ?? 0) > 1 ? 's' : ''}
+                                        </div>
+                                        <div className="space-y-2">
+                                          {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
+                                            <div key={index} className="flex items-center justify-between py-2 px-3 bg-white rounded-md border border-gray-200">
+                                              <div className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                                <span className="text-sm font-medium text-gray-900">{dist.projectName}</span>
+                                              </div>
+                                              <span className={`text-sm font-semibold ${
+                                                entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                                              }`}>
+                                                {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(dist.amount)}
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!hasDistributions && !!entry.projectName && isExpanded && (
+                                    <div className="px-4 pb-3 bg-gray-50">
+                                      <div className="border-l-2 border-blue-200 pl-4">
+                                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium mb-2">Projeto</div>
+                                        <div className="flex items-center justify-between py-2 px-3 bg-white rounded-md border border-gray-200">
+                                          <span className="text-sm font-medium text-gray-900">{entry.projectName}</span>
+                                          <span className={`text-sm font-semibold ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>{entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })
+                          )}
                         </div>
-                        
-                        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-red-700 uppercase tracking-wide">Despesas</p>
-                              <p className="text-3xl font-bold text-red-900 mt-2">
-                                {formatCurrency(totalExpenses)}
-                              </p>
+                        {allFinancials.length === 0 ? (
+                          <div className="px-6 py-12 text-center">
+                            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                              <DollarSign className="h-8 w-8 text-gray-400" />
                             </div>
-                            <div className="bg-red-200 p-3 rounded-full">
-                              <TrendingDown className="h-6 w-6 text-red-700" />
-                            </div>
+                            <h4 className="text-lg font-medium text-gray-900 mb-2">Nenhuma movimentação encontrada</h4>
+                            <p className="text-gray-500">Não há registros financeiros para o período selecionado.</p>
                           </div>
-                        </div>
-                        
-                        <div className={`bg-gradient-to-br ${balance >= 0 ? 'from-emerald-50 to-emerald-100 border-emerald-200' : 'from-orange-50 to-orange-100 border-orange-200'} rounded-xl p-6 border`}>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className={`text-sm font-semibold ${balance >= 0 ? 'text-emerald-700' : 'text-orange-700'} uppercase tracking-wide`}>Saldo</p>
-                              <p className={`text-3xl font-bold ${balance >= 0 ? 'text-emerald-900' : 'text-orange-900'} mt-2`}>
-                                {formatCurrency(balance)}
-                              </p>
-                            </div>
-                            <div className={`${balance >= 0 ? 'bg-emerald-200' : 'bg-orange-200'} p-3 rounded-full`}>
-                              <Calculator className={`h-6 w-6 ${balance >= 0 ? 'text-emerald-700' : 'text-orange-700'}`} />
-                            </div>
+                        ) : (
+                          <div className="hidden md:block overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Projeto</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {allFinancials.map((entry: ClientFinancialEntry) => {
+                                  const TypeIconEl = getTypeIcon(entry.type)
+                                  const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
+                                  return (
+                                    <tr key={entry.id} className="hover:bg-gray-50">
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(entry.type)}`}>
+                                          <TypeIconEl className="w-3 h-3 mr-1" />
+                                          {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4">
+                                        <div className="text-sm font-medium text-gray-900">{entry.description}</div>
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{entry.category}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                                          {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}
+                                        </div>
+                                        {hasDistributions && (
+                                          <div className="mt-2 space-y-1">
+                                            {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
+                                              <div key={index} className="text-xs bg-purple-50 px-2 py-1 rounded border border-purple-200">
+                                                <span className="font-medium text-purple-700">{dist.projectName}:</span>
+                                                <span className="text-purple-600 ml-1">{formatCurrency(dist.amount)}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(entry.date)}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {hasDistributions ? (
+                                          <div className="space-y-1">
+                                            {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
+                                              <div key={index} className="text-xs bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                                <span className="text-blue-700 font-medium">{dist.projectName}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          entry.projectName || '-'
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       {/* Resumo de Pagamentos por Projeto */}
@@ -746,16 +1006,33 @@ export default function ClientPortalPage() {
                               Resumo de Pagamentos por Projeto
                             </h3>
                             <p className="text-sm text-gray-600 mt-1">
-                              Acompanhe o progresso financeiro de cada projeto
+                              Acompanhe o progresso financeiro de cada projeto{statusFilter !== 'all' ? ` • Filtrando: ${statusFilter === 'IN_PROGRESS' ? 'Em andamento' : 'Concluídos'}` : ''}
                             </p>
                           </div>
                           
                           <div className="divide-y divide-gray-100">
-                            {projectPaymentSummaries.map((summary) => (
+                            {projectPaymentSummaries
+                              .filter((summary) => {
+                                if (statusFilter === 'all') return true
+                                const p = projects.find(p => p.id === summary.projectId)
+                                return p?.status === statusFilter
+                              })
+                              .map((summary) => (
                               <div key={summary.projectId} className="px-6 py-5">
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                                   <div className="flex-1">
-                                    <h4 className="text-base font-semibold text-gray-900">{summary.projectName}</h4>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="text-base font-semibold text-gray-900">{summary.projectName}</h4>
+                                      {(() => {
+                                        const proj = projects.find(p => p.id === summary.projectId)
+                                        if (!proj) return null
+                                        return (
+                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(proj.status)}`}>
+                                            {getStatusLabel(proj.status)}
+                                          </span>
+                                        )
+                                      })()}
+                                    </div>
                                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                                       <div className="bg-blue-50 p-3 rounded-lg">
                                         <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
@@ -815,19 +1092,25 @@ export default function ClientPortalPage() {
                                 <div className="bg-blue-50 p-4 rounded-lg">
                                   <p className="text-sm font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
                                   <p className="text-xl font-bold text-blue-900 mt-1">
-                                    {formatCurrency(projectPaymentSummaries.reduce((sum, p) => sum + p.budget, 0))}
+                                    {formatCurrency(projectPaymentSummaries
+                                      .filter((s) => statusFilter === 'all' ? true : (projects.find(p => p.id === s.projectId)?.status === statusFilter))
+                                      .reduce((sum, p) => sum + p.budget, 0))}
                                   </p>
                                 </div>
                                 <div className="bg-green-50 p-4 rounded-lg">
                                   <p className="text-sm font-medium text-green-700 uppercase tracking-wide">Valor Pago</p>
                                   <p className="text-xl font-bold text-green-900 mt-1">
-                                    {formatCurrency(projectPaymentSummaries.reduce((sum, p) => sum + p.totalPaid, 0))}
+                                    {formatCurrency(projectPaymentSummaries
+                                      .filter((s) => statusFilter === 'all' ? true : (projects.find(p => p.id === s.projectId)?.status === statusFilter))
+                                      .reduce((sum, p) => sum + p.totalPaid, 0))}
                                   </p>
                                 </div>
                                 <div className="bg-orange-50 p-4 rounded-lg">
                                   <p className="text-sm font-medium text-orange-700 uppercase tracking-wide">Restante</p>
                                   <p className="text-xl font-bold text-orange-900 mt-1">
-                                    {formatCurrency(projectPaymentSummaries.reduce((sum, p) => sum + p.remainingBudget, 0))}
+                                    {formatCurrency(projectPaymentSummaries
+                                      .filter((s) => statusFilter === 'all' ? true : (projects.find(p => p.id === s.projectId)?.status === statusFilter))
+                                      .reduce((sum, p) => sum + p.remainingBudget, 0))}
                                   </p>
                                 </div>
                               </div>
@@ -836,142 +1119,7 @@ export default function ClientPortalPage() {
                         </div>
                       )}
 
-                      {/* Lista de movimentações financeiras (mantida para compatibilidade) */}
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                          <h3 className="text-lg font-semibold text-gray-900">
-                            Movimentações Financeiras {selectedProjectId && projectData ? `- ${projectData.name}` : ''}
-                          </h3>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {allFinancials.length} {allFinancials.length === 1 ? 'movimentação encontrada' : 'movimentações encontradas'}
-                          </p>
-                        </div>
-                        
-                        <div className="divide-y divide-gray-100">
-                          {allFinancials.length === 0 ? (
-                            <div className="px-6 py-12 text-center">
-                              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                <DollarSign className="h-8 w-8 text-gray-400" />
-                              </div>
-                              <h4 className="text-lg font-medium text-gray-900 mb-2">Nenhuma movimentação encontrada</h4>
-                              <p className="text-gray-500">Não há registros financeiros para o período selecionado.</p>
-                            </div>
-                          ) : (
-                            allFinancials.map((entry) => {
-                              const isExpanded = expandedEntries.has(entry.id)
-                              const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
-                              
-                              return (
-                                <div key={entry.id} className="border-b border-gray-100 last:border-b-0">
-                                  <div className="px-6 py-5 hover:bg-gray-50 transition-colors duration-150">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-4">
-                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                                          entry.type === 'INCOME' 
-                                            ? 'bg-green-100 border-2 border-green-200' 
-                                            : 'bg-red-100 border-2 border-red-200'
-                                        }`}>
-                                          {entry.type === 'INCOME' ? (
-                                            <TrendingUp className="h-6 w-6 text-green-600" />
-                                          ) : (
-                                            <TrendingDown className="h-6 w-6 text-red-600" />
-                                          )}
-                                        </div>
-                                        <div className="flex-1">
-                                          <div className="flex items-center space-x-2">
-                                            <h4 className="text-base font-semibold text-gray-900">{entry.description}</h4>
-                                            {hasDistributions && (
-                                              <button
-                                                onClick={() => toggleEntryExpansion(entry.id)}
-                                                className="p-1 hover:bg-gray-200 rounded-full transition-colors"
-                                                title={isExpanded ? "Recolher distribuição" : "Ver distribuição por projetos"}
-                                              >
-                                                {isExpanded ? (
-                                                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                                                ) : (
-                                                  <ChevronRight className="h-4 w-4 text-gray-500" />
-                                                )}
-                                              </button>
-                                            )}
-                                          </div>
-                                          <div className="flex items-center space-x-2 mt-1">
-                                            <span className="text-sm text-gray-500">{formatDate(entry.date)}</span>
-                                            <span className="text-gray-300">•</span>
-                                            <span className={`text-sm font-medium px-2 py-1 rounded-full ${
-                                              entry.type === 'INCOME' 
-                                                ? 'bg-green-100 text-green-700' 
-                                                : 'bg-red-100 text-red-700'
-                                            }`}>
-                                              {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
-                                            </span>
-                                            {entry.projectName && !hasDistributions && (
-                                              <>
-                                                <span className="text-gray-300">•</span>
-                                                <span className="text-sm font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                                                  {entry.projectName}
-                                                </span>
-                                              </>
-                                            )}
-                                            {hasDistributions && (
-                                              <>
-                                                <span className="text-gray-300">•</span>
-                                                <span className="text-sm font-medium px-2 py-1 rounded-full bg-purple-100 text-purple-700">
-                                                  Distribuído entre {entry.projectDistributions?.length || 0} projeto{(entry.projectDistributions?.length || 0) > 1 ? 's' : ''}
-                                                </span>
-                                              </>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className={`text-xl font-bold ${
-                                          entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
-                                        }`}>
-                                          {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(entry.amount)}
-                                        </p>
-                                        {hasDistributions && (
-                                          <div className="mt-2 space-y-1">
-                                            {entry.projectDistributions?.map((dist, index) => (
-                                              <div key={index} className="text-xs bg-purple-50 px-2 py-1 rounded border border-purple-200">
-                                                <span className="font-medium text-purple-700">{dist.projectName}:</span>
-                                                <span className="text-purple-600 ml-1">{formatCurrency(dist.amount)}</span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Distribuições expandidas */}
-                                  {hasDistributions && isExpanded && (
-                                    <div className="px-6 pb-4 bg-gray-50">
-                                      <div className="border-l-2 border-purple-200 pl-4">
-                                        <h5 className="text-sm font-medium text-gray-700 mb-3">Distribuição por Projetos:</h5>
-                                        <div className="space-y-2">
-                                          {entry.projectDistributions?.map((dist, index) => (
-                                            <div key={index} className="flex items-center justify-between py-2 px-3 bg-white rounded-md border border-gray-200">
-                                              <div className="flex items-center space-x-2">
-                                                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                                <span className="text-sm font-medium text-gray-900">{dist.projectName}</span>
-                                              </div>
-                                              <span className={`text-sm font-semibold ${
-                                                entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
-                                              }`}>
-                                                {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(dist.amount)}
-                                              </span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      </div>
+                    
                     </>
                   )
                 })()}

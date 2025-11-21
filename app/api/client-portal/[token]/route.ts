@@ -202,9 +202,12 @@ export async function GET(
     const transformedFinancialEntries = allFinancialEntries.map(financial => ({
       id: financial.id,
       type: financial.type,
+      category: (financial as any).category ?? null,
       amount: financial.amount,
       description: financial.description,
       date: financial.date.toISOString(),
+      isRecurring: (financial as any).isRecurring ?? false,
+      recurringType: (financial as any).recurringType ?? null,
       createdAt: financial.createdAt.toISOString(),
       projectId: financial.project?.id || null,
       projectName: financial.project?.name || null,

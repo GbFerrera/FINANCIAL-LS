@@ -357,7 +357,7 @@ export default function ProjectsPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="md:flex md:items-center md:justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3 md:flex-nowrap">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
               Gestão de Projetos
@@ -366,7 +366,7 @@ export default function ProjectsPage() {
               Gerencie projetos, milestones e tarefas da sua equipe
             </p>
           </div>
-          <div className="mt-4 flex space-x-3 md:mt-0 md:ml-4">
+          <div className="mt-4 flex flex-wrap gap-3 md:mt-0 md:ml-4">
             {session?.user.role === 'ADMIN' && (
               <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
                 <DialogTrigger asChild>
@@ -529,7 +529,7 @@ export default function ProjectsPage() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             <StatsCard
               title="Total de Projetos"
               value={stats.totalProjects.toString()}
@@ -570,23 +570,14 @@ export default function ProjectsPage() {
                 type: 'neutral'
               }}
             />
-            <StatsCard
-              title="Progresso Médio"
-              value={`${stats.averageProgress.toFixed(1)}%`}
-              icon={ListTodo}
-              color="purple"
-              change={{
-                value: 'Todos os projetos',
-                type: 'neutral'
-              }}
-            />
+  
           </div>
         )}
 
         {/* Filters */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Search */}
               <div className="sm:col-span-2">
                 <div className="relative">
@@ -654,7 +645,7 @@ export default function ProjectsPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredProjects.map((project) => {
                   const StatusIcon = getStatusIcon(project.status)
                   return (
