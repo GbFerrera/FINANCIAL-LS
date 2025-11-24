@@ -109,7 +109,10 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
+    const datePart = dateString.split('T')[0]
+    const [year, month, day] = datePart.split('-')
+    return `${day}/${month}/${year}`
   }
 
   const getStatusColor = (status: string) => {

@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { toast } from 'react-hot-toast'
+import { parseISO } from 'date-fns'
 import {
   BarChart3,
   Download,
@@ -457,7 +458,7 @@ export default function ReportsPage() {
                           <p className="text-sm text-gray-500">{report.description}</p>
                           <div className="flex items-center mt-1 text-xs text-gray-400">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(report.createdAt).toLocaleDateString('pt-BR')}
+                            {parseISO(report.createdAt).toLocaleDateString('pt-BR')}
                             {report.size && (
                               <>
                                 <span className="mx-2">•</span>

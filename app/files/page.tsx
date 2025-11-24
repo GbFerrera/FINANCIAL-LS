@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import toast from 'react-hot-toast'
+import { parseISO } from 'date-fns'
 
 interface FileItem {
   id: string
@@ -360,7 +361,7 @@ export default function FilesPage() {
                           </span>
                           <span className="flex items-center">
                             <Calendar className="h-3 w-3 mr-1" />
-                            {new Date(file.uploadedAt).toLocaleDateString('pt-BR')}
+                            {parseISO(file.uploadedAt).toLocaleDateString('pt-BR')}
                           </span>
                           {file.size && (
                             <span>{formatFileSize(file.size)}</span>
@@ -482,7 +483,7 @@ export default function FilesPage() {
                       <h3 className="text-lg font-medium text-gray-900">{selectedFile.name}</h3>
                       <p className="text-sm text-gray-500">
                         {selectedFile.size && formatFileSize(selectedFile.size)} • 
-                        Enviado por {selectedFile.uploadedBy} em {new Date(selectedFile.uploadedAt).toLocaleDateString('pt-BR')}
+                        Enviado por {selectedFile.uploadedBy} em {parseISO(selectedFile.uploadedAt).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                   </div>

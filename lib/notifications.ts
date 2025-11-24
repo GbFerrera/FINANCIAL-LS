@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { parseISO } from 'date-fns'
 
 const prisma = new PrismaClient()
 
@@ -213,7 +214,7 @@ export async function notifyDeadlineApproaching(taskId: string) {
       notifications.push({
         userId: task.assignee.id,
         title: 'Prazo se aproximando',
-        message: `A tarefa "${task.title}" vence em breve (${new Date(task.dueDate).toLocaleDateString('pt-BR')})`,
+        message: `A tarefa "${task.title}" vence em breve (${task.dueDate.toLocaleDateString('pt-BR')})`,
         type: 'DEADLINE_APPROACHING'
       })
     }

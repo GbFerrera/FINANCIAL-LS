@@ -15,6 +15,7 @@ import {
   RocketLaunchIcon,
   UserIcon
 } from '@heroicons/react/24/outline';
+import { parseISO } from 'date-fns';
 
 interface Task {
   id: string;
@@ -192,7 +193,7 @@ export function MilestoneCard({ milestone, index, totalMilestones, onTaskClick }
               <div className="text-xs">
                 <div className="font-medium">Prazo</div>
                 <div className="text-gray-600">
-                  {new Date(milestone.dueDate).toLocaleDateString('pt-BR')}
+                  {parseISO(milestone.dueDate).toLocaleDateString('pt-BR')}
                 </div>
               </div>
             </div>

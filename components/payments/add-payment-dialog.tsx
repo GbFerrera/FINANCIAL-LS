@@ -80,12 +80,18 @@ export function AddPaymentDialog({
     setLoading(true)
 
     try {
+      // Converter data para ISO com meio-dia UTC para evitar problema de fuso horário
+      const paymentData = {
+        ...formData,
+        paymentDate: formData.paymentDate + 'T12:00:00.000Z'
+      }
+      
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(paymentData),
       })
 
       if (response.ok) {

@@ -34,6 +34,7 @@ import {
   FolderOpen,
   ExternalLink
 } from 'lucide-react'
+import { parseISO } from 'date-fns'
 
 interface Client {
   id: string
@@ -407,7 +408,7 @@ export default function ClientsPage() {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{client.name}</div>
-                          <div className="text-sm text-gray-500">Cliente desde {new Date(client.createdAt).toLocaleDateString()}</div>
+                          <div className="text-sm text-gray-500">Cliente desde {parseISO(client.createdAt).toLocaleDateString('pt-BR')}</div>
                         </div>
                       </div>
                     </td>
@@ -535,7 +536,7 @@ export default function ClientsPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Cliente desde</label>
-                    <p className="mt-1 text-sm text-gray-900">{new Date(selectedClient.createdAt).toLocaleDateString()}</p>
+                    <p className="mt-1 text-sm text-gray-900">{parseISO(selectedClient.createdAt).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -568,7 +569,7 @@ export default function ClientsPage() {
                 {selectedClient.lastAccess && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Último Acesso</label>
-                    <p className="mt-1 text-sm text-gray-900">{new Date(selectedClient.lastAccess).toLocaleDateString()}</p>
+                    <p className="mt-1 text-sm text-gray-900">{parseISO(selectedClient.lastAccess).toLocaleDateString('pt-BR')}</p>
                   </div>
                 )}
               </div>

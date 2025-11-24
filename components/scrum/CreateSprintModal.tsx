@@ -106,8 +106,11 @@ export function CreateSprintModal({
     try {
       setLoading(true)
 
+      // Converter datas para ISO com meio-dia UTC para evitar problema de fuso horário
       const sprintData = {
         ...data,
+        startDate: data.startDate ? data.startDate + 'T12:00:00.000Z' : data.startDate,
+        endDate: data.endDate ? data.endDate + 'T12:00:00.000Z' : data.endDate,
         status: 'PLANNING'
       }
 

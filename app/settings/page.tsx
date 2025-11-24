@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { toast } from 'react-hot-toast'
+import { parseISO } from 'date-fns'
 import {
   Settings,
   User,
@@ -262,7 +263,7 @@ export default function SettingsPage() {
     },
     {
       title: 'Último Backup',
-      value: new Date(systemInfo.lastBackup).toLocaleDateString('pt-BR'),
+      value: parseISO(systemInfo.lastBackup).toLocaleDateString('pt-BR'),
       icon: Download,
       color: 'purple' as const,
       change: {

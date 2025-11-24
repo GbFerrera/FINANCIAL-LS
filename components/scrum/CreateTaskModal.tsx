@@ -251,14 +251,15 @@ export function CreateTaskModal({
         return
       }
 
+      // Converter datas para ISO com meio-dia UTC para evitar problema de fuso horário
       const taskData = {
         ...data,
         projectId: currentProjectId,
         // Só incluir sprintId se for uma nova tarefa ou se estiver explicitamente definido
         ...(editingTask ? {} : { sprintId }),
         status: editingTask ? editingTask.status : 'TODO',
-        ...(data.dueDate && { dueDate: new Date(data.dueDate).toISOString() }),
-        ...(data.startDate && { startDate: new Date(data.startDate).toISOString() }),
+        ...(data.dueDate && { dueDate: data.dueDate + 'T12:00:00.000Z' }),
+        ...(data.startDate && { startDate: data.startDate + 'T12:00:00.000Z' }),
         ...(data.startTime && { startTime: data.startTime }),
         ...(data.estimatedMinutes && { estimatedMinutes: data.estimatedMinutes })
       }

@@ -165,7 +165,10 @@ export default function ClientsAdminPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return parseISO(dateString).toLocaleDateString('pt-BR')
+    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
+    const datePart = dateString.split('T')[0]
+    const [year, month, day] = datePart.split('-')
+    return `${day}/${month}/${year}`
   }
 
   if (status === "loading" || loading) {

@@ -29,6 +29,22 @@ interface Project {
   name: string
 }
 
+interface Client {
+  id: string
+  name: string
+  email: string
+  company?: string
+}
+
+interface ProjectPaymentSummary {
+  projectId: string
+  projectName: string
+  budget: number
+  totalPaid: number
+  remainingBudget: number
+  paymentPercentage: number
+}
+
 interface FinancialEntry {
   id: string
   type: 'INCOME' | 'EXPENSE'
@@ -75,6 +91,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
   const [loading, setLoading] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [categories, setCategories] = useState<{INCOME: string[], EXPENSE: string[]}>({INCOME: [], EXPENSE: []})
+  const [clients, setClients] = useState<Client[]>([])
+  const [selectedClientId, setSelectedClientId] = useState('')
+  const [clientProjectSummaries, setClientProjectSummaries] = useState<ProjectPaymentSummary[]>([])
+  const [loadingClientData, setLoadingClientData] = useState(false)
   const [formData, setFormData] = useState({
     type: 'INCOME' as 'INCOME' | 'EXPENSE',
     category: '',
@@ -83,7 +103,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     date: new Date().toISOString().split('T')[0],
     isRecurring: false,
     recurringType: '',
-    projectId: ''
+    projectId: '',
+    clientId: ''
   })
   const [attachments, setAttachments] = useState<File[]>([])
   const [existingAttachments, setExistingAttachments] = useState<Array<{
@@ -103,6 +124,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     if (isOpen) {
       fetchProjects()
       fetchCategories()
+      fetchClients()
       
       // Reset formulário para nova entrada ou preencher se editando
       if (editingEntry) {
@@ -114,7 +136,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           date: editingEntry.date.split('T')[0],
           isRecurring: editingEntry.isRecurring,
           recurringType: editingEntry.recurringType || '',
-          projectId: ''
+          projectId: '',
+          clientId: ''
         })
         setExistingAttachments(editingEntry.attachments || [])
       } else {
@@ -127,8 +150,11 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           date: new Date().toISOString().split('T')[0],
           isRecurring: false,
           recurringType: '',
-          projectId: ''
+          projectId: '',
+          clientId: ''
         })
+        setSelectedClientId('')
+        setClientProjectSummaries([])
         setExistingAttachments([])
       }
       setAttachments([])
@@ -224,6 +250,74 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     }
   }
 
+  const fetchClients = async () => {
+    try {
+      const response = await fetch('/api/clients')
+      if (response.ok) {
+        const data = await response.json()
+        setClients(data.clients || [])
+      }
+    } catch (error) {
+      console.error('Erro ao buscar clientes:', error)
+    }
+  }
+
+  const fetchClientProjectSummaries = async (clientId: string) => {
+    if (!clientId) {
+      setClientProjectSummaries([])
+      return
+    }
+
+    setLoadingClientData(true)
+    try {
+      // Primeiro buscar o cliente para obter o accessToken
+      const clientResponse = await fetch(`/api/clients/${clientId}`)
+      if (!clientResponse.ok) {
+        throw new Error('Cliente não encontrado')
+      }
+      
+      const clientData = await clientResponse.json()
+      const accessToken = clientData.accessToken
+      
+      if (!accessToken) {
+        throw new Error('Cliente não possui token de acesso')
+      }
+
+      // Buscar dados do portal do cliente
+      const portalResponse = await fetch(`/api/client-portal/${accessToken}`)
+      if (portalResponse.ok) {
+        const portalData = await portalResponse.json()
+        setClientProjectSummaries(portalData.projectPaymentSummaries || [])
+      } else {
+        throw new Error('Erro ao buscar dados do portal do cliente')
+      }
+    } catch (error) {
+      console.error('Erro ao buscar resumo de projetos do cliente:', error)
+      toast.error('Erro ao carregar dados dos projetos do cliente')
+      setClientProjectSummaries([])
+    } finally {
+      setLoadingClientData(false)
+    }
+  }
+
+  // Effect para buscar dados do cliente quando selecionado
+  useEffect(() => {
+    if (selectedClientId && formData.category === 'Pagamento de Cliente') {
+      fetchClientProjectSummaries(selectedClientId)
+    } else {
+      setClientProjectSummaries([])
+    }
+  }, [selectedClientId, formData.category])
+
+  // Effect para limpar seleções quando categoria muda
+  useEffect(() => {
+    if (formData.category !== 'Pagamento de Cliente') {
+      setSelectedClientId('')
+      setClientProjectSummaries([])
+      setFormData(prev => ({ ...prev, clientId: '', projectId: '' }))
+    }
+  }, [formData.category])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -280,8 +374,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     setLoading(true)
     
     try {
-      // Converter data para formato ISO datetime
-      const dateTime = new Date(formData.date + 'T00:00:00.000Z').toISOString()
+      // Converter data para formato ISO datetime (sem Z para evitar conversão de fuso horário)
+      const dateTime = formData.date + 'T12:00:00.000Z'
       
       const url = editingEntry ? `/api/financial/${editingEntry.id}` : '/api/financial'
       const method = editingEntry ? 'PUT' : 'POST'
@@ -329,12 +423,15 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       date: new Date().toISOString().split('T')[0],
       isRecurring: false,
       recurringType: '',
-      projectId: ''
+      projectId: '',
+      clientId: ''
     })
     setAttachments([])
     setExistingAttachments([])
     setEnableProjectDistribution(false)
     setProjectDistributions([])
+    setSelectedClientId('')
+    setClientProjectSummaries([])
     onClose()
   }
 
@@ -488,6 +585,35 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
               </div>
             </div>
 
+            {/* Client Selection - Only for Client Payment */}
+            {formData.category === 'Pagamento de Cliente' && (
+              <div>
+                <Label className="text-sm font-medium">
+                  Cliente *
+                </Label>
+                <div className="mt-1">
+                  <Select
+                    value={selectedClientId}
+                    onValueChange={(value) => {
+                      setSelectedClientId(value)
+                      setFormData(prev => ({ ...prev, clientId: value, projectId: '' }))
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map(client => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name} {client.company && `(${client.company})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {/* Amount */}
             <div>
               <Label className="text-sm font-medium">
@@ -599,77 +725,199 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
               ) : (
                 // Distribuição entre múltiplos projetos
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-blue-700">
-                      Distribuição por Projetos
-                    </Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addProjectDistribution}
-                      className="border-blue-200 text-blue-700 hover:bg-blue-50"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Adicionar Projeto
-                    </Button>
-                  </div>
+                  <Label className="text-sm font-medium text-blue-700">
+                    Distribuição por Projetos
+                  </Label>
 
-                  {projectDistributions.length === 0 && (
-                    <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-                      <Plus className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                      <p className="text-sm">Clique em "Adicionar Projeto" para começar a distribuir</p>
-                    </div>
-                  )}
-
-                  {projectDistributions.map((distribution, index) => (
-                    <div key={index} className="flex items-center space-x-3 p-4 border-2 border-gray-100 rounded-lg hover:border-blue-200 transition-colors bg-white shadow-sm">
-                      <div className="flex-1">
-                        <Label className="text-xs text-gray-600 mb-1 block">Projeto</Label>
-                        <Select
-                          value={distribution.projectId}
-                          onValueChange={(value) => updateProjectDistribution(index, 'projectId', value)}
-                        >
-                          <SelectTrigger className="border-gray-200 focus:border-blue-400">
-                            <SelectValue placeholder="Selecione um projeto" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {projects.map(project => (
-                              <SelectItem key={project.id} value={project.id}>
-                                {project.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="w-36">
-                        <Label className="text-xs text-gray-600 mb-1 block">Valor</Label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={distribution.amount || ''}
-                            onChange={(e) => updateProjectDistribution(index, 'amount', parseFloat(e.target.value) || 0)}
-                            className="pl-10 border-gray-200 focus:border-blue-400"
-                            placeholder="0,00"
-                          />
+                  {/* Show client projects with payment info if Client Payment category */}
+                  {formData.category === 'Pagamento de Cliente' && selectedClientId ? (
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <h4 className="text-sm font-medium text-blue-800 mb-3">Projetos do Cliente</h4>
+                      {loadingClientData ? (
+                        <div className="p-3 text-center text-gray-500">
+                          Carregando projetos...
                         </div>
-                      </div>
-                      <div className="pt-5">
+                      ) : clientProjectSummaries.length > 0 ? (
+                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                          {clientProjectSummaries.map(project => {
+                            const distribution = projectDistributions.find(d => d.projectId === project.projectId)
+                            const distributionAmount = distribution?.amount || 0
+                            
+                            return (
+                              <div
+                                key={project.projectId}
+                                className="p-4 bg-white border-2 rounded-lg hover:border-blue-300 transition-colors"
+                              >
+                                <div className="space-y-3">
+                                  {/* Project Header */}
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <h5 className="font-semibold text-sm text-gray-800">{project.projectName}</h5>
+                                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                                        <div>
+                                          <span className="text-gray-500">Orçamento:</span>
+                                          <div className="font-medium text-gray-800">{formatCurrency(project.budget)}</div>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Pago:</span>
+                                          <div className="font-medium text-green-600">{formatCurrency(project.totalPaid)}</div>
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Restante:</span>
+                                          <div className={`font-medium ${project.remainingBudget > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                            {formatCurrency(project.remainingBudget)}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="ml-3 text-right">
+                                      <div className="text-xs text-gray-500">Progresso</div>
+                                      <div className="text-sm font-bold text-blue-600">{project.paymentPercentage}%</div>
+                                      <div className="w-16 h-2 bg-gray-200 rounded-full mt-1">
+                                        <div 
+                                          className="h-full bg-blue-500 rounded-full transition-all"
+                                          style={{ width: `${Math.min(project.paymentPercentage, 100)}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Value Input */}
+                                  <div className="pt-3 border-t border-gray-100">
+                                    <Label className="text-xs text-gray-600 mb-1.5 block">Valor desta entrada</Label>
+                                    <div className="flex items-center space-x-2">
+                                      <div className="relative flex-1">
+                                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={distributionAmount || ''}
+                                          onChange={(e) => {
+                                            const value = parseFloat(e.target.value) || 0
+                                            const existingIndex = projectDistributions.findIndex(d => d.projectId === project.projectId)
+                                            
+                                            if (value > 0) {
+                                              if (existingIndex >= 0) {
+                                                updateProjectDistribution(existingIndex, 'amount', value)
+                                              } else {
+                                                setProjectDistributions(prev => [...prev, {
+                                                  projectId: project.projectId,
+                                                  projectName: project.projectName,
+                                                  amount: value
+                                                }])
+                                              }
+                                            } else if (existingIndex >= 0) {
+                                              removeProjectDistribution(existingIndex)
+                                            }
+                                          }}
+                                          className="pl-10 border-gray-300 focus:border-blue-500"
+                                          placeholder="0,00"
+                                        />
+                                      </div>
+                                      {distributionAmount > 0 && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            const index = projectDistributions.findIndex(d => d.projectId === project.projectId)
+                                            if (index >= 0) removeProjectDistribution(index)
+                                          }}
+                                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-10 w-10 p-0"
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-3 text-center text-gray-500 border border-gray-200 rounded-lg bg-white">
+                          Nenhum projeto encontrado para este cliente
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    // Fallback for non-client payment or no client selected
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-sm font-medium text-gray-700">
+                          Projetos
+                        </Label>
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          onClick={() => removeProjectDistribution(index)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 h-9 w-9 p-0"
+                          onClick={addProjectDistribution}
+                          className="border-blue-200 text-blue-700 hover:bg-blue-50"
                         >
-                          <X className="h-4 w-4" />
+                          <Plus className="h-4 w-4 mr-1" />
+                          Adicionar Projeto
                         </Button>
                       </div>
+
+                      {projectDistributions.length === 0 && (
+                        <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                          <Plus className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm">Clique em "Adicionar Projeto" para começar a distribuir</p>
+                        </div>
+                      )}
+
+                      {projectDistributions.map((distribution, index) => (
+                        <div key={index} className="flex items-center space-x-3 p-4 border-2 border-gray-100 rounded-lg hover:border-blue-200 transition-colors bg-white shadow-sm mb-3">
+                          <div className="flex-1">
+                            <Label className="text-xs text-gray-600 mb-1 block">Projeto</Label>
+                            <Select
+                              value={distribution.projectId}
+                              onValueChange={(value) => updateProjectDistribution(index, 'projectId', value)}
+                            >
+                              <SelectTrigger className="border-gray-200 focus:border-blue-400">
+                                <SelectValue placeholder="Selecione um projeto" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {projects.map(project => (
+                                  <SelectItem key={project.id} value={project.id}>
+                                    {project.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="w-36">
+                            <Label className="text-xs text-gray-600 mb-1 block">Valor</Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={distribution.amount || ''}
+                                onChange={(e) => updateProjectDistribution(index, 'amount', parseFloat(e.target.value) || 0)}
+                                className="pl-10 border-gray-200 focus:border-blue-400"
+                                placeholder="0,00"
+                              />
+                            </div>
+                          </div>
+                          <div className="pt-5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeProjectDistribution(index)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 h-9 w-9 p-0"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
 
                   {projectDistributions.length > 0 && (
                     <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100 space-y-3">

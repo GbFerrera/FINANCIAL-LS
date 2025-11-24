@@ -20,7 +20,8 @@ import {
   MoreVertical,
   FolderOpen,
   Target,
-  ListTodo
+  ListTodo,
+  Presentation
 } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
@@ -167,6 +168,7 @@ export default function ProjectsPage() {
       const url = isEditing ? `/api/projects/${editingProject.id}` : '/api/projects'
       const method = isEditing ? 'PUT' : 'POST'
       
+      // Converter datas para ISO com meio-dia UTC para evitar problema de fuso horário
       const response = await fetch(url, {
         method,
         headers: {
@@ -177,8 +179,8 @@ export default function ProjectsPage() {
           description: newProject.description,
           clientId: newProject.clientId,
           status: newProject.status,
-          startDate: newProject.startDate,
-          endDate: newProject.endDate || undefined,
+          startDate: newProject.startDate ? newProject.startDate + 'T12:00:00.000Z' : newProject.startDate,
+          endDate: newProject.endDate ? newProject.endDate + 'T12:00:00.000Z' : undefined,
           budget: newProject.budget || undefined
         })
       })
@@ -268,6 +270,8 @@ export default function ProjectsPage() {
     }
   }
 
+  const LINK_SYSTEM_PROJECT_ID = 'cmfv5cmde001lm701frdbxgo4'
+  
   const filteredProjects = projects.filter(project => {
     const matchesSearch = searchTerm === '' ||
       project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -278,6 +282,10 @@ export default function ProjectsPage() {
     
     return matchesSearch && matchesStatus && matchesClient
   })
+
+  // Separar projeto Link System dos demais
+  const linkSystemProject = filteredProjects.find(p => p.id === LINK_SYSTEM_PROJECT_ID)
+  const otherProjects = filteredProjects.filter(p => p.id !== LINK_SYSTEM_PROJECT_ID)
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -340,7 +348,10 @@ export default function ProjectsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return parseISO(dateString).toLocaleDateString('pt-BR')
+    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
+    const datePart = dateString.split('T')[0]
+    const [year, month, day] = datePart.split('-')
+    return `${day}/${month}/${year}`
   }
 
   if (status === "loading" || loading) {
@@ -367,6 +378,14 @@ export default function ProjectsPage() {
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 md:mt-0 md:ml-4">
+            <button
+              onClick={() => router.push('/projects/cmfv5cmde001lm701frdbxgo4/canvas')}
+              className="inline-flex items-center px-4 py-2 border border-indigo-600 rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-white hover:bg-indigo-50"
+              title="Ver Canvas da Link System"
+            >
+              <Presentation className="-ml-1 mr-2 h-5 w-5" />
+              Canvas Link System
+            </button>
             {session?.user.role === 'ADMIN' && (
               <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
                 <DialogTrigger asChild>
@@ -646,7 +665,135 @@ export default function ProjectsPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredProjects.map((project) => {
+                {/* Projeto Link System sempre primeiro */}
+                {linkSystemProject && (() => {
+                  const StatusIcon = getStatusIcon(linkSystemProject.status)
+                  return (
+                    <div key={linkSystemProject.id} className="bg-white border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative">
+                      {/* Badge Fixo */}
+                      <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                        FIXO
+                      </div>
+                      <div className="p-6">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h4 className="text-lg font-medium text-gray-900 truncate">
+                              {linkSystemProject.name}
+                            </h4>
+                            <p className="text-sm text-gray-500 mt-1">
+                              Cliente: {linkSystemProject.clientName}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(linkSystemProject.status)}`}>
+                              <StatusIcon className="w-3 h-3 mr-1" />
+                              {getStatusLabel(linkSystemProject.status)}
+                            </span>
+                            <button className="text-gray-400 hover:text-gray-600">
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {linkSystemProject.description}
+                        </p>
+
+                        {/* Progress */}
+                        <div className="mb-4">
+                          <div className="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>Progresso</span>
+                            <span>{linkSystemProject.progress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${linkSystemProject.progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Stats */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="text-center">
+                            <div className="text-lg font-semibold text-gray-900">
+                              {linkSystemProject.completedMilestones}/{linkSystemProject.milestonesCount}
+                            </div>
+                            <div className="text-xs text-gray-500">Milestones</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-semibold text-gray-900">
+                              {linkSystemProject.completedTasks}/{linkSystemProject.tasksCount}
+                            </div>
+                            <div className="text-xs text-gray-500">Tarefas</div>
+                          </div>
+                        </div>
+
+                        {/* Meta info */}
+                        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                          <div className="flex items-center">
+                            <Users className="h-4 w-4 mr-1" />
+                            {linkSystemProject.teamCount} membros
+                          </div>
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            {formatDate(linkSystemProject.startDate)}
+                          </div>
+                        </div>
+
+                        {/* Budget */}
+                        <div className="text-sm text-gray-600 mb-4">
+                          <strong>Orçamento:</strong> {formatCurrency(linkSystemProject.budget)}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => router.push(`/projects/${linkSystemProject.id}`)}
+                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Ver Detalhes
+                            </button>
+                            <button 
+                              onClick={() => router.push(`/projects/${linkSystemProject.id}/canvas`)}
+                              className="inline-flex items-center px-3 py-1.5 border border-indigo-300 shadow-sm text-xs font-medium rounded text-indigo-700 bg-white hover:bg-indigo-50"
+                              title="Abrir Canvas (Excalidraw)"
+                            >
+                              Canvas
+                            </button>
+                          </div>
+                          
+                          {session?.user.role === 'ADMIN' && (
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => handleEditProject(linkSystemProject)}
+                                className="text-gray-400 hover:text-gray-600"
+                                title="Editar projeto"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteProject(linkSystemProject.id)}
+                                disabled={deletingProjectId === linkSystemProject.id}
+                                className="text-red-400 hover:text-red-600 disabled:opacity-50"
+                                title="Excluir projeto"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Demais projetos */}
+                {otherProjects.map((project) => {
                   const StatusIcon = getStatusIcon(project.status)
                   return (
                     <div key={project.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">

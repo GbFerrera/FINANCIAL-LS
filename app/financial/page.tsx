@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { parseISO } from "date-fns"
+import { parseISO, format } from "date-fns"
 import {
   Plus,
   Download,
@@ -183,7 +183,10 @@ export default function FinancialPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return parseISO(dateString).toLocaleDateString('pt-BR')
+    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
+    const datePart = dateString.split('T')[0]
+    const [year, month, day] = datePart.split('-')
+    return `${day}/${month}/${year}`
   }
 
   const getTypeColor = (type: string) => {

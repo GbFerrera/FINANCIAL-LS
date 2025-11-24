@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { parseISO } from "date-fns"
 import {
   Calendar,
   Clock,
@@ -439,7 +438,10 @@ export default function ClientPortalPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return parseISO(dateString).toLocaleDateString('pt-BR')
+    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
+    const datePart = dateString.split('T')[0]
+    const [year, month, day] = datePart.split('-')
+    return `${day}/${month}/${year}`
   }
 
   const formatFileSize = (bytes: number) => {
@@ -783,6 +785,32 @@ export default function ClientPortalPage() {
                     <>
                       {/* Cards de resumo financeiro */}
                       
+
+                      {/* Resumo de Projetos em Andamento */}
+                      {(() => {
+                        const summariesByStatus = projectPaymentSummaries.map(s => ({
+                          ...s,
+                          status: projects.find(p => p.id === s.projectId)?.status || 'PLANNING'
+                        }))
+                        const inProgress = summariesByStatus.filter(s => s.status === 'IN_PROGRESS')
+                        if (inProgress.length === 0) return null
+                        const inProgressPaid = inProgress.reduce((sum, s) => sum + s.totalPaid, 0)
+                        const inProgressRemaining = inProgress.reduce((sum, s) => sum + s.remainingBudget, 0)
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                              <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Em Andamento - Retorno Financeiro</p>
+                              <p className="text-3xl font-bold text-blue-900 mt-2">{formatCurrency(inProgressPaid)}</p>
+                              <p className="text-sm text-gray-600 mt-1">Somatório dos valores pagos em projetos em andamento</p>
+                            </div>
+                            <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+                              <p className="text-sm font-semibold text-yellow-700 uppercase tracking-wide">Em Andamento - Restante a repassar</p>
+                              <p className="text-3xl font-bold text-yellow-900 mt-2">{formatCurrency(inProgressRemaining)}</p>
+                              <p className="text-sm text-gray-600 mt-1">Saldo ainda não repassado frente ao orçamento</p>
+                            </div>
+                          </div>
+                        )
+                      })()}
 
                       {/* Resumo de Concluídos (retorno e restante) */}
                       {(() => {

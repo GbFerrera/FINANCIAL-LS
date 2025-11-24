@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, CreditCard, DollarSign, Users } from 'lucide-react'
 import { AddPaymentDialog } from '@/components/payments/add-payment-dialog'
 import { DistributePaymentDialog } from '@/components/payments/distribute-payment-dialog'
+import { parseISO } from 'date-fns'
 
 interface Payment {
   id: string
@@ -91,7 +92,7 @@ export default function PaymentsPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+    return parseISO(dateString).toLocaleDateString('pt-BR')
   }
 
   const getMethodLabel = (method: string) => {
