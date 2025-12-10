@@ -4,19 +4,15 @@ import React, { useImperativeHandle, useRef, useState, forwardRef, useEffect } f
 import dynamic from "next/dynamic";
 import "@excalidraw/excalidraw/index.css";
 import { useRouter } from "next/navigation";
+import type { ExcalidrawImperativeAPI, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types";
 
 // Define uma interface mínima local para a API imperativa do Excalidraw
-type ExcalidrawAPI = {
-  getSceneElements: () => readonly any[];
-  getAppState: () => any;
-  updateScene: (data: any, commitToHistory?: boolean) => void;
-  getFiles?: () => Record<string, any>;
-};
+type ExcalidrawAPI = ExcalidrawImperativeAPI;
 
 type SceneData = {
   elements?: readonly any[];
   appState?: any;
-  files?: Record<string, any>;
+  files?: BinaryFiles;
 };
 
 export type ExcalidrawClientHandle = {
@@ -69,17 +65,16 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
         },
       };
 
-  const serializeFiles = (files?: Record<string, any>) => {
+  const serializeFiles = (files?: BinaryFiles) => {
     if (!files) return undefined;
-    const out: Record<string, any> = {};
+    const out: BinaryFiles = {} as BinaryFiles;
     for (const [id, f] of Object.entries(files)) {
       out[id] = {
-        id: f.id ?? id,
-        created: f.created ?? Date.now(),
-        mimeType: f.mimeType ?? f.type ?? "image/png",
-        dataURL: f.dataURL ?? null,
-        fileName: f.fileName ?? undefined,
-      };
+        id: (f as any).id ?? id,
+        created: (f as any).created ?? Date.now(),
+        mimeType: (f as any).mimeType ?? "image/png",
+        dataURL: String((f as any).dataURL ?? ""),
+      } as BinaryFileData;
     }
     return out;
   };
@@ -94,7 +89,13 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
   };
 
   const updateScene = (data: SceneData) => {
-    apiRef.current?.updateScene(data as any);
+    const api = apiRef.current;
+    if (!api) return;
+    if (data.files && api.addFiles) {
+      const arr: BinaryFileData[] = Object.values(data.files as Record<string, BinaryFileData>);
+      api.addFiles(arr);
+    }
+    api.updateScene({ elements: data.elements, appState: data.appState } as any);
   };
 
   const save = async (maybeTitle?: string, maybeId?: string) => {
@@ -150,16 +151,17 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
      
       <div style={{ flex: 1, minHeight: 0, width: "100%" }}>
         <ExcalidrawComponent
-          excalidrawAPI={(api: ExcalidrawAPI) => {
+          excalidrawAPI={(api) => {
             apiRef.current = api;
             setIsReady(true);
           }}
           initialData={safeInitialData}
           onChange={(elements, appState, files) => {
+            const allFiles = files ?? (apiRef.current?.getFiles ? apiRef.current.getFiles() : undefined);
             latestSceneRef.current = {
               elements,
               appState: sanitizeAppState(appState),
-              files: serializeFiles(files),
+              files: serializeFiles(allFiles),
             };
             setIsDirty(true);
             onChange?.(latestSceneRef.current);
