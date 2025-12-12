@@ -17,7 +17,9 @@ import {
   Edit,
   Trash2,
   Paperclip,
-  X
+  X,
+  Upload,
+  FileText
 } from "lucide-react"
 import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
@@ -34,6 +36,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import toast from "react-hot-toast"
 
 interface FinancialEntry {
@@ -86,6 +91,119 @@ export default function FinancialPage() {
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const [showAttachmentsModal, setShowAttachmentsModal] = useState(false)
+  const [attachmentsEntry, setAttachmentsEntry] = useState<FinancialEntry | null>(null)
+  const [existingEntryAttachments, setExistingEntryAttachments] = useState<NonNullable<FinancialEntry['attachments']>>([])
+  const [newAttachmentFiles, setNewAttachmentFiles] = useState<File[]>([])
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false)
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const openAttachmentsModal = async (entry: FinancialEntry) => {
+    try {
+      setAttachmentsLoading(true)
+      setAttachmentsEntry(entry)
+      setShowAttachmentsModal(true)
+      const res = await fetch(`/api/financial/${entry.id}`)
+      if (!res.ok) throw new Error('Falha ao carregar anexos')
+      const data = await res.json()
+      setExistingEntryAttachments(data.attachments || [])
+      setNewAttachmentFiles([])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar anexos')
+    } finally {
+      setAttachmentsLoading(false)
+    }
+  }
+
+  const handleAttachmentFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const valid = files.filter(f => {
+      const maxSize = 10 * 1024 * 1024
+      if (f.size > maxSize) {
+        toast.error(`Arquivo ${f.name} é muito grande. Máximo 10MB.`)
+        return false
+      }
+      return true
+    })
+    setNewAttachmentFiles(prev => [...prev, ...valid])
+  }
+
+  const removeNewAttachmentFile = (index: number) => {
+    setNewAttachmentFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const removeExistingAttachment = async (attachmentId: string) => {
+    if (!attachmentsEntry) return
+    try {
+      setAttachmentsLoading(true)
+      const res = await fetch(`/api/financial/${attachmentsEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ removeAttachmentIds: [attachmentId] })
+      })
+      if (!res.ok) throw new Error('Falha ao remover anexo')
+      setExistingEntryAttachments(prev => prev.filter(a => a.id !== attachmentId))
+      toast.success('Anexo removido')
+      fetchFinancialData()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao remover anexo')
+    } finally {
+      setAttachmentsLoading(false)
+    }
+  }
+
+  const saveNewAttachments = async () => {
+    if (!attachmentsEntry || newAttachmentFiles.length === 0) {
+      setShowAttachmentsModal(false)
+      return
+    }
+    try {
+      setAttachmentsLoading(true)
+      const uploaded: Array<{ originalName: string; mimeType: string; size: number; url: string; filename?: string }> = []
+      for (const file of newAttachmentFiles) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json().catch(() => ({} as any))
+          throw new Error(err.error || `Falha ao enviar arquivo ${file.name}`)
+        }
+        const data = await uploadRes.json()
+        const info = data.file
+        uploaded.push({
+          originalName: info.originalName,
+          mimeType: info.fileType,
+          size: info.fileSize,
+          url: info.fileUrl,
+          filename: info.fileName
+        })
+      }
+
+      const res = await fetch(`/api/financial/${attachmentsEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addAttachments: uploaded })
+      })
+      if (!res.ok) throw new Error('Falha ao salvar anexos')
+      const updated = await res.json()
+      setExistingEntryAttachments(updated.attachments || [])
+      setNewAttachmentFiles([])
+      toast.success('Anexos adicionados')
+      fetchFinancialData()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao salvar anexos')
+    } finally {
+      setAttachmentsLoading(false)
+      setShowAttachmentsModal(false)
+    }
+  }
 
   useEffect(() => {
     if (status === "loading") return
@@ -442,14 +560,13 @@ export default function FinancialPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <div className="flex items-center justify-end space-x-2">
-                              {entry.attachments && entry.attachments.length > 0 && (
-                                <button 
-                                  className="text-indigo-600 hover:text-indigo-900"
-                                  title={`${entry.attachments.length} anexo(s)`}
-                                >
-                                  <Paperclip className="h-4 w-4" />
-                                </button>
-                              )}
+                              <button 
+                                onClick={() => openAttachmentsModal(entry)}
+                                className="text-indigo-600 hover:text-indigo-900"
+                                title="Gerenciar anexos"
+                              >
+                                <Paperclip className="h-4 w-4" />
+                              </button>
                               <button 
                                 onClick={() => handleEditEntry(entry)}
                                 className="text-gray-600 hover:text-gray-900"
@@ -499,6 +616,95 @@ export default function FinancialPage() {
             editingEntry={editingEntry}
           />
         )}
+
+        {/* Attachments Modal */}
+        <Dialog open={showAttachmentsModal} onOpenChange={setShowAttachmentsModal}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Anexos da Entrada</DialogTitle>
+              <DialogDescription>Adicione ou remova anexos desta entrada financeira.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm font-medium flex items-center">
+                  <Upload className="h-4 w-4 mr-1" />
+                  Adicionar anexos
+                </Label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleAttachmentFileSelect}
+                    className="hidden"
+                    id="attach-files"
+                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  />
+                  <label htmlFor="attach-files" className="cursor-pointer">
+                    <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                    <p className="text-sm text-gray-600">Clique para selecionar arquivos</p>
+                    <p className="text-xs text-gray-400 mt-1">PDF e imagens (máx. 10MB cada)</p>
+                  </label>
+                </div>
+                {newAttachmentFiles.length > 0 && (
+                  <div className="space-y-2 mt-2">
+                    <p className="text-sm font-medium text-gray-700">Novos anexos:</p>
+                    {newAttachmentFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm">{file.name}</span>
+                          <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeNewAttachmentFile(idx)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-700">Anexos existentes:</p>
+                {existingEntryAttachments.length === 0 ? (
+                  <p className="text-sm text-gray-500">Nenhum anexo.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {existingEntryAttachments.map(att => (
+                      <div key={att.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          <a href={att.url} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:underline">
+                            {att.originalName}
+                          </a>
+                          <span className="text-xs text-gray-500">({formatFileSize(att.size)})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeExistingAttachment(att.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-2">
+                <Button variant="outline" onClick={() => setShowAttachmentsModal(false)}>Cancelar</Button>
+                <Button onClick={saveNewAttachments} disabled={attachmentsLoading || newAttachmentFiles.length === 0}>
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Delete Confirmation Modal */}
         <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>

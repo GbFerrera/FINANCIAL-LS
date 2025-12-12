@@ -26,10 +26,28 @@ export async function GET(
       )
     }
 
-    // Get client's projects with related data
+    // Get client's projects with related data (primary or associated via ProjectClient)
     const projects = await prisma.project.findMany({
-      where: { clientId: client.id },
+      where: {
+        OR: [
+          { clientId: client.id },
+          { clients: { some: { clientId: client.id } } }
+        ]
+      },
       include: {
+        client: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        clients: {
+          include: {
+            client: {
+              select: { id: true, name: true }
+            }
+          }
+        },
         milestones: {
           select: {
             id: true,
@@ -157,6 +175,10 @@ export async function GET(
         project.tasks
       )
 
+      const partners = (project.clients || [])
+        .filter((pc: any) => pc.client && pc.client.id !== project.client.id)
+        .map((pc: any) => pc.client.name)
+
       return {
         id: project.id,
         name: project.name,
@@ -166,6 +188,7 @@ export async function GET(
         endDate: project.endDate?.toISOString() || null,
         budget: project.budget || 0,
         progress,
+        partners,
         milestones: project.milestones.map(milestone => ({
           id: milestone.id,
           title: milestone.name,
@@ -221,7 +244,12 @@ export async function GET(
 
     // Get client's payments with project information
     const payments = await prisma.payment.findMany({
-      where: { clientId: client.id },
+      where: {
+        OR: [
+          { clientId: client.id },
+          { paymentProjects: { some: { projectId: { in: clientProjectIds } } } }
+        ]
+      },
       include: {
         paymentProjects: {
           include: {
@@ -246,12 +274,8 @@ export async function GET(
         AND: [
           { paymentId: null },
           { projectId: { not: null } },
-          { type: 'INCOME' }, // Assumindo que pagamentos são do tipo INCOME
-          {
-            project: {
-              clientId: client.id
-            }
-          }
+          { type: 'INCOME' },
+          { projectId: { in: clientProjectIds } }
         ]
       },
       include: {

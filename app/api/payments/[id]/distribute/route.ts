@@ -62,7 +62,10 @@ export async function POST(
     const projects = await prisma.project.findMany({
       where: {
         id: { in: projectIds },
-        clientId: payment.clientId
+        OR: [
+          { clientId: payment.clientId },
+          { clients: { some: { clientId: payment.clientId } } }
+        ]
       }
     })
 

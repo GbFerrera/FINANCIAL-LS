@@ -42,6 +42,7 @@ COPY --from=builder /app/public ./public
 # Criar diretório de uploads
 RUN mkdir -p ./uploads
 RUN chown nextjs:nodejs ./uploads
+VOLUME ["/app/uploads"]
 
 # Copiar arquivos de build
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -63,6 +64,7 @@ ENV NODE_ENV production
 ENV NEXTAUTH_URL "https://projects.linksystem.tech"
 ENV NEXTAUTH_SECRET "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
 ENV DATABASE_URL "postgres://postgres:87G1d5mC7MxDexB4t5PfoUQ7LpaPTanIfMXe1LDu3A5qGoMCL4QGGDhI0ZkXH884@62.72.11.161:5439/postgres"
+ENV UPLOAD_DIR "/app/uploads"
 
 # Comando para executar a aplicação
 CMD ["node", "server.js"]

@@ -54,6 +54,7 @@ model Client {
 
   // Relacionamentos
   projects Project[]
+  projectLinks ProjectClient[]
   comments Comment[]
   payments Payment[]
 
@@ -78,6 +79,7 @@ model Project {
   // Relacionamentos
   clientId   String
   client     Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clients    ProjectClient[]
   milestones Milestone[]
   tasks      Task[]
   comments   Comment[]
@@ -210,6 +212,21 @@ model ProjectFile {
   @@map("project_files")
 }
 
+model FinancialAttachment {
+  id            String   @id @default(cuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  url           String
+  createdAt     DateTime @default(now())
+
+  financialEntryId String
+  financialEntry   FinancialEntry @relation(fields: [financialEntryId], references: [id], onDelete: Cascade)
+
+  @@map("financial_attachments")
+}
+
 model ProjectTeam {
   id     String @id @default(cuid())
   userId String
@@ -242,6 +259,8 @@ model FinancialEntry {
   // Vinculação com pagamento (para entradas geradas a partir de pagamentos distribuídos)
   paymentId String?
   payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  attachments FinancialAttachment[]
 
   @@map("financial_entries")
 }
@@ -284,6 +303,18 @@ model PaymentProject {
 
   @@unique([paymentId, projectId])
   @@map("payment_projects")
+}
+
+model ProjectClient {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, clientId])
+  @@map("project_clients")
 }
 
 model Notification {

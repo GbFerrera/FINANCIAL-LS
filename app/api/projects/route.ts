@@ -14,6 +14,7 @@ const projectSchema = z.object({
   startDate: z.string().transform((str) => new Date(str)),
   endDate: z.string().transform((str) => new Date(str)).optional(),
   budget: z.number().positive('Orçamento deve ser positivo').optional(),
+  additionalClientIds: z.array(z.string().min(1)).optional()
 })
 
 // GET - Listar todos os projetos
@@ -48,7 +49,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (clientId) {
-      where.clientId = clientId
+      where.OR = [
+        ...(where.OR || []),
+        { clientId },
+        { clients: { some: { clientId } } }
+      ]
     }
 
     const [projects, total] = await Promise.all([
@@ -148,8 +153,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const { additionalClientIds, ...projectData } = validatedData as any
     const project = await prisma.project.create({
-      data: validatedData,
+      data: projectData,
       include: {
         client: {
           select: {
@@ -168,6 +174,19 @@ export async function POST(request: NextRequest) {
         }
       }
     })
+
+    const extraIds: string[] = Array.from(new Set([project.clientId, ...(additionalClientIds || [])]))
+    if (extraIds.length > 0) {
+      await prisma.$transaction(
+        extraIds.map((cid) =>
+          prisma.projectClient.upsert({
+            where: { projectId_clientId: { projectId: project.id, clientId: cid } },
+            update: {},
+            create: { projectId: project.id, clientId: cid }
+          })
+        )
+      )
+    }
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {

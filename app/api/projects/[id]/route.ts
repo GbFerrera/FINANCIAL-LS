@@ -16,6 +16,7 @@ const updateProjectSchema = z.object({
   budget: z.number().positive('Orçamento deve ser positivo').optional(),
   isPaused: z.boolean().optional(),
   pauseReason: z.string().optional(),
+  additionalClientIds: z.array(z.string().min(1)).optional()
 })
 
 interface RouteParams {
@@ -44,6 +45,13 @@ export async function GET(
             name: true,
             email: true,
             company: true,
+          }
+        },
+        clients: {
+          include: {
+            client: {
+              select: { id: true, name: true, email: true, company: true }
+            }
           }
         },
         milestones: {
@@ -190,9 +198,10 @@ export async function PUT(
       updateData.pauseReason = null
     }
 
+    const { additionalClientIds, ...dataToUpdate } = updateData
     const updatedProject = await prisma.project.update({
       where: { id: params.id },
-      data: updateData,
+      data: dataToUpdate,
       include: {
         client: {
           select: {
@@ -213,6 +222,22 @@ export async function PUT(
         }
       }
     })
+
+    if (additionalClientIds) {
+      const ids = Array.from(new Set([updatedProject.clientId, ...additionalClientIds]))
+      await prisma.$transaction(async (tx) => {
+        await tx.projectClient.deleteMany({ where: { projectId: updatedProject.id, NOT: { clientId: { in: ids } } } })
+        await Promise.all(
+          ids.map((cid) =>
+            tx.projectClient.upsert({
+              where: { projectId_clientId: { projectId: updatedProject.id, clientId: cid } },
+              update: {},
+              create: { projectId: updatedProject.id, clientId: cid }
+            })
+          )
+        )
+      })
+    }
 
     return NextResponse.json(updatedProject)
   } catch (error) {

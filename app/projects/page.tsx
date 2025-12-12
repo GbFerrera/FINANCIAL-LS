@@ -44,6 +44,7 @@ interface Project {
   endDate: string | null
   budget: number
   clientName: string
+  partners?: string[]
   teamCount: number
   milestonesCount: number
   completedMilestones: number
@@ -76,6 +77,7 @@ interface NewProject {
   startDate: string
   endDate: string
   budget: number
+  additionalClientIds: string[]
 }
 
 export default function ProjectsPage() {
@@ -96,7 +98,8 @@ export default function ProjectsPage() {
     status: 'PLANNING',
     startDate: '',
     endDate: '',
-    budget: 0
+    budget: 0,
+    additionalClientIds: []
   })
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
@@ -181,7 +184,8 @@ export default function ProjectsPage() {
           status: newProject.status,
           startDate: newProject.startDate ? newProject.startDate + 'T12:00:00.000Z' : newProject.startDate,
           endDate: newProject.endDate ? newProject.endDate + 'T12:00:00.000Z' : undefined,
-          budget: newProject.budget || undefined
+          budget: newProject.budget || undefined,
+          additionalClientIds: newProject.additionalClientIds.filter(id => id && id !== newProject.clientId)
         })
       })
 
@@ -196,7 +200,8 @@ export default function ProjectsPage() {
           status: 'PLANNING',
           startDate: '',
           endDate: '',
-          budget: 0
+          budget: 0,
+          additionalClientIds: []
         })
         fetchProjects()
       } else {
@@ -218,9 +223,20 @@ export default function ProjectsPage() {
       status: project.status,
       startDate: project.startDate,
       endDate: project.endDate || '',
-      budget: project.budget
+      budget: project.budget,
+      additionalClientIds: []
     })
     setShowAddModal(true)
+    // Prefetch project details to fill clients
+    fetch(`/api/projects/${project.id}`).then(async (res) => {
+      if (!res.ok) return
+      const full = await res.json()
+      setNewProject(prev => ({
+        ...prev,
+        clientId: full.client?.id || prev.clientId,
+        additionalClientIds: (full.clients || []).map((pc: any) => pc.client.id).filter((cid: string) => cid && cid !== full.client?.id)
+      }))
+    }).catch(() => {})
   }
 
   const handleDeleteProject = async (projectId: string) => {
@@ -447,6 +463,38 @@ export default function ProjectsPage() {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Clientes adicionais (opcional)
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded p-2">
+                        {clients
+                          .filter(c => c.id !== newProject.clientId)
+                          .map((client) => {
+                            const checked = newProject.additionalClientIds.includes(client.id)
+                            return (
+                              <label key={client.id} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    setNewProject(prev => ({
+                                      ...prev,
+                                      additionalClientIds: e.target.checked
+                                        ? [...prev.additionalClientIds, client.id]
+                                        : prev.additionalClientIds.filter(id => id !== client.id)
+                                    }))
+                                  }}
+                                />
+                                <span>
+                                  {client.name} {client.company && `- ${client.company}`}
+                                </span>
+                              </label>
+                            )
+                          })}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -684,6 +732,11 @@ export default function ProjectsPage() {
                             <p className="text-sm text-gray-500 mt-1">
                               Cliente: {linkSystemProject.clientName}
                             </p>
+                            {linkSystemProject.partners && linkSystemProject.partners.length > 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Parceiros: {linkSystemProject.partners.join(', ')}
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(linkSystemProject.status)}`}>
@@ -807,6 +860,11 @@ export default function ProjectsPage() {
                             <p className="text-sm text-gray-500 mt-1">
                               Cliente: {project.clientName}
                             </p>
+                            {project.partners && project.partners.length > 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Parceiros: {project.partners.join(', ')}
+                              </p>
+                            )}
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>

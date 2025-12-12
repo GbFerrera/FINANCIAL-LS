@@ -44,6 +44,7 @@ interface ProjectData {
   endDate?: string
   budget: number
   progress: number
+  partners?: string[]
   milestones: Array<{
     id: string
     title: string
@@ -242,12 +243,8 @@ export default function ClientPortalPage() {
       setPayments(data.payments || [])
       setFinancialEntries(data.financialEntries || [])
       
-      // Calculate payment summaries from the data we received
-      const calculatedSummaries = calculatePaymentSummaries(
-        data.projects,
-        data.payments || []
-      )
-      setProjectPaymentSummaries(calculatedSummaries)
+      // Usar resumo de pagamentos calculado na API para garantir consistência
+      setProjectPaymentSummaries(data.projectPaymentSummaries || [])
       if (data.projects.length > 0) {
         setSelectedProject(data.projects[0].id)
       }
@@ -1064,19 +1061,28 @@ export default function ClientPortalPage() {
                               <div key={summary.projectId} className="px-6 py-5">
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                                   <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="text-base font-semibold text-gray-900">{summary.projectName}</h4>
-                                      {(() => {
-                                        const proj = projects.find(p => p.id === summary.projectId)
-                                        if (!proj) return null
-                                        return (
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(proj.status)}`}>
-                                            {getStatusLabel(proj.status)}
-                                          </span>
-                                        )
-                                      })()}
-                                    </div>
-                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-base font-semibold text-gray-900">{summary.projectName}</h4>
+                                    {(() => {
+                                      const proj = projects.find(p => p.id === summary.projectId)
+                                      if (!proj) return null
+                                      return (
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(proj.status)}`}>
+                                          {getStatusLabel(proj.status)}
+                                        </span>
+                                      )
+                                    })()}
+                                  </div>
+                                  {(() => {
+                                    const proj = projects.find(p => p.id === summary.projectId)
+                                    if (!proj || !proj.partners || proj.partners.length === 0) return null
+                                    return (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Parceiros: {proj.partners.join(', ')}
+                                      </p>
+                                    )
+                                  })()}
+                                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                                       <div className="bg-blue-50 p-3 rounded-lg">
                                         <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
                                         <p className="text-lg font-bold text-blue-900 mt-1">

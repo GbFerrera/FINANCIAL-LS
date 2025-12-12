@@ -15,6 +15,14 @@ const updateFinancialEntrySchema = z.object({
   isRecurring: z.boolean().optional(),
   recurringType: z.nativeEnum(RecurringType).optional(),
   projectId: z.string().optional(),
+  addAttachments: z.array(z.object({
+    originalName: z.string(),
+    mimeType: z.string(),
+    size: z.number(),
+    url: z.string(),
+    filename: z.string().optional()
+  })).optional(),
+  removeAttachmentIds: z.array(z.string()).optional(),
 })
 
 interface RouteParams {
@@ -50,7 +58,8 @@ export async function GET(
               }
             }
           }
-        }
+        },
+        attachments: true
       }
     })
 
@@ -79,7 +88,14 @@ export async function GET(
         client: entry.project.client
       } : null,
       createdAt: entry.createdAt.toISOString(),
-      updatedAt: entry.updatedAt.toISOString()
+      updatedAt: entry.updatedAt.toISOString(),
+      attachments: (entry.attachments || []).map(a => ({
+        id: a.id,
+        filename: a.filename,
+        originalName: a.originalName,
+        size: a.size,
+        url: a.url
+      }))
     }
 
     return NextResponse.json(transformedEntry)
@@ -164,6 +180,8 @@ export async function PUT(
 
     // Preparar dados para atualização
     const updateData: any = { ...validatedData }
+    delete updateData.addAttachments
+    delete updateData.removeAttachmentIds
     if (validatedData.date) {
       updateData.date = new Date(validatedData.date)
     }
@@ -190,8 +208,35 @@ export async function PUT(
               }
             }
           }
-        }
+        },
+        attachments: true
       }
+    })
+
+    if (validatedData.removeAttachmentIds && validatedData.removeAttachmentIds.length > 0) {
+      await prisma.financialAttachment.deleteMany({
+        where: {
+          id: { in: validatedData.removeAttachmentIds },
+          financialEntryId: params.id
+        }
+      })
+    }
+
+    if (validatedData.addAttachments && validatedData.addAttachments.length > 0) {
+      await prisma.financialAttachment.createMany({
+        data: validatedData.addAttachments.map(a => ({
+          filename: a.filename || a.originalName,
+          originalName: a.originalName,
+          mimeType: a.mimeType,
+          size: Math.round(a.size),
+          url: a.url,
+          financialEntryId: params.id
+        }))
+      })
+    }
+
+    const attachments = await prisma.financialAttachment.findMany({
+      where: { financialEntryId: params.id }
     })
 
     // Transformar para o frontend
@@ -212,7 +257,14 @@ export async function PUT(
         client: updatedEntry.project.client
       } : null,
       createdAt: updatedEntry.createdAt.toISOString(),
-      updatedAt: updatedEntry.updatedAt.toISOString()
+      updatedAt: updatedEntry.updatedAt.toISOString(),
+      attachments: attachments.map(a => ({
+        id: a.id,
+        filename: a.filename,
+        originalName: a.originalName,
+        size: a.size,
+        url: a.url
+      }))
     }
 
     return NextResponse.json(transformedEntry)

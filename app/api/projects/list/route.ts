@@ -23,6 +23,7 @@ export async function GET() {
       whereClause = {
         OR: [
           { clientId: session.user.id },
+          { clients: { some: { clientId: session.user.id } } },
           {
             team: {
               some: {
@@ -40,7 +41,15 @@ export async function GET() {
       include: {
         client: {
           select: {
+            id: true,
             name: true
+          }
+        },
+        clients: {
+          include: {
+            client: {
+              select: { id: true, name: true }
+            }
           }
         },
         team: {
@@ -79,6 +88,10 @@ export async function GET() {
         project.tasks
       )
 
+      const partners = (project.clients || [])
+        .filter((pc: any) => pc.client && pc.client.id !== project.client.id)
+        .map((pc: any) => pc.client.name)
+
       return {
         id: project.id,
         name: project.name,
@@ -88,6 +101,7 @@ export async function GET() {
         endDate: project.endDate?.toISOString() || null,
         budget: project.budget,
         clientName: project.client.name,
+        partners,
         teamCount: project.team.length,
         milestonesCount: totalMilestones,
         completedMilestones,

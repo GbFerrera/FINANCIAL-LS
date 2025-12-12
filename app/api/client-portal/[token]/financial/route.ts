@@ -29,7 +29,12 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
     // Projetos do cliente
     const clientProjectIds = (
       await prisma.project.findMany({
-        where: { clientId: client.id },
+        where: {
+          OR: [
+            { clientId: client.id },
+            { clients: { some: { clientId: client.id } } }
+          ]
+        },
         select: { id: true }
       })
     ).map(p => p.id)

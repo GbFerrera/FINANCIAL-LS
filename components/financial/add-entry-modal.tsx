@@ -377,26 +377,57 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       // Converter data para formato ISO datetime (sem Z para evitar conversão de fuso horário)
       const dateTime = formData.date + 'T12:00:00.000Z'
       
-      const url = editingEntry ? `/api/financial/${editingEntry.id}` : '/api/financial'
-      const method = editingEntry ? 'PUT' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: formData.type,
-          category: formData.category,
-          description: formData.description,
-          amount: amount,
-          date: dateTime,
-          isRecurring: formData.isRecurring,
-          recurringType: formData.isRecurring && formData.recurringType ? formData.recurringType : null,
-          projectId: enableProjectDistribution ? null : (formData.projectId || null),
-          projectDistributions: enableProjectDistribution ? projectDistributions : null
+    const uploadedAttachments: Array<{ originalName: string; mimeType: string; size: number; url: string; filename?: string }> = []
+    if (!editingEntry && attachments.length > 0) {
+      for (const file of attachments) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json().catch(() => ({} as any))
+          throw new Error(err.error || `Falha ao enviar arquivo ${file.name}`)
+        }
+        const data = await uploadRes.json()
+        const info = data.file
+        uploadedAttachments.push({
+          originalName: info.originalName,
+          mimeType: info.fileType,
+          size: info.fileSize,
+          url: info.fileUrl,
+          filename: info.fileName
         })
-      })
+      }
+    }
+
+    const url = editingEntry ? `/api/financial/${editingEntry.id}` : '/api/financial'
+    const method = editingEntry ? 'PUT' : 'POST'
+
+    let removeAttachmentIds: string[] = []
+
+    const payload: any = {
+      type: formData.type,
+      category: formData.category,
+      description: formData.description,
+      amount: amount,
+      date: dateTime,
+      isRecurring: formData.isRecurring,
+      recurringType: formData.isRecurring && formData.recurringType ? formData.recurringType : null,
+      projectId: enableProjectDistribution ? null : (formData.projectId || null),
+      projectDistributions: enableProjectDistribution ? projectDistributions : null
+    }
+
+    if (method === 'POST' && uploadedAttachments.length > 0) {
+      payload.attachments = uploadedAttachments
+    }
+    // Em edição, anexos são gerenciados fora deste modal
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
 
       if (!response.ok) {
         const error = await response.json()
@@ -1015,80 +1046,54 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
             )}
           </div>
 
-          {/* Attachments */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium flex items-center">
-              <Upload className="h-4 w-4 mr-1" />
-              Anexos
-            </Label>
-            
-            {/* File Upload */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-              <input
-                type="file"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-                id="file-upload"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-              />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">Clique para adicionar arquivos</p>
-                <p className="text-xs text-gray-400 mt-1">PDF, DOC, XLS, Imagens (máx. 10MB cada)</p>
-              </label>
+          {/* Attachments (somente na criação) */}
+          {!editingEntry && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium flex items-center">
+                <Upload className="h-4 w-4 mr-1" />
+                Anexos
+              </Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="file-upload"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm text-gray-600">Clique para adicionar arquivos</p>
+                  <p className="text-xs text-gray-400 mt-1">PDF e imagens (máx. 10MB cada)</p>
+                </label>
+              </div>
+
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Novos anexos:</p>
+                  {attachments.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm">{file.name}</span>
+                        <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeAttachment(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {/* Existing Attachments */}
-            {existingAttachments.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">Anexos existentes:</p>
-                {existingAttachments.map((attachment) => (
-                  <div key={attachment.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm">{attachment.originalName}</span>
-                      <span className="text-xs text-gray-500">({formatFileSize(attachment.size)})</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeExistingAttachment(attachment.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* New Attachments */}
-            {attachments.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">Novos anexos:</p>
-                {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
-                    <div className="flex items-center space-x-2">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm">{file.name}</span>
-                      <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAttachment(index)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end space-x-3 pt-4">

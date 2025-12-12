@@ -23,11 +23,19 @@ const financialEntrySchema = z.object({
   recurringType: z.nativeEnum(RecurringType).nullable().optional(),
   projectId: z.string().nullable().optional(),
   projectDistributions: z.array(projectDistributionSchema).nullable().optional(),
+  attachments: z.array(z.object({
+    originalName: z.string(),
+    mimeType: z.string(),
+    size: z.number(),
+    url: z.string(),
+    filename: z.string().optional()
+  })).optional(),
 }).transform((data) => ({
   ...data,
   recurringType: data.recurringType || undefined,
   projectId: data.projectId || undefined,
   projectDistributions: data.projectDistributions || undefined,
+  attachments: data.attachments || undefined,
 }))
 
 // GET - Listar entradas financeiras
@@ -127,7 +135,8 @@ export async function GET(request: NextRequest) {
                 }
               }
             }
-          }
+          },
+          attachments: true
         },
         orderBy: { date: 'desc' },
         skip,
@@ -154,7 +163,14 @@ export async function GET(request: NextRequest) {
         projectName: pp.project.name,
         amount: pp.amount
       })) || [],
-      createdAt: entry.createdAt.toISOString()
+      createdAt: entry.createdAt.toISOString(),
+      attachments: (entry.attachments || []).map(a => ({
+        id: a.id,
+        filename: a.filename,
+        originalName: a.originalName,
+        size: a.size,
+        url: a.url
+      }))
     }))
 
     // Calcular estatísticas usando os mesmos filtros aplicados às entradas
@@ -414,6 +430,23 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    if (validatedData.attachments && validatedData.attachments.length > 0) {
+      await prisma.financialAttachment.createMany({
+        data: validatedData.attachments.map(a => ({
+          filename: a.filename || a.originalName,
+          originalName: a.originalName,
+          mimeType: a.mimeType,
+          size: Math.round(a.size),
+          url: a.url,
+          financialEntryId: entry.id
+        }))
+      })
+    }
+
+    const entryAttachments = await prisma.financialAttachment.findMany({
+      where: { financialEntryId: entry.id }
+    })
+
     // Transformar para o frontend
     const transformedEntry = {
       id: entry.id,
@@ -432,7 +465,14 @@ export async function POST(request: NextRequest) {
         projectName: pp.project.name,
         amount: pp.amount
       })) : (validatedData.projectDistributions || null),
-      paymentId: payment?.id || null
+      paymentId: payment?.id || null,
+      attachments: entryAttachments.map(a => ({
+        id: a.id,
+        filename: a.filename,
+        originalName: a.originalName,
+        size: a.size,
+        url: a.url
+      }))
     }
 
     return NextResponse.json(transformedEntry, { status: 201 })
