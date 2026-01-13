@@ -45,7 +45,17 @@ const navigation = [
   },
   { name: "Clientes", href: "/clients", icon: Building2 },
   { name: "Financeiro", href: "/financial", icon: DollarSign },
-  { name: "Equipe", href: "/team", icon: Users },
+  { 
+    name: "Equipe", 
+    href: "/team", 
+    icon: Users,
+    submenu: [
+      { name: "Membros", href: "/team", icon: Users },
+      { name: "Agenda", href: "/team/agenda", icon: Calendar },
+      { name: "Chat", href: "/team/chat", icon: Activity },
+      { name: "Performance", href: "/team/performance", icon: BarChart3 }
+    ]
+  },
   { name: "Supervisor", href: "/supervisor/dashboard", icon: Activity },
   { name: "Relatórios", href: "/reports", icon: BarChart3 },
   { name: "Configurações", href: "/settings", icon: Settings },

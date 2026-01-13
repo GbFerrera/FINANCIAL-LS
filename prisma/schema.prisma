@@ -38,8 +38,25 @@ model User {
   teamProjects  ProjectTeam[]
   timeEntries   TimeEntry[]
   timerEvents   TimerEvent[]
+  appointments  Appointment[]
 
   @@map("users")
+}
+
+model Appointment {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  start       DateTime
+  end         DateTime
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      String   @default("scheduled") // scheduled, completed, cancelled
+  type        String   @default("meeting") // meeting, visit, interval, other
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("appointments")
 }
 
 model Client {
