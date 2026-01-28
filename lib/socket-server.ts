@@ -26,6 +26,23 @@ interface TimerEvent {
   pausedTime?: number
 }
 
+interface ExcalidrawCollaborationEvent {
+  type: 'scene_update' | 'cursor_update' | 'user_join' | 'user_leave'
+  projectId: string
+  userId: string
+  userName: string
+  data?: any
+  timestamp: string
+}
+
+interface CollaboratorInfo {
+  userId: string
+  userName: string
+  cursor?: { x: number; y: number }
+  color: string
+  lastSeen: string
+}
+
 interface UserSession {
   userId: string
   userName: string
@@ -37,6 +54,22 @@ interface UserSession {
 const activeSessions = new Map<string, UserSession>()
 // Store para timers ativos
 const activeTimers = new Map<string, TimerEvent>() // taskId -> timer event
+// Store para colaboradores ativos no Excalidraw por projeto
+const excalidrawCollaborators = new Map<string, Map<string, CollaboratorInfo>>() // projectId -> userId -> info
+
+// Cores para colaboradores
+const collaboratorColors = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+  '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+]
+
+function getCollaboratorColor(userId: string): string {
+  const hash = userId.split('').reduce((a, b) => {
+    a = ((a << 5) - a) + b.charCodeAt(0)
+    return a & a
+  }, 0)
+  return collaboratorColors[Math.abs(hash) % collaboratorColors.length]
+}
 
 export function initializeSocket(res: NextApiResponseServerIO) {
   if (!res.socket.server.io) {
@@ -117,30 +150,178 @@ export function initializeSocket(res: NextApiResponseServerIO) {
         if (event.type === 'timer_start' || event.type === 'timer_update') {
           activeTimers.set(event.taskId, event)
         } else if (event.type === 'timer_pause') {
-          // Manter timer pausado no store
-          activeTimers.set(event.taskId, { ...event, isPaused: true })
+          const existingTimer = activeTimers.get(event.taskId)
+          if (existingTimer) {
+            activeTimers.set(event.taskId, { ...existingTimer, isPaused: true, pausedTime: event.pausedTime })
+          }
         } else if (event.type === 'timer_stop' || event.type === 'task_complete') {
           activeTimers.delete(event.taskId)
         }
-
+        
         // Broadcast para supervisores
         io.to('supervisors').emit('timer_event', event)
+      })
+
+      // Eventos de colaboração Excalidraw (padrão oficial)
+      socket.on('join-room', (data: { roomID: string }) => {
+        const session = activeSessions.get(socket.id)
+        if (!session) return
+
+        const { roomID } = data
+        const { userId, userName } = session
+
+        // Juntar sala do projeto
+        socket.join(roomID)
+
+        // Adicionar colaborador
+        if (!excalidrawCollaborators.has(roomID)) {
+          excalidrawCollaborators.set(roomID, new Map())
+        }
+
+        const roomCollaborators = excalidrawCollaborators.get(roomID)!
+        const isFirstUser = roomCollaborators.size === 0
         
-        // Log do evento
-        console.log(`Timer ${event.type}: ${event.userName} - ${event.taskTitle}`)
+        roomCollaborators.set(userId, {
+          userId,
+          userName,
+          color: getCollaboratorColor(userId),
+          lastSeen: new Date().toISOString()
+        })
+
+        console.log(`${userName} entrou na sala ${roomID}`)
+
+        if (isFirstUser) {
+          // Primeiro usuário na sala
+          socket.emit('first-in-room')
+        } else {
+          // Notificar outros colaboradores sobre novo usuário
+          socket.to(roomID).emit('new-user', {
+            socketId: socket.id,
+            userId,
+            userName
+          })
+        }
+
+        // Enviar lista atualizada de usuários para todos na sala
+        const userIds = Array.from(roomCollaborators.keys())
+        io.to(roomID).emit('room-user-change', userIds)
       })
 
-      // Solicitar timers ativos
-      socket.on('get_active_timers', () => {
-        const timersArray = Array.from(activeTimers.values())
-        socket.emit('active_timers', timersArray)
+      socket.on('leave-room', (data: { roomID: string }) => {
+        const session = activeSessions.get(socket.id)
+        if (!session) return
+
+        const { roomID } = data
+        const { userId, userName } = session
+
+        // Sair da sala do projeto
+        socket.leave(roomID)
+
+        // Remover colaborador
+        const roomCollaborators = excalidrawCollaborators.get(roomID)
+        if (roomCollaborators) {
+          roomCollaborators.delete(userId)
+          
+          // Notificar outros colaboradores sobre usuário que saiu
+          socket.to(roomID).emit('user-left', {
+            socketId: socket.id,
+            userId,
+            userName
+          })
+          
+          // Enviar lista atualizada de usuários
+          const userIds = Array.from(roomCollaborators.keys())
+          io.to(roomID).emit('room-user-change', userIds)
+          
+          // Se não há mais colaboradores, limpar a sala
+          if (roomCollaborators.size === 0) {
+            excalidrawCollaborators.delete(roomID)
+          }
+        }
+
+        console.log(`${userName} saiu da sala ${roomID}`)
       })
 
-      // Desconexão
+      socket.on('server-broadcast', (data: { roomID: string, encryptedData: ArrayBuffer | string, iv?: ArrayBuffer }) => {
+        const session = activeSessions.get(socket.id)
+        if (!session) return
+
+        const { roomID, encryptedData, iv } = data
+        const { userId, userName } = session
+
+        // Atualizar timestamp do colaborador
+        const roomCollaborators = excalidrawCollaborators.get(roomID)
+        if (roomCollaborators && roomCollaborators.has(userId)) {
+          const collaborator = roomCollaborators.get(userId)!
+          collaborator.lastSeen = new Date().toISOString()
+        }
+
+        // Broadcast dados criptografados para outros colaboradores na sala
+        socket.to(roomID).emit('client-broadcast', {
+          socketId: socket.id,
+          encryptedData,
+          iv
+        })
+
+        console.log(`${userName} enviou dados para sala ${roomID}`)
+      })
+
+      socket.on('cursor-update', (data: { roomID: string, pointer: { x: number, y: number } }) => {
+        const session = activeSessions.get(socket.id)
+        if (!session) return
+
+        const { roomID, pointer } = data
+        const { userId, userName } = session
+
+        // Atualizar cursor do colaborador
+        const roomCollaborators = excalidrawCollaborators.get(roomID)
+        if (roomCollaborators && roomCollaborators.has(userId)) {
+          const collaborator = roomCollaborators.get(userId)!
+          collaborator.cursor = pointer
+          collaborator.lastSeen = new Date().toISOString()
+        }
+
+        // Broadcast cursor para outros colaboradores
+        socket.to(roomID).emit('cursor-update', {
+          socketId: socket.id,
+          pointer,
+          userId,
+          userName
+        })
+      })
+
+      // Limpeza quando usuário desconecta
       socket.on('disconnect', () => {
+        console.log('Cliente desconectado:', socket.id)
+        
         const session = activeSessions.get(socket.id)
         if (session) {
-          console.log(`${session.userName} desconectado`)
+          const { userId, userName } = session
+          
+          // Remover de todas as salas Excalidraw
+          excalidrawCollaborators.forEach((collaborators, roomID) => {
+            if (collaborators.has(userId)) {
+              collaborators.delete(userId)
+              
+              // Notificar outros colaboradores
+              socket.to(roomID).emit('user-left', {
+                socketId: socket.id,
+                userId,
+                userName
+              })
+              
+              // Enviar lista atualizada de usuários
+              const userIds = Array.from(collaborators.keys())
+              io.to(roomID).emit('room-user-change', userIds)
+              
+              // Limpar sala se vazia
+              if (collaborators.size === 0) {
+                excalidrawCollaborators.delete(roomID)
+              }
+            }
+          })
+          
+          // Remover sessão
           activeSessions.delete(socket.id)
         }
       })
@@ -148,6 +329,8 @@ export function initializeSocket(res: NextApiResponseServerIO) {
 
     res.socket.server.io = io
   }
+
+  return res.socket.server.io
 }
 
 export { activeTimers, activeSessions }
