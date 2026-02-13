@@ -141,43 +141,59 @@ export function useExcalidrawCollaboration(): ExcalidrawCollaborationHook {
   const updateScene = useCallback((projectId: string, scene: any, elements: any[], appState: any) => {
     if (!socket || !isConnected) return
 
-    // Debounce para evitar muitas atualizações
+    // Debounce otimizado para evitar muitas atualizações
     const debounceKey = `scene_update_${projectId}`
     clearTimeout((window as any)[debounceKey])
     
     ;(window as any)[debounceKey] = setTimeout(() => {
-      // Preparar dados para broadcast (em produção, seria criptografado)
-      const dataToSend = {
-        elements,
-        appState,
-        scene,
-        timestamp: new Date().toISOString()
+      try {
+        // Preparar dados otimizados para broadcast
+        const dataToSend = {
+          elements: elements.slice(0, 1000), // Limitar elementos para performance
+          appState: {
+            // Enviar apenas propriedades essenciais do appState
+            viewBackgroundColor: appState.viewBackgroundColor,
+            currentItemStrokeColor: appState.currentItemStrokeColor,
+            currentItemBackgroundColor: appState.currentItemBackgroundColor,
+            currentItemFillStyle: appState.currentItemFillStyle,
+            currentItemStrokeWidth: appState.currentItemStrokeWidth,
+            currentItemRoughness: appState.currentItemRoughness,
+            currentItemOpacity: appState.currentItemOpacity
+          },
+          timestamp: new Date().toISOString()
+        }
+        
+        // Enviar dados compactados
+        socket.emit('server-broadcast', {
+          roomID: projectId,
+          encryptedData: JSON.stringify(dataToSend)
+        })
+      } catch (error) {
+        console.error('Erro no broadcast de cena:', error)
       }
-      
-      // Por simplicidade, enviamos como string JSON (em produção seria ArrayBuffer criptografado)
-      socket.emit('server-broadcast', {
-        roomID: projectId,
-        encryptedData: JSON.stringify(dataToSend)
-      })
-    }, 200) // 200ms de debounce
+    }, 500) // Aumentar debounce para 500ms para melhor performance
   }, [socket, isConnected])
 
-  // Atualizar cursor
+  // Atualizar cursor com throttling otimizado
   const updateCursor = useCallback((projectId: string, cursor: { x: number; y: number }) => {
     if (!socket || !isConnected) return
 
-    // Throttle para cursors (mais frequente)
+    // Throttle mais agressivo para cursors para melhor performance
     const throttleKey = `cursor_update_${projectId}`
     if (!(window as any)[throttleKey]) {
-      socket.emit('cursor-update', { 
-        roomID: projectId, 
-        pointer: cursor 
-      })
-      
-      ;(window as any)[throttleKey] = true
-      setTimeout(() => {
-        ;(window as any)[throttleKey] = false
-      }, 50) // 50ms de throttle
+      try {
+        socket.emit('cursor-update', { 
+          roomID: projectId, 
+          pointer: cursor 
+        })
+        
+        ;(window as any)[throttleKey] = true
+        setTimeout(() => {
+          ;(window as any)[throttleKey] = false
+        }, 100) // Aumentar throttle para 100ms para reduzir overhead
+      } catch (error) {
+        console.error('Erro no update de cursor:', error)
+      }
     }
   }, [socket, isConnected])
 

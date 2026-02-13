@@ -463,7 +463,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-green-200 bg-green-50">
+                <Card key={sprint.id} className="border-green-200 bg-green-50/50">
                   <CardHeader>
                     <SprintHeader
                       sprint={sprint}
@@ -473,39 +473,56 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     />
                   </CardHeader>
                   <CardContent>
-                    <Droppable droppableId={sprint.id} direction="horizontal">
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className="flex gap-4 min-h-[200px] overflow-x-auto pb-4"
-                        >
-                          {sprint.tasks
-                            .sort((a, b) => a.order - b.order)
-                            .map((task, index) => (
-                              <Draggable key={task.id} draggableId={task.id} index={index}>
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={`${
-                                      snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
-                                    }`}
-                                  >
-                                    <TaskCard 
-                                      task={task} 
-                                      onEdit={handleEditTask}
-                                      onDelete={handleDeleteTask}
-                                    />
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[
+                        { key: 'TODO', label: 'A Fazer' },
+                        { key: 'IN_PROGRESS', label: 'Em Progresso' },
+                        { key: 'COMPLETED', label: 'Concluído' }
+                      ].map((col) => {
+                        const tasksInColumn = sprint.tasks
+                          .filter(t => col.key === 'IN_PROGRESS' ? (t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW') : t.status === col.key)
+                          .sort((a, b) => a.order - b.order)
+                        
+                        return (
+                          <div key={col.key} className="bg-gray-50/50 rounded-lg border border-gray-200">
+                            <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 mb-2">
+                              <span className="text-sm font-medium text-gray-700">{col.label}</span>
+                              <Badge variant="outline" className="text-xs bg-white text-gray-500 border-gray-200">{tasksInColumn.length}</Badge>
+                            </div>
+                            <Droppable droppableId={`${sprint.id}|${col.key}`} direction="vertical">
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.droppableProps}
+                                  className="min-h-[160px] px-3 pb-3 space-y-3"
+                                >
+                                  {tasksInColumn.map((task, index) => (
+                                    <Draggable key={task.id} draggableId={task.id} index={index}>
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          {...provided.dragHandleProps}
+                                          className={`${snapshot.isDragging ? 'rotate-3 shadow-lg z-50' : ''}`}
+                                        >
+                                          <TaskCard 
+                                            task={task} 
+                                            onEdit={handleEditTask}
+                                            onDelete={handleDeleteTask}
+                                            onClick={() => handleEditTask(task)}
+                                          />
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                  {provided.placeholder}
+                                </div>
+                              )}
+                            </Droppable>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </CardContent>
                   
                   {/* Visualização Diária por Colaborador */}
@@ -694,7 +711,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-yellow-200 bg-yellow-50">
+                <Card key={sprint.id} className="border-yellow-200 bg-yellow-50/50">
                   <CardHeader>
                     <SprintHeader
                       sprint={sprint}
@@ -704,39 +721,56 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     />
                   </CardHeader>
                   <CardContent>
-                    <Droppable droppableId={sprint.id} direction="horizontal">
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className="flex gap-4 min-h-[200px] overflow-x-auto pb-4"
-                        >
-                          {sprint.tasks
-                            .sort((a, b) => a.order - b.order)
-                            .map((task, index) => (
-                              <Draggable key={task.id} draggableId={task.id} index={index}>
-                                {(provided, snapshot) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    className={`${
-                                      snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
-                                    }`}
-                                  >
-                                    <TaskCard 
-                                      task={task} 
-                                      onEdit={handleEditTask}
-                                      onDelete={handleDeleteTask}
-                                    />
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {[
+                        { key: 'TODO', label: 'A Fazer' },
+                        { key: 'IN_PROGRESS', label: 'Em Progresso' },
+                        { key: 'COMPLETED', label: 'Concluído' }
+                      ].map((col) => {
+                        const tasksInColumn = sprint.tasks
+                          .filter(t => col.key === 'IN_PROGRESS' ? (t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW') : t.status === col.key)
+                          .sort((a, b) => a.order - b.order)
+                        
+                        return (
+                          <div key={col.key} className="bg-gray-50/50 rounded-lg border border-gray-200">
+                            <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 mb-2">
+                              <span className="text-sm font-medium text-gray-700">{col.label}</span>
+                              <Badge variant="outline" className="text-xs bg-white text-gray-500 border-gray-200">{tasksInColumn.length}</Badge>
+                            </div>
+                            <Droppable droppableId={`${sprint.id}|${col.key}`} direction="vertical">
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.droppableProps}
+                                  className="min-h-[160px] px-3 pb-3 space-y-3"
+                                >
+                                  {tasksInColumn.map((task, index) => (
+                                    <Draggable key={task.id} draggableId={task.id} index={index}>
+                                      {(provided, snapshot) => (
+                                        <div
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          {...provided.dragHandleProps}
+                                          className={`${snapshot.isDragging ? 'rotate-3 shadow-lg z-50' : ''}`}
+                                        >
+                                          <TaskCard 
+                                            task={task} 
+                                            onEdit={handleEditTask}
+                                            onDelete={handleDeleteTask}
+                                            onClick={() => handleEditTask(task)}
+                                          />
+                                        </div>
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                  {provided.placeholder}
+                                </div>
+                              )}
+                            </Droppable>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </CardContent>
                 </Card>
               )
@@ -916,6 +950,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                     task={task} 
                                     onEdit={handleEditTask}
                                     onDelete={handleDeleteTask}
+                                    onClick={!selectionMode ? () => handleEditTask(task) : undefined}
                                   />
                                 </div>
                               </div>
@@ -940,7 +975,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-gray-300 bg-gray-50 opacity-75">
+                <Card key={sprint.id} className="border-gray-200 bg-gray-50 opacity-75 text-gray-400">
                   <CardHeader>
                     <SprintHeader
                       sprint={sprint}

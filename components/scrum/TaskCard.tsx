@@ -82,6 +82,16 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showAttachments, setShowAttachments] = useState(false)
 
+  const isOverdue = () => {
+    if (!task.dueDate) return false
+    const raw = task.dueDate.includes('T') ? task.dueDate.split('T')[0] : task.dueDate
+    const [y, m, d] = raw.split('-').map(Number)
+    const due = new Date(y, (m as number) - 1, d as number)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return task.status !== 'COMPLETED' && due < today
+  }
+
   const getStatusIcon = () => {
     switch (task.status) {
       case 'TODO':
@@ -100,30 +110,30 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
   const getStatusColor = () => {
     switch (task.status) {
       case 'TODO':
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-white border-gray-200 hover:border-gray-300'
       case 'IN_PROGRESS':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'bg-blue-50/50 border-l-blue-500 border-y-blue-100 border-r-blue-100 hover:border-blue-200'
       case 'IN_REVIEW':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        return 'bg-yellow-50/50 border-l-yellow-500 border-y-yellow-100 border-r-yellow-100 hover:border-yellow-200'
       case 'COMPLETED':
-        return 'bg-green-100 text-green-800 border-green-200'
+        return 'bg-green-50/50 border-l-green-500 border-y-green-100 border-r-green-100 hover:border-green-200'
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
+        return 'bg-white border-gray-200 hover:border-gray-300'
     }
   }
 
   const getPriorityColor = () => {
     switch (task.priority) {
       case 'LOW':
-        return 'bg-gray-100 text-gray-600'
+        return 'bg-gray-100 text-gray-700 border-gray-200'
       case 'MEDIUM':
-        return 'bg-blue-100 text-blue-600'
+        return 'bg-blue-100 text-blue-700 border-blue-200'
       case 'HIGH':
-        return 'bg-orange-100 text-orange-600'
+        return 'bg-orange-100 text-orange-700 border-orange-200'
       case 'URGENT':
-        return 'bg-red-100 text-red-600'
+        return 'bg-red-100 text-red-700 border-red-200'
       default:
-        return 'bg-gray-100 text-gray-600'
+        return 'bg-gray-100 text-gray-700 border-gray-200'
     }
   }
 
@@ -284,7 +294,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
   return (
     <Card 
-      className={`w-72 cursor-pointer transition-all duration-200 hover:shadow-md ${getStatusColor()} border-l-4`}
+      className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-red-50 border-red-200 ring-1 ring-red-100' : getStatusColor()} border-l-4`}
       onClick={onClick}
     >
       <CardHeader className="pb-2">
@@ -316,7 +326,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
           </div>
           <div className="flex items-center gap-2">
             {task.storyPoints && (
-              <Badge variant="outline" className="text-xs font-mono">
+              <Badge variant="outline" className="text-xs font-mono text-gray-500 border-gray-200">
                 {task.storyPoints} SP
               </Badge>
             )}
@@ -326,7 +336,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 w-6 p-0 hover:bg-gray-100"
+                    className="h-6 w-6 p-0 hover:bg-gray-100 text-gray-400"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <MoreVertical className="w-3 h-3" />
@@ -351,7 +361,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
                         e.stopPropagation()
                         onDelete(task.id)
                       }}
-                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50"
                     >
                       <Trash2 className="w-3 h-3" />
                       Excluir
@@ -367,40 +377,40 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
       <CardContent className="pt-0">
         <div className="space-y-3">
           {/* Título */}
-          <h3 className="font-medium text-sm leading-tight line-clamp-2">
+          <h3 className="font-medium text-sm leading-tight line-clamp-2 text-gray-900">
             {task.title}
           </h3>
 
           {/* Descrição */}
           {task.description && (
-            <p className="text-xs text-gray-600 line-clamp-2">
+            <p className="text-xs text-gray-500 line-clamp-2">
               {task.description}
             </p>
           )}
 
           {/* Informações de Tempo e Data */}
           {(task.startDate || task.startTime || task.estimatedMinutes) && (
-            <div className="bg-gray-50 p-2 rounded-md space-y-1">
+            <div className="bg-gray-50 p-2 rounded-md space-y-1 border border-gray-100">
               {/* Data e Hora de Início */}
               {(task.startDate || task.startTime) && (
-                <div className="flex items-center gap-1 text-xs text-gray-700">
-                  <Clock className="w-3 h-3 text-green-600" />
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Clock className="w-3 h-3 text-green-500" />
                   <span className="font-medium">Início:</span>
                   {task.startDate && (
                     <span>{formatDateSafe(task.startDate)}</span>
                   )}
                   {task.startTime && (
-                    <span className="text-green-600 font-mono">{task.startTime}</span>
+                    <span className="text-green-500 font-mono">{task.startTime}</span>
                   )}
                 </div>
               )}
               
               {/* Tempo Estimado */}
               {task.estimatedMinutes && (
-                <div className="flex items-center gap-1 text-xs text-gray-700">
-                  <Clock className="w-3 h-3 text-blue-600" />
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Clock className="w-3 h-3 text-blue-500" />
                   <span className="font-medium">Estimado:</span>
-                  <span className="text-blue-600 font-mono">
+                  <span className="text-blue-500 font-mono">
                     {task.estimatedMinutes >= 60 
                       ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}min`
                       : `${task.estimatedMinutes}min`
@@ -421,8 +431,8 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
             {/* Data de vencimento */}
             {task.dueDate && (
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
+              <div className={`flex items-center gap-1 ${isOverdue() ? 'text-red-400' : 'text-gray-400'}`}>
+                <Calendar className={`w-3 h-3 ${isOverdue() ? 'text-red-400' : 'text-gray-400'}`} />
                 <span>{formatDateSafe(task.dueDate)}</span>
               </div>
             )}
@@ -430,14 +440,14 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
           {/* Responsável */}
           {task.assignee && (
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-              <Avatar className="w-6 h-6">
+            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+              <Avatar className="w-6 h-6 ring-1 ring-gray-200">
                 <AvatarImage src={task.assignee.avatar} />
-                <AvatarFallback className="text-xs">
+                <AvatarFallback className="text-xs bg-gray-100 text-gray-600">
                   {task.assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs text-gray-600 truncate">
+              <span className="text-xs text-gray-500 truncate">
                 {task.assignee.name}
               </span>
             </div>

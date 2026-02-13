@@ -11,7 +11,8 @@ import {
   Play, 
   Pause, 
   CheckCircle2,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react'
 import { format, differenceInDays, isAfter, isBefore } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -35,6 +36,7 @@ interface SprintHeaderProps {
     completed: number
   }
   onEdit: () => void
+  onDelete?: () => void
   isCompleted?: boolean
 }
 
@@ -43,6 +45,7 @@ export function SprintHeader({
   progress, 
   storyPoints, 
   onEdit, 
+  onDelete,
   isCompleted = false 
 }: SprintHeaderProps) {
   const getStatusColor = () => {
@@ -150,15 +153,28 @@ export function SprintHeader({
         </div>
         
         {!isCompleted && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            className="ml-4"
-          >
-            <Edit className="w-4 h-4 mr-2" />
-            Editar
-          </Button>
+          <div className="flex gap-2">
+            {sprint.status === 'CANCELLED' && onDelete && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onDelete}
+                className="ml-4"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onEdit}
+              className={sprint.status !== 'CANCELLED' ? "ml-4" : ""}
+            >
+              <Edit className="w-4 h-4 mr-2" />
+              Editar
+            </Button>
+          </div>
         )}
       </div>
 
