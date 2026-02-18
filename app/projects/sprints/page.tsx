@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -54,7 +54,7 @@ interface Sprint {
   }>
 }
 
-export default function SprintsPage() {
+function SprintsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -213,14 +213,14 @@ export default function SprintsPage() {
 
   if (loading) {
     return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
+      </div>
     )
   }
 
   return (
-      <div className="space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -388,5 +388,19 @@ export default function SprintsPage() {
         }}
       />
     </div>
+  )
+}
+
+export default function SprintsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
+        </div>
+      }
+    >
+      <SprintsPageContent />
+    </Suspense>
   )
 }
