@@ -92,11 +92,11 @@ export function MilestoneCard({ milestone, index, totalMilestones, onTaskClick }
       case 'IN_PROGRESS':
         return 'border-blue-200 bg-blue-50/50';
       case 'PENDING':
-        return 'border-gray-200 bg-gray-50/50';
+        return 'border-muted bg-card/50';
       case 'BLOCKED':
         return 'border-red-200 bg-red-50/50';
       default:
-        return 'border-gray-200 bg-gray-50/50';
+        return 'border-muted bg-card/50';
     }
   };
 
@@ -125,7 +125,7 @@ export function MilestoneCard({ milestone, index, totalMilestones, onTaskClick }
         {getMilestoneIcon(milestone.status)}
         
         {/* Número da etapa */}
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center text-xs font-bold text-gray-700 shadow-md">
+        <div className="absolute -top-2 -right-2 w-6 h-6 bg-card rounded-full flex items-center justify-center text-xs font-bold text-gray-700 shadow-md">
           {index + 1}
         </div>
       </div>
@@ -154,7 +154,7 @@ export function MilestoneCard({ milestone, index, totalMilestones, onTaskClick }
             </Badge>
           </CardTitle>
           {milestone.description && (
-            <p className="text-sm text-gray-600 line-clamp-2">{milestone.description}</p>
+            <p className="text-sm text-muted-foreground line-clamp-2">{milestone.description}</p>
           )}
         </CardHeader>
         
@@ -170,29 +170,29 @@ export function MilestoneCard({ milestone, index, totalMilestones, onTaskClick }
           
           {/* Estatísticas */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 p-2 bg-white/60 rounded-lg">
+            <div className="flex items-center gap-2 p-2 bg-card/60 rounded-lg">
               <CheckCircleIcon className="w-4 h-4 text-green-500 shrink-0" />
               <div className="text-xs">
                 <div className="font-semibold">{completedTasks}</div>
-                <div className="text-gray-500">Concluídas</div>
+                <div className="text-muted-foreground">Concluídas</div>
               </div>
             </div>
-            <div className="flex items-center gap-2 p-2 bg-white/60 rounded-lg">
+            <div className="flex items-center gap-2 p-2 bg-card/60 rounded-lg">
               <ClockIcon className="w-4 h-4 text-blue-500 shrink-0" />
               <div className="text-xs">
                 <div className="font-semibold">{milestone.tasks.length}</div>
-                <div className="text-gray-500">Total</div>
+                <div className="text-muted-foreground">Total</div>
               </div>
             </div>
           </div>
           
           {/* Data de vencimento */}
           {milestone.dueDate && (
-            <div className="flex items-center gap-2 p-2 bg-white/60 rounded-lg">
+            <div className="flex items-center gap-2 p-2 bg-card/60 rounded-lg">
               <CalendarIcon className="w-4 h-4 text-orange-500" />
               <div className="text-xs">
                 <div className="font-medium">Prazo</div>
-                <div className="text-gray-600">
+                <div className="text-muted-foreground">
                   {parseISO(milestone.dueDate).toLocaleDateString('pt-BR')}
                 </div>
               </div>
@@ -207,7 +207,7 @@ export function MilestoneCard({ milestone, index, totalMilestones, onTaskClick }
                 {milestone.tasks.slice(0, 2).map((task) => (
                   <div 
                     key={task.id}
-                    className="flex items-center gap-2 p-2 bg-white/80 rounded text-xs cursor-pointer hover:bg-white transition-colors"
+                    className="flex items-center gap-2 p-2 bg-card/80 rounded text-xs cursor-pointer hover:bg-card transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       onTaskClick(task);

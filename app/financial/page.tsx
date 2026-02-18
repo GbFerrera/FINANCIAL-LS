@@ -21,11 +21,9 @@ import {
   Upload,
   FileText
 } from "lucide-react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
 import { AddEntryModal } from "@/components/financial/add-entry-modal"
 import { ClientsFinancialOverview } from "@/components/financial/clients-financial-overview"
-import { SyncPaymentsButton } from "@/components/financial/sync-payments-button"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -308,7 +306,9 @@ export default function FinancialPage() {
   }
 
   const getTypeColor = (type: string) => {
-    return type === 'INCOME' ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
+    return type === 'INCOME' 
+      ? 'text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-300' 
+      : 'text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-300'
   }
 
   const getTypeIcon = (type: string) => {
@@ -317,36 +317,35 @@ export default function FinancialPage() {
 
   if (status === "loading" || loading) {
     return (
-      <DashboardLayout>
+   
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </DashboardLayout>
+
     )
   }
 
   return (
-    <DashboardLayout>
+ <>
       <div className="space-y-6">
         {/* Header */}
         <div className="md:flex md:items-center md:justify-between">
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+            <h2 className="text-2xl font-bold leading-7 text-foreground sm:text-3xl sm:truncate">
               Gestão Financeira
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Controle completo das entradas e saídas financeiras
             </p>
           </div>
           <div className="mt-4 flex space-x-3 md:mt-0 md:ml-4">
-            <SyncPaymentsButton />
-            <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            <button className="inline-flex items-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground">
               <Download className="-ml-1 mr-2 h-5 w-5" />
               Exportar
             </button>
             <button 
               onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90"
             >
               <Plus className="-ml-1 mr-2 h-5 w-5" />
               Nova Entrada
@@ -356,7 +355,7 @@ export default function FinancialPage() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2">
             <StatsCard
               title="Receita Total"
               value={formatCurrency(stats.totalIncome)}
@@ -401,21 +400,21 @@ export default function FinancialPage() {
         )}
 
         {/* Filters and Search */}
-        <div className="bg-white shadow rounded-lg">
+        <div className="bg-card shadow rounded-lg border border-border">
           <div className="px-4 py-5 sm:p-6">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
               {/* Search */}
               <div className="sm:col-span-2">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-gray-400" />
+                    <Search className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <input
                     type="text"
                     placeholder="Buscar por descrição, categoria ou projeto..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="block w-full pl-10 pr-3 py-2 border border-input rounded-md leading-5 bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                   />
                 </div>
               </div>
@@ -425,7 +424,7 @@ export default function FinancialPage() {
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value as 'all' | 'income' | 'expense')}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-input bg-background focus:outline-none focus:ring-primary focus:border-primary rounded-md"
                 >
                   <option value="all">Todos os tipos</option>
                   <option value="income">Receitas</option>
@@ -438,7 +437,7 @@ export default function FinancialPage() {
                 <select
                   value={dateRange}
                   onChange={(e) => setDateRange(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-input bg-background focus:outline-none focus:ring-primary focus:border-primary rounded-md"
                 >
                   <option value="all">Todos os períodos</option>
                   <option value="7">Últimos 7 dias</option>
@@ -457,54 +456,54 @@ export default function FinancialPage() {
         />
 
         {/* Entries Table */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-card shadow rounded-lg overflow-hidden border border-border">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+            <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
               Entradas Financeiras ({filteredEntries.length})
             </h3>
             
             {filteredEntries.length === 0 ? (
               <div className="text-center py-12">
-                <DollarSign className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhuma entrada encontrada</h3>
-                <p className="mt-1 text-sm text-gray-500">
+                <DollarSign className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma entrada encontrada</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {searchTerm || filter !== 'all' ? 'Tente ajustar os filtros' : 'Comece adicionando uma nova entrada financeira'}
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-border">
+                  <thead className="bg-muted/50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Tipo
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Descrição
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Categoria
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Valor
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Data
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Projeto
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Ações
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-card divide-y divide-border">
                     {filteredEntries.map((entry) => {
                       const TypeIcon = getTypeIcon(entry.type)
                       const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
                       return (
-                        <tr key={entry.id} className="hover:bg-gray-50">
+                        <tr key={entry.id} className="hover:bg-muted/50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(entry.type)}`}>
@@ -514,43 +513,43 @@ export default function FinancialPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-gray-900">{entry.description}</div>
+                            <div className="text-sm font-medium text-foreground">{entry.description}</div>
                             {entry.isRecurring && (
-                              <div className="text-xs text-gray-500">Recorrente</div>
+                              <div className="text-xs text-muted-foreground">Recorrente</div>
                             )}
                             {hasDistributions && (
-                              <div className="text-xs text-purple-600 font-medium mt-1">
-                                Distribuído entre {entry.projectDistributions.length} projeto{entry.projectDistributions.length > 1 ? 's' : ''}
+                              <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">
+                                Distribuído entre {entry.projectDistributions?.length} projeto{(entry.projectDistributions?.length || 0) > 1 ? 's' : ''}
                               </div>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             {entry.category}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                            <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                               {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}
                             </div>
                             {hasDistributions && (
                               <div className="mt-2 space-y-1">
-                                {entry.projectDistributions.map((dist, index) => (
-                                  <div key={index} className="text-xs bg-purple-50 px-2 py-1 rounded border border-purple-200">
-                                    <span className="font-medium text-purple-700">{dist.projectName}:</span>
-                                    <span className="text-purple-600 ml-1">{formatCurrency(dist.amount)}</span>
+                                {entry.projectDistributions?.map((dist, index) => (
+                                  <div key={index} className="text-xs bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded border border-purple-200 dark:border-purple-800">
+                                    <span className="font-medium text-purple-700 dark:text-purple-300">{dist.projectName}:</span>
+                                    <span className="text-purple-600 dark:text-purple-400 ml-1">{formatCurrency(dist.amount)}</span>
                                   </div>
                                 ))}
                               </div>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             {formatDate(entry.date)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             {hasDistributions ? (
                               <div className="space-y-1">
-                                {entry.projectDistributions.map((dist, index) => (
-                                  <div key={index} className="text-xs bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                                    <span className="text-blue-700 font-medium">{dist.projectName}</span>
+                                {entry.projectDistributions?.map((dist, index) => (
+                                  <div key={index} className="text-xs bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
+                                    <span className="text-blue-700 dark:text-blue-300 font-medium">{dist.projectName}</span>
                                   </div>
                                 ))}
                               </div>
@@ -562,21 +561,26 @@ export default function FinancialPage() {
                             <div className="flex items-center justify-end space-x-2">
                               <button 
                                 onClick={() => openAttachmentsModal(entry)}
-                                className="text-indigo-600 hover:text-indigo-900"
+                                className="text-primary hover:text-primary/80"
                                 title="Gerenciar anexos"
                               >
                                 <Paperclip className="h-4 w-4" />
                               </button>
+                              {Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
+                                <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-xs bg-primary/10 text-primary border border-primary/20">
+                                  {entry.attachments.length}
+                                </span>
+                              )}
                               <button 
                                 onClick={() => handleEditEntry(entry)}
-                                className="text-gray-600 hover:text-gray-900"
+                                className="text-muted-foreground hover:text-foreground"
                                 title="Editar"
                               >
                                 <Edit className="h-4 w-4" />
                               </button>
                               <button 
                                 onClick={() => confirmDelete(entry.id)}
-                                className="text-red-600 hover:text-red-900"
+                                className="text-destructive hover:text-destructive/80"
                                 title="Excluir"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -630,35 +634,35 @@ export default function FinancialPage() {
                   <Upload className="h-4 w-4 mr-1" />
                   Adicionar anexos
                 </Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                <div className="border-2 border-dashed border-input rounded-lg p-4 text-center hover:border-primary transition-colors">
                   <input
                     type="file"
                     multiple
                     onChange={handleAttachmentFileSelect}
                     className="hidden"
                     id="attach-files"
-                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.xml"
                   />
                   <label htmlFor="attach-files" className="cursor-pointer">
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                    <p className="text-sm text-gray-600">Clique para selecionar arquivos</p>
-                    <p className="text-xs text-gray-400 mt-1">PDF e imagens (máx. 10MB cada)</p>
+                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar arquivos</p>
+                    <p className="text-xs text-muted-foreground mt-1">PDF e imagens (máx. 10MB cada)</p>
                   </label>
                 </div>
                 {newAttachmentFiles.length > 0 && (
                   <div className="space-y-2 mt-2">
-                    <p className="text-sm font-medium text-gray-700">Novos anexos:</p>
+                    <p className="text-sm font-medium text-foreground">Novos anexos:</p>
                     {newAttachmentFiles.map((file, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                      <div key={idx} className="flex items-center justify-between p-2 bg-primary/10 rounded border border-primary/20">
                         <div className="flex items-center space-x-2">
-                          <FileText className="h-4 w-4 text-blue-500" />
+                          <FileText className="h-4 w-4 text-primary" />
                           <span className="text-sm">{file.name}</span>
-                          <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                          <span className="text-xs text-muted-foreground">({formatFileSize(file.size)})</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeNewAttachmentFile(idx)}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-destructive hover:text-destructive/80"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -669,24 +673,24 @@ export default function FinancialPage() {
               </div>
 
               <div>
-                <p className="text-sm font-medium text-gray-700">Anexos existentes:</p>
+                <p className="text-sm font-medium text-foreground">Anexos existentes:</p>
                 {existingEntryAttachments.length === 0 ? (
-                  <p className="text-sm text-gray-500">Nenhum anexo.</p>
+                  <p className="text-sm text-muted-foreground">Nenhum anexo.</p>
                 ) : (
                   <div className="space-y-2">
                     {existingEntryAttachments.map(att => (
-                      <div key={att.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                      <div key={att.id} className="flex items-center justify-between p-2 bg-card rounded border border-border">
                         <div className="flex items-center space-x-2">
-                          <FileText className="h-4 w-4 text-gray-500" />
-                          <a href={att.url} target="_blank" rel="noreferrer" className="text-sm text-indigo-600 hover:underline">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <a href={att.url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
                             {att.originalName}
                           </a>
-                          <span className="text-xs text-gray-500">({formatFileSize(att.size)})</span>
+                          <span className="text-xs text-muted-foreground">({formatFileSize(att.size)})</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeExistingAttachment(att.id)}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-destructive hover:text-destructive/80"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -722,13 +726,13 @@ export default function FinancialPage() {
               }}>
                 Cancelar
               </AlertDialogCancel>
-              <AlertDialogAction onClick={() => deletingEntryId && handleDeleteEntry(deletingEntryId)} className="bg-red-600 hover:bg-red-700">
+              <AlertDialogAction onClick={() => deletingEntryId && handleDeleteEntry(deletingEntryId)} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                 Excluir
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </DashboardLayout>
+    </>
   )
 }

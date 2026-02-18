@@ -79,19 +79,19 @@ export function PipelineFlow({ milestones, onTaskClick }: PipelineFlowProps) {
       <div className="flex justify-center mt-8 space-x-6">
         <div className="flex items-center gap-2 text-sm">
           <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-          <span className="text-gray-600">Pendente</span>
+          <span className="text-muted-foreground">Pendente</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-          <span className="text-gray-600">Em Progresso</span>
+          <span className="text-muted-foreground">Em Progresso</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span className="text-gray-600">Concluído</span>
+          <span className="text-muted-foreground">Concluído</span>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span className="text-gray-600">Bloqueado</span>
+          <span className="text-muted-foreground">Bloqueado</span>
         </div>
       </div>
     </div>

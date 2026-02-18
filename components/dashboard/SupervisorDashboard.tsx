@@ -161,20 +161,20 @@ export function SupervisorDashboard() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'URGENT': return 'bg-red-500'
-      case 'HIGH': return 'bg-orange-500'
-      case 'MEDIUM': return 'bg-yellow-500'
-      case 'LOW': return 'bg-green-500'
-      default: return 'bg-gray-500'
-    }
+      case 'URGENT': return 'bg-red-500 dark:bg-red-600'
+      case 'HIGH': return 'bg-orange-500 dark:bg-orange-600'
+      case 'MEDIUM': return 'bg-yellow-500 dark:bg-yellow-600'
+      case 'LOW': return 'bg-green-500 dark:bg-green-600'
+    default: return 'bg-card text-muted-foreground'
   }
+}
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'COMPLETED': return 'text-green-600 bg-green-100'
-      case 'IN_PROGRESS': return 'text-blue-600 bg-blue-100'
-      case 'TODO': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'COMPLETED': return 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/20'
+      case 'IN_PROGRESS': return 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20'
+      case 'TODO': return 'text-muted-foreground bg-card'
+      default: return 'text-muted-foreground bg-card'
     }
   }
 
@@ -243,19 +243,19 @@ export function SupervisorDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Dashboard do Supervisor</h2>
-          <p className="text-gray-600">
+          <h2 className="text-2xl font-bold text-foreground">Dashboard do Supervisor</h2>
+          <p className="text-muted-foreground">
             Acompanhe o progresso da equipe em tempo real
           </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className={isConnected ? 'text-green-600' : 'text-red-600'}>
+            <span className={isConnected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
               {isConnected ? 'Tempo Real Ativo' : 'Desconectado'}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Activity className="w-4 h-4" />
             Última atualização: {format(lastUpdate, 'HH:mm:ss')}
             <Button variant="outline" size="sm" onClick={fetchActivities}>
@@ -273,7 +273,7 @@ export function SupervisorDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeCollaborators}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{activeCollaborators}</div>
             <p className="text-xs text-muted-foreground">
               de {activities.length} colaboradores
             </p>
@@ -286,7 +286,7 @@ export function SupervisorDashboard() {
             <Play className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{totalTasksInProgress}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalTasksInProgress}</div>
             <p className="text-xs text-muted-foreground">
               sendo executadas agora
             </p>
@@ -299,7 +299,7 @@ export function SupervisorDashboard() {
             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{totalTasksCompleted}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{totalTasksCompleted}</div>
             <p className="text-xs text-muted-foreground">
               tarefas finalizadas
             </p>
@@ -312,7 +312,7 @@ export function SupervisorDashboard() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{formatDuration(totalTimeWorked)}</div>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{formatDuration(totalTimeWorked)}</div>
             <p className="text-xs text-muted-foreground">
               trabalhado hoje
             </p>
@@ -324,24 +324,24 @@ export function SupervisorDashboard() {
       <div className="">
         {/* Atividades dos Colaboradores */}
         <div className="xl:col-span-5 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Atividade dos Colaboradores</h3>
+          <h3 className="text-lg font-semibold text-foreground">Atividade dos Colaboradores</h3>
           
           {activities.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
-                <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma atividade encontrada</h3>
-                <p className="text-gray-600">Não há colaboradores com atividade no momento.</p>
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma atividade encontrada</h3>
+                <p className="text-muted-foreground">Não há colaboradores com atividade no momento.</p>
               </CardContent>
             </Card>
         ) : (
           activities.map(activity => (
             <div key={activity.userId} className="space-y-4">
-              <Card className={`${activity.isActive ? 'ring-2 ring-green-500 bg-green-50' : ''}`}>
+              <Card className={`${activity.isActive ? 'ring-2 ring-green-500 dark:ring-green-400 bg-green-50/50 dark:bg-green-900/10' : ''}`}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${activity.isActive ? 'bg-green-500' : 'bg-gray-400'}`} />
+                      <div className={`w-3 h-3 rounded-full ${activity.isActive ? 'bg-green-500' : 'bg-card-foreground'}`} />
                       <div>
                         <CardTitle className="text-lg">{activity.userName}</CardTitle>
                         <CardDescription>{activity.userEmail}</CardDescription>
@@ -367,11 +367,11 @@ export function SupervisorDashboard() {
                   <div className="space-y-4">
                     {/* Tarefa Atual */}
                     {activity.currentTask ? (
-                      <div className="border rounded-lg p-4 bg-blue-50">
+                      <div className="border rounded-lg p-4 bg-blue-50/50 dark:bg-blue-900/10">
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <h4 className="font-medium text-blue-900">{activity.currentTask.title}</h4>
+                              <h4 className="font-medium text-blue-900 dark:text-blue-100">{activity.currentTask.title}</h4>
                               <Badge 
                                 variant={activity.currentTask.status === 'IN_PROGRESS' ? 'default' : 'secondary'}
                                 className="text-xs"
@@ -379,7 +379,7 @@ export function SupervisorDashboard() {
                                 {activity.currentTask.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Pausado'}
                               </Badge>
                             </div>
-                            <div className="text-sm text-blue-700 space-y-1">
+                            <div className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
                               <div className="flex items-center gap-1">
                                 <Building2 className="w-3 h-3" />
                                 {activity.currentTask.project?.name}
@@ -404,45 +404,45 @@ export function SupervisorDashboard() {
                             {activeTimers.get(activity.currentTask.id)?.isPaused ? (
                               <div>
                                 <div className="flex items-center justify-end gap-1 mb-1">
-                                  <Pause className="w-3 h-3 text-yellow-600" />
-                                  <span className="text-xs font-medium text-yellow-700">PAUSADO</span>
+                                  <Pause className="w-3 h-3 text-yellow-600 dark:text-yellow-400" />
+                                  <span className="text-xs font-medium text-yellow-700 dark:text-yellow-300">PAUSADO</span>
                                 </div>
-                                <div className="text-lg font-bold text-yellow-600 font-mono">
+                                <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400 font-mono">
                                   {formatTimeInSeconds(activeTimers.get(activity.currentTask.id)?.pausedTime || 0)}
                                 </div>
-                                <div className="text-xs text-yellow-600">pausado em</div>
+                                <div className="text-xs text-yellow-600 dark:text-yellow-400">pausado em</div>
                               </div>
                             ) : (
                               <div>
-                                <div className="text-lg font-bold text-blue-600 font-mono">
+                                <div className="text-lg font-bold text-blue-600 dark:text-blue-400 font-mono">
                                   {formatTimeInSeconds(calculateCurrentSessionTime(activity.currentTask))}
                                 </div>
-                                <div className="text-xs text-gray-500">tempo atual</div>
+                                <div className="text-xs text-muted-foreground">tempo atual</div>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="border rounded-lg p-4 bg-gray-50 text-center">
-                        <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <p className="text-gray-600">Nenhuma tarefa em andamento</p>
+                      <div className="border rounded-lg p-4 bg-card/50 text-center">
+                        <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                        <p className="text-muted-foreground">Nenhuma tarefa em andamento</p>
                       </div>
                     )}
 
                     {/* Estatísticas do Dia */}
                     <div className="grid grid-cols-3 gap-4 text-center">
                       <div className="text-center">
-                        <div className="text-lg font-bold text-green-600">{activity.todayStats.tasksCompleted}</div>
-                        <div className="text-xs text-gray-500">Concluídas</div>
+                        <div className="text-lg font-bold text-green-600 dark:text-green-400">{activity.todayStats.tasksCompleted}</div>
+                        <div className="text-xs text-muted-foreground">Concluídas</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">{activity.todayStats.tasksInProgress}</div>
-                        <div className="text-xs text-gray-500">Em Progresso</div>
+                        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{activity.todayStats.tasksInProgress}</div>
+                        <div className="text-xs text-muted-foreground">Em Progresso</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg font-bold text-purple-600">{formatDuration(activity.todayStats.timeWorked)}</div>
-                        <div className="text-xs text-gray-500">Tempo Hoje</div>
+                        <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{formatDuration(activity.todayStats.timeWorked)}</div>
+                        <div className="text-xs text-muted-foreground">Tempo Hoje</div>
                       </div>
                     </div>
                   </div>

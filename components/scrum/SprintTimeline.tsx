@@ -104,11 +104,11 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
     if (day.isToday) {
       classes += 'border-blue-500 bg-blue-50 hover:bg-blue-100 '
     } else if (day.isPast) {
-      classes += 'border-gray-200 bg-gray-50 hover:bg-gray-100 '
+      classes += 'border-muted bg-card hover:bg-gray-100 '
     } else if (day.isWeekend) {
       classes += 'border-gray-300 bg-gray-100 hover:bg-gray-200 '
     } else {
-      classes += 'border-gray-200 bg-white hover:bg-gray-50 '
+      classes += 'border-muted bg-card hover:bg-card '
     }
 
     return classes
@@ -154,24 +154,24 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-600">{stats.todo}</div>
-              <div className="text-sm text-gray-500">A Fazer</div>
+              <div className="text-2xl font-bold text-muted-foreground">{stats.todo}</div>
+              <div className="text-sm text-muted-foreground">A Fazer</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">{stats.inProgress}</div>
-              <div className="text-sm text-gray-500">Em Progresso</div>
+              <div className="text-sm text-muted-foreground">Em Progresso</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">{stats.inReview}</div>
-              <div className="text-sm text-gray-500">Em Revisão</div>
+              <div className="text-sm text-muted-foreground">Em Revisão</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-              <div className="text-sm text-gray-500">Concluídas</div>
+              <div className="text-sm text-muted-foreground">Concluídas</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-purple-600">{progressPercentage}%</div>
-              <div className="text-sm text-gray-500">Progresso</div>
+              <div className="text-sm text-muted-foreground">Progresso</div>
             </div>
           </div>
           
@@ -201,10 +201,10 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
                   <div className={`text-sm font-medium ${day.isToday ? 'text-blue-700' : 'text-gray-700'}`}>
                     {format(day.date, 'EEE', { locale: ptBR })}
                   </div>
-                  <div className={`text-lg font-bold ${day.isToday ? 'text-blue-700' : 'text-gray-900'}`}>
+                  <div className={`text-lg font-bold ${day.isToday ? 'text-blue-700' : 'text-foreground'}`}>
                     {format(day.date, 'dd')}
                   </div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-muted-foreground">
                     {format(day.date, 'MMM', { locale: ptBR })}
                   </div>
                 </div>
@@ -302,17 +302,17 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
         <CardContent>
           <div className="space-y-3">
             {getAllTasksWithDates().length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-muted-foreground">
                 <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Nenhuma tarefa possui data de início ou prazo definido</p>
                 <p className="text-sm">Adicione datas às tarefas para visualizar no cronograma</p>
               </div>
             ) : (
               getAllTasksWithDates().map(task => (
-                <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-card">
                   <div className="flex-1">
-                    <div className="font-medium text-gray-900 mb-1">{task.title}</div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="font-medium text-foreground mb-1">{task.title}</div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       {task.startDate && (
                         <div className="flex items-center gap-1">
                           <div className="w-2 h-2 bg-green-500 rounded-full" />
@@ -340,7 +340,7 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
                         task.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-200' :
                         task.status === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                         task.status === 'IN_REVIEW' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                        'bg-gray-50 text-gray-700 border-gray-200'
+                        'bg-card text-gray-700 border-muted'
                       }`}
                     >
                       {task.status === 'TODO' ? 'A Fazer' : 
@@ -374,18 +374,18 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
           {selectedDay && (
             <div className="space-y-4">
               {/* Resumo do dia */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-card rounded-lg">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-600">
                     {selectedDay.tasksStarting.length}
                   </div>
-                  <div className="text-sm text-gray-600">Tarefas Iniciando</div>
+                  <div className="text-sm text-muted-foreground">Tarefas Iniciando</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-red-600">
                     {selectedDay.tasksDue.length}
                   </div>
-                  <div className="text-sm text-gray-600">Prazos Finais</div>
+                  <div className="text-sm text-muted-foreground">Prazos Finais</div>
                 </div>
               </div>
 
@@ -400,12 +400,12 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
                     {selectedDay.tasksStarting.map(task => (
                       <div key={`modal-start-${task.id}`} className="p-4 bg-green-50 border border-green-200 rounded-lg">
                         <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">{task.title}</h4>
+                          <h4 className="font-medium text-foreground">{task.title}</h4>
                           <Badge className={`${getPriorityColor(task.priority)} text-xs`}>
                             {task.priority}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
                           <span>Story Points: {task.storyPoints || 0}</span>
                           <span>•</span>
                           <span>Status: {
@@ -437,7 +437,7 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
                     {selectedDay.tasksDue.map(task => (
                       <div key={`modal-due-${task.id}`} className="p-4 bg-red-50 border border-red-200 rounded-lg">
                         <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">{task.title}</h4>
+                          <h4 className="font-medium text-foreground">{task.title}</h4>
                           <div className="flex items-center gap-2">
                             <Badge className={`${getPriorityColor(task.priority)} text-xs`}>
                               {task.priority}
@@ -447,7 +447,7 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
                           <span>Story Points: {task.storyPoints || 0}</span>
                           <span>•</span>
                           <span>Status: {
@@ -470,7 +470,7 @@ export function SprintTimeline({ sprint }: SprintTimelineProps) {
 
               {/* Caso não tenha tarefas */}
               {selectedDay.tasksStarting.length === 0 && selectedDay.tasksDue.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                   <Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p>Nenhuma tarefa agendada para este dia</p>
                   {selectedDay.isWeekend && (

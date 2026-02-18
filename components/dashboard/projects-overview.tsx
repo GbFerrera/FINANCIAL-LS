@@ -22,9 +22,9 @@ interface ProjectsOverviewProps {
 }
 
 const statusColors = {
-  ACTIVE: 'bg-green-100 text-green-800',
-  COMPLETED: 'bg-blue-100 text-blue-800',
-  ON_HOLD: 'bg-yellow-100 text-yellow-800'
+  ACTIVE: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+  COMPLETED: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
+  ON_HOLD: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300'
 }
 
 const statusLabels = {
@@ -54,17 +54,17 @@ export function ProjectsOverview({ projects }: ProjectsOverviewProps) {
   }
 
   return (
-    <div className="bg-white shadow rounded-lg">
+    <div className="bg-card shadow rounded-lg">
       <div className="px-4 py-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
+          <h3 className="text-lg leading-6 font-medium text-card-foreground">
             Projetos Ativos
           </h3>
           <div className="flex space-x-2">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              className="block w-full pl-3 pr-10 py-2 text-base border-input bg-background text-foreground focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
             >
               <option value="all">Todos</option>
               <option value="ACTIVE">Ativos</option>
@@ -77,28 +77,28 @@ export function ProjectsOverview({ projects }: ProjectsOverviewProps) {
         <div className="space-y-4">
           {filteredProjects.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500">Nenhum projeto encontrado</p>
+              <p className="text-muted-foreground">Nenhum projeto encontrado</p>
             </div>
           ) : (
             filteredProjects.map((project) => (
-              <div key={project.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+              <div key={project.id} className="border border-border rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-3">
-                    <h4 className="text-lg font-medium text-gray-900">{project.name}</h4>
+                    <h4 className="text-lg font-medium text-card-foreground">{project.name}</h4>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[project.status]}`}>
                       {statusLabels[project.status]}
                     </span>
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-muted-foreground">
                     {project.progress}% concluído
                   </div>
                 </div>
 
                 {/* Progress bar */}
                 <div className="mb-4">
-                  <div className="bg-gray-200 rounded-full h-2">
+                  <div className="bg-secondary rounded-full h-2">
                     <div 
-                      className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
                       style={{ width: `${project.progress}%` }}
                     />
                   </div>
@@ -106,9 +106,9 @@ export function ProjectsOverview({ projects }: ProjectsOverviewProps) {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div className="flex items-center space-x-2">
-                    <DollarSign className="h-4 w-4 text-gray-400" />
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-gray-500">Orçamento</p>
+                      <p className="text-muted-foreground">Orçamento</p>
                       <p className="font-medium">{formatCurrency(project.budget)}</p>
                     </div>
                   </div>
@@ -116,23 +116,23 @@ export function ProjectsOverview({ projects }: ProjectsOverviewProps) {
                   <div className="flex items-center space-x-2">
                     <DollarSign className="h-4 w-4 text-red-400" />
                     <div>
-                      <p className="text-gray-500">Gasto</p>
+                      <p className="text-muted-foreground">Gasto</p>
                       <p className="font-medium text-red-600">{formatCurrency(project.spent)}</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-400" />
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-gray-500">Prazo</p>
+                      <p className="text-muted-foreground">Prazo</p>
                       <p className="font-medium">{formatDate(project.endDate)}</p>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <Users className="h-4 w-4 text-gray-400" />
+                    <Users className="h-4 w-4 text-muted-foreground" />
                     <div>
-                      <p className="text-gray-500">Equipe</p>
+                      <p className="text-muted-foreground">Equipe</p>
                       <p className="font-medium">{project.teamMembers} membros</p>
                     </div>
                   </div>

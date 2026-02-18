@@ -57,7 +57,7 @@ interface Task {
   id: string
   title: string
   description?: string
-  status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED'
+  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   dueDate?: string
   startDate?: string
@@ -145,7 +145,7 @@ export function SprintView({ token }: SprintViewProps) {
       case 'HIGH': return 'bg-orange-500'
       case 'MEDIUM': return 'bg-yellow-500'
       case 'LOW': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 
@@ -153,8 +153,9 @@ export function SprintView({ token }: SprintViewProps) {
     switch (status) {
       case 'COMPLETED': return 'text-green-600 bg-green-100'
       case 'IN_PROGRESS': return 'text-blue-600 bg-blue-100'
-      case 'TODO': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'IN_REVIEW': return 'text-yellow-600 bg-yellow-100'
+      case 'TODO': return 'text-muted-foreground bg-gray-100'
+      default: return 'text-muted-foreground bg-gray-100'
     }
   }
 
@@ -162,6 +163,7 @@ export function SprintView({ token }: SprintViewProps) {
     switch (status) {
       case 'COMPLETED': return <CheckCircle2 className="w-4 h-4" />
       case 'IN_PROGRESS': return <Clock className="w-4 h-4" />
+      case 'IN_REVIEW': return <Clock className="w-4 h-4" />
       case 'TODO': return <AlertCircle className="w-4 h-4" />
       default: return <AlertCircle className="w-4 h-4" />
     }
@@ -179,8 +181,8 @@ export function SprintView({ token }: SprintViewProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Minhas Sprints</h2>
-          <p className="text-gray-600">Acompanhe suas tarefas organizadas por sprint</p>
+          <h2 className="text-2xl font-bold text-foreground">Minhas Sprints</h2>
+          <p className="text-muted-foreground">Acompanhe suas tarefas organizadas por sprint</p>
         </div>
       </div>
 
@@ -188,8 +190,8 @@ export function SprintView({ token }: SprintViewProps) {
         <Card>
           <CardContent className="p-8 text-center">
             <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma sprint encontrada</h3>
-            <p className="text-gray-600">Você não possui tarefas atribuídas em sprints ativas no momento.</p>
+            <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma sprint encontrada</h3>
+            <p className="text-muted-foreground">Você não possui tarefas atribuídas em sprints ativas no momento.</p>
           </CardContent>
         </Card>
       ) : (
@@ -216,10 +218,10 @@ export function SprintView({ token }: SprintViewProps) {
                         {sprint.project.name} • {myTasks.length} tarefa{myTasks.length !== 1 ? 's' : ''}
                       </CardDescription>
                       {sprint.goal && (
-                        <p className="text-sm text-gray-600 mt-2">{sprint.goal}</p>
+                        <p className="text-sm text-muted-foreground mt-2">{sprint.goal}</p>
                       )}
                     </div>
-                    <div className="text-right text-sm text-gray-500">
+                    <div className="text-right text-sm text-muted-foreground">
                       <div className="flex items-center gap-1 mb-1">
                         <Calendar className="w-4 h-4" />
                         {formatDatePattern(sprint.startDate, 'dd/MM')} - {formatDatePattern(sprint.endDate, 'dd/MM/yyyy')}
@@ -233,7 +235,7 @@ export function SprintView({ token }: SprintViewProps) {
                   </div>
                   
                   <div className="mt-4">
-                    <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
                       <span>Progresso</span>
                       <span>{progress}%</span>
                     </div>
@@ -244,15 +246,15 @@ export function SprintView({ token }: SprintViewProps) {
                 <CardContent>
                   <div className="space-y-3">
                     {myTasks.length === 0 ? (
-                      <p className="text-gray-500 text-center py-4">Nenhuma tarefa atribuída nesta sprint</p>
+                      <p className="text-muted-foreground text-center py-4">Nenhuma tarefa atribuída nesta sprint</p>
                     ) : (
                       myTasks.map(task => (
-                        <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div key={task.id} className="border rounded-lg p-4 hover:bg-card transition-colors">
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)}`} />
-                                <h4 className="font-medium text-gray-900">{task.title}</h4>
+                                <h4 className="font-medium text-foreground">{task.title}</h4>
                                 <Badge variant="outline" className={getStatusColor(task.status)}>
                                   {getStatusIcon(task.status)}
                                   <span className="ml-1">
@@ -263,10 +265,10 @@ export function SprintView({ token }: SprintViewProps) {
                               </div>
                               
                               {task.description && (
-                                <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                                <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
                               )}
                               
-                              <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                 {task.dueDate && (
                                   <span className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />

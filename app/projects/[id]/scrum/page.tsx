@@ -2,7 +2,6 @@
 
 import { Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { SprintBoard } from '@/components/scrum/SprintBoard'
 import { ScrumDashboard } from '@/components/scrum/ScrumDashboard'
 import { BurndownChart } from '@/components/scrum/BurndownChart'
@@ -23,7 +22,6 @@ export default function ProjectScrumPage({ params, searchParams }: ProjectScrumP
   const sprintId = searchParams.sprint
 
   return (
-    <DashboardLayout>
       <Tabs value={activeTab} className="w-full">
       <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:grid-cols-3 mb-6">
         <TabsTrigger value="board" className="flex items-center gap-2">
@@ -52,6 +50,5 @@ export default function ProjectScrumPage({ params, searchParams }: ProjectScrumP
         <ScrumDashboard projectId={projectId} />
       </TabsContent>
       </Tabs>
-    </DashboardLayout>
   )
 }

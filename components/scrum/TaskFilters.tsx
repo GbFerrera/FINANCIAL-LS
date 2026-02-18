@@ -57,7 +57,7 @@ export function TaskFilters({
   ]
 
   const priorityOptions = [
-    { value: 'LOW', label: 'Baixa', color: 'bg-gray-100 text-gray-600' },
+    { value: 'LOW', label: 'Baixa', color: 'bg-gray-100 text-muted-foreground' },
     { value: 'MEDIUM', label: 'Média', color: 'bg-blue-100 text-blue-600' },
     { value: 'HIGH', label: 'Alta', color: 'bg-orange-100 text-orange-600' },
     { value: 'URGENT', label: 'Urgente', color: 'bg-red-100 text-red-600' }
@@ -114,7 +114,7 @@ export function TaskFilters({
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-muted-foreground hover:text-gray-700"
               >
                 <X className="w-4 h-4 mr-1" />
                 Limpar

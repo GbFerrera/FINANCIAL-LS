@@ -185,21 +185,21 @@ export function DistributePaymentDialog({
 
         {payment && (
           <div className="space-y-6">
-            <div className="bg-gray-50 p-4 rounded-lg">
+            <div className="bg-card p-4 rounded-lg">
               <h3 className="font-medium mb-2">Detalhes do Pagamento</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Cliente:</span>
+                  <span className="text-muted-foreground">Cliente:</span>
                   <span className="ml-2 font-medium">{payment.client.name}</span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Valor Total:</span>
+                  <span className="text-muted-foreground">Valor Total:</span>
                   <span className="ml-2 font-medium text-green-600">
                     {formatCurrency(payment.amount)}
                   </span>
                 </div>
                 <div className="col-span-2">
-                  <span className="text-gray-600">Descrição:</span>
+                  <span className="text-muted-foreground">Descrição:</span>
                   <span className="ml-2">{payment.description}</span>
                 </div>
               </div>
@@ -277,13 +277,13 @@ export function DistributePaymentDialog({
               ))}
 
               {distributions.length > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg">
+                <div className="bg-card p-4 rounded-lg">
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium">Resumo da Distribuição</span>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">Total Distribuído:</span>
+                      <span className="text-muted-foreground">Total Distribuído:</span>
                       <span className={`ml-2 font-medium ${
                         Math.abs(getTotalAmount() - payment.amount) > 0.01 ? 'text-red-600' : 'text-green-600'
                       }`}>
@@ -291,7 +291,7 @@ export function DistributePaymentDialog({
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Porcentagem Total:</span>
+                      <span className="text-muted-foreground">Porcentagem Total:</span>
                       <span className={`ml-2 font-medium ${
                         Math.abs(getTotalPercentage() - 100) > 0.01 ? 'text-red-600' : 'text-green-600'
                       }`}>
@@ -299,7 +299,7 @@ export function DistributePaymentDialog({
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-600">Valor Restante:</span>
+                      <span className="text-muted-foreground">Valor Restante:</span>
                       <span className="ml-2 font-medium">
                         {formatCurrency(payment.amount - getTotalAmount())}
                       </span>

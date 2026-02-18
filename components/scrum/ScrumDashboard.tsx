@@ -149,7 +149,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
     const statusLabels = {
       TODO: 'A Fazer',
       IN_PROGRESS: 'Em Andamento', 
-      IN_REVIEW: 'Em Revisão',
+      IN_REVIEW: 'Em Teste',
       COMPLETED: 'Concluído'
     }
 
@@ -195,7 +195,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
   if (!data) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500">Erro ao carregar dados do dashboard</p>
+        <p className="text-muted-foreground">Erro ao carregar dados do dashboard</p>
       </div>
     )
   }
@@ -213,7 +213,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Sprints Ativas</p>
+                <p className="text-sm text-muted-foreground">Sprints Ativas</p>
                 <p className="text-2xl font-bold text-blue-600">{data.metrics.activeSprints}</p>
               </div>
               <Calendar className="w-8 h-8 text-blue-500" />
@@ -225,7 +225,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Tarefas Concluídas</p>
+                <p className="text-sm text-muted-foreground">Tarefas Concluídas</p>
                 <p className="text-2xl font-bold text-green-600">
                   {data.metrics.completedTasks}/{data.metrics.totalTasks}
                 </p>
@@ -239,7 +239,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Story Points</p>
+                <p className="text-sm text-muted-foreground">Story Points</p>
                 <p className="text-2xl font-bold text-purple-600">
                   {data.metrics.completedStoryPoints}/{data.metrics.totalStoryPoints}
                 </p>
@@ -253,7 +253,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Velocidade Média</p>
+                <p className="text-sm text-muted-foreground">Velocidade Média</p>
                 <p className="text-2xl font-bold text-orange-600">{data.metrics.averageVelocity}</p>
               </div>
               <TrendingUp className="w-8 h-8 text-orange-500" />
@@ -354,7 +354,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
             <Card>
               <CardContent className="p-8 text-center">
                 <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-                <p className="text-gray-500">Nenhuma sprint disponível para análise</p>
+                <p className="text-muted-foreground">Nenhuma sprint disponível para análise</p>
               </CardContent>
             </Card>
           )}
@@ -371,10 +371,10 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
             <CardContent>
               <div className="space-y-4">
                 {teamProductivityData.map(member => (
-                  <div key={member.name} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                  <div key={member.name} className="flex items-center justify-between p-4 border border-muted rounded-lg">
                     <div className="flex-1">
                       <h4 className="font-medium">{member.name}</h4>
-                      <div className="flex gap-4 text-sm text-gray-600 mt-1">
+                      <div className="flex gap-4 text-sm text-muted-foreground mt-1">
                         <span>{member.tasks} tarefas</span>
                         <span>{member.completed} concluídas</span>
                         <span>{member.storyPoints} SP</span>
@@ -384,7 +384,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
                       <div className="text-lg font-semibold text-blue-600">
                         {member.tasks > 0 ? Math.round((member.completed / member.tasks) * 100) : 0}%
                       </div>
-                      <div className="text-xs text-gray-500">Conclusão</div>
+                      <div className="text-xs text-muted-foreground">Conclusão</div>
                     </div>
                   </div>
                 ))}

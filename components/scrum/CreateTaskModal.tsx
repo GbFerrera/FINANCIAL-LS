@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { FileUpload } from '@/components/ui/file-upload'
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'react-hot-toast'
+import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -61,7 +63,7 @@ interface CreateTaskModalProps {
   onSuccess: () => void
   editingTask?: Task | null
   sprintProjects?: Project[]
-  milestones?: any[]
+  milestones?: Milestone[]
 }
 
 interface User {
@@ -76,6 +78,10 @@ interface Project {
   client: {
     name: string
   }
+}
+interface Milestone {
+  id: string
+  title: string
 }
 
 export function CreateTaskModal({
@@ -93,6 +99,19 @@ export function CreateTaskModal({
   const [estimatedEndTime, setEstimatedEndTime] = useState<string>('')
   const [sprintProjects, setSprintProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
+  type UploadFileInfo = {
+    id: string
+    originalName: string
+    fileName: string
+    filePath: string
+    fileSize: number
+    fileType: string
+    uploadedAt: string
+    taskId?: string
+    file?: File
+  }
+  const [attachments, setAttachments] = useState<UploadFileInfo[]>([])
+  const fileUploadRef = useRef<{ handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> } | null>(null)
 
   const {
     register,
@@ -139,6 +158,28 @@ export function CreateTaskModal({
         setValue('startDate', editingTask.startDate ? editingTask.startDate.split('T')[0] : '')
         setValue('startTime', editingTask.startTime || '')
         setValue('estimatedMinutes', editingTask.estimatedMinutes)
+        // Carregar anexos existentes
+        ;(async () => {
+          try {
+            const res = await fetch(`/api/tasks/${editingTask.id}/attachments`)
+            if (res.ok) {
+              const data = await res.json()
+              const mapped = (data.attachments || []).map((a: any) => ({
+                id: a.filename,
+                originalName: a.originalName || a.filename,
+                fileName: a.filename,
+                filePath: a.filePath,
+                fileSize: a.size || 0,
+                fileType: a.mimeType || 'application/octet-stream',
+                uploadedAt: new Date().toISOString(),
+                taskId: editingTask.id,
+              })) as UploadFileInfo[]
+              setAttachments(mapped)
+            }
+          } catch (e) {
+            // Silencioso: anexos não são críticos para edição
+          }
+        })()
       } else {
         // Limpar formulário para nova tarefa
         reset({
@@ -146,6 +187,7 @@ export function CreateTaskModal({
           storyPoints: 1
         })
         setSelectedProjectId(projectId || '')
+        setAttachments([])
       }
     }
   }, [isOpen, projectId, sprintId, editingTask, setValue, reset])
@@ -210,9 +252,8 @@ export function CreateTaskModal({
       // Primeiro, tenta buscar os membros da equipe do projeto
       const teamResponse = await fetch(`/api/projects/${currentProjectId}/team`)
       if (teamResponse.ok) {
-        const teamData = await teamResponse.json()
-        // A API retorna um array de projectTeam com user aninhado
-        const teamUsers = teamData.map((member: any) => member.user)
+        const teamData: Array<{ user: User }> = await teamResponse.json()
+        const teamUsers = teamData.map((member) => member.user)
         
         if (teamUsers.length > 0) {
           setTeamMembers(teamUsers)
@@ -277,8 +318,28 @@ export function CreateTaskModal({
         throw new Error(editingTask ? 'Erro ao editar tarefa' : 'Erro ao criar tarefa')
       }
 
+      const createdTask = await response.json()
+
+      // Se houver anexos selecionados na criação, enviar após obter o taskId
+      if (!editingTask && attachments.length > 0 && createdTask?.id) {
+        try {
+          await fileUploadRef.current?.handleUpload(createdTask.id)
+        } catch {
+          // Se falhar upload, seguir com criação e avisar
+        }
+      }
+      // Se estiver editando e houver novos arquivos (previews), enviar vinculando ao taskId existente
+      if (editingTask && attachments.some((f) => !!f.file)) {
+        try {
+          await fileUploadRef.current?.handleUpload(editingTask.id)
+        } catch {
+          // Se falhar upload, seguir com edição e avisar
+        }
+      }
+
       toast.success(editingTask ? 'Tarefa editada com sucesso!' : 'Tarefa criada com sucesso!')
       reset()
+      setAttachments([])
       onSuccess()
       onClose()
     } catch (error) {
@@ -296,7 +357,7 @@ export function CreateTaskModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>
@@ -322,8 +383,26 @@ export function CreateTaskModal({
               id="description"
               {...register('description')}
               placeholder="Descreva a tarefa (opcional)"
-              rows={3}
+              rows={6}
+              className="min-h-[140px]"
             />
+          </div>
+
+          {/* Anexos (opcional) */}
+          <div>
+            <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
+            <div className="bg-card rounded-lg p-3 border border-muted">
+              <FileUpload
+                ref={(instance) => {
+                  fileUploadRef.current = instance as unknown as { handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> }
+                }}
+                taskId={editingTask?.id}
+                existingFiles={attachments}
+                onFilesChange={(files) => setAttachments(files as UploadFileInfo[])}
+                maxFiles={5}
+                disabled={loading}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -332,7 +411,7 @@ export function CreateTaskModal({
               <Label>Prioridade</Label>
               <Select
                 value={watch('priority')}
-                onValueChange={(value) => setValue('priority', value as any)}
+                onValueChange={(value) => setValue('priority', value as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT')}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -394,7 +473,7 @@ export function CreateTaskModal({
             <div>
               <Label>Responsável</Label>
               {sprintProjects.length > 0 && selectedProjectId && (
-                <p className="text-xs text-gray-600 mb-2">
+                <p className="text-xs text-muted-foreground mb-2">
                   Colaboradores do projeto selecionado
                 </p>
               )}
@@ -507,6 +586,16 @@ export function CreateTaskModal({
                     ({Math.floor((watch('estimatedMinutes') || 0) / 60)}h {(watch('estimatedMinutes') || 0) % 60}min)
                   </span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Checklist de Tarefas (apenas edição) */}
+          {editingTask && (
+            <div className="border-t pt-4 mt-4">
+              <Label className="mb-2 block">Checklist e Subtarefas</Label>
+              <div className="bg-card rounded-lg p-4 border border-muted">
+                <TaskChecklist taskId={editingTask.id} />
               </div>
             </div>
           )}

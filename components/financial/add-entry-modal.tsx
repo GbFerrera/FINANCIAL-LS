@@ -366,9 +366,6 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           return
         }
       }
-    } else if (!formData.projectId) {
-      toast.error('Selecione um projeto')
-      return
     }
 
     setLoading(true)
@@ -651,7 +648,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 Valor *
               </Label>
               <div className="relative mt-1">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground z-10">R$</span>
                 <Input
                   type="text"
                   value={formData.amount ? formatCurrencyInput(parseFloat(formData.amount)) : ''}
@@ -765,7 +762,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                       <h4 className="text-sm font-medium text-blue-800 mb-3">Projetos do Cliente</h4>
                       {loadingClientData ? (
-                        <div className="p-3 text-center text-gray-500">
+                        <div className="p-3 text-center text-muted-foreground">
                           Carregando projetos...
                         </div>
                       ) : clientProjectSummaries.length > 0 ? (
@@ -777,7 +774,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                             return (
                               <div
                                 key={project.projectId}
-                                className="p-4 bg-white border-2 rounded-lg hover:border-blue-300 transition-colors"
+                                className="p-4 bg-card border-2 rounded-lg hover:border-blue-300 transition-colors"
                               >
                                 <div className="space-y-3">
                                   {/* Project Header */}
@@ -786,15 +783,15 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                                       <h5 className="font-semibold text-sm text-gray-800">{project.projectName}</h5>
                                       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                                         <div>
-                                          <span className="text-gray-500">Orçamento:</span>
+                                          <span className="text-muted-foreground">Orçamento:</span>
                                           <div className="font-medium text-gray-800">{formatCurrency(project.budget)}</div>
                                         </div>
                                         <div>
-                                          <span className="text-gray-500">Pago:</span>
+                                          <span className="text-muted-foreground">Pago:</span>
                                           <div className="font-medium text-green-600">{formatCurrency(project.totalPaid)}</div>
                                         </div>
                                         <div>
-                                          <span className="text-gray-500">Restante:</span>
+                                          <span className="text-muted-foreground">Restante:</span>
                                           <div className={`font-medium ${project.remainingBudget > 0 ? 'text-red-600' : 'text-green-600'}`}>
                                             {formatCurrency(project.remainingBudget)}
                                           </div>
@@ -802,7 +799,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                                       </div>
                                     </div>
                                     <div className="ml-3 text-right">
-                                      <div className="text-xs text-gray-500">Progresso</div>
+                                      <div className="text-xs text-muted-foreground">Progresso</div>
                                       <div className="text-sm font-bold text-blue-600">{project.paymentPercentage}%</div>
                                       <div className="w-16 h-2 bg-gray-200 rounded-full mt-1">
                                         <div 
@@ -814,11 +811,11 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                                   </div>
 
                                   {/* Value Input */}
-                                  <div className="pt-3 border-t border-gray-100">
-                                    <Label className="text-xs text-gray-600 mb-1.5 block">Valor desta entrada</Label>
+                                  <div className="pt-3 border-t border-muted">
+                                    <Label className="text-xs text-muted-foreground mb-1.5 block">Valor desta entrada</Label>
                                     <div className="flex items-center space-x-2">
                                       <div className="relative flex-1">
-                                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
+                                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground z-10">R$</span>
                                         <Input
                                           type="number"
                                           step="0.01"
@@ -868,7 +865,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                           })}
                         </div>
                       ) : (
-                        <div className="p-3 text-center text-gray-500 border border-gray-200 rounded-lg bg-white">
+                        <div className="p-3 text-center text-muted-foreground border border-muted rounded-lg bg-card">
                           Nenhum projeto encontrado para este cliente
                         </div>
                       )}
@@ -893,21 +890,21 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       </div>
 
                       {projectDistributions.length === 0 && (
-                        <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
+                        <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-muted rounded-lg">
                           <Plus className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                           <p className="text-sm">Clique em "Adicionar Projeto" para começar a distribuir</p>
                         </div>
                       )}
 
                       {projectDistributions.map((distribution, index) => (
-                        <div key={index} className="flex items-center space-x-3 p-4 border-2 border-gray-100 rounded-lg hover:border-blue-200 transition-colors bg-white shadow-sm mb-3">
+                        <div key={index} className="flex items-center space-x-3 p-4 border-2 border-muted rounded-lg hover:border-blue-200 transition-colors bg-card shadow-sm mb-3">
                           <div className="flex-1">
-                            <Label className="text-xs text-gray-600 mb-1 block">Projeto</Label>
+                            <Label className="text-xs text-muted-foreground mb-1 block">Projeto</Label>
                             <Select
                               value={distribution.projectId}
                               onValueChange={(value) => updateProjectDistribution(index, 'projectId', value)}
                             >
-                              <SelectTrigger className="border-gray-200 focus:border-blue-400">
+                              <SelectTrigger className="border-muted focus:border-blue-400">
                                 <SelectValue placeholder="Selecione um projeto" />
                               </SelectTrigger>
                               <SelectContent>
@@ -920,16 +917,16 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                             </Select>
                           </div>
                           <div className="w-36">
-                            <Label className="text-xs text-gray-600 mb-1 block">Valor</Label>
+                            <Label className="text-xs text-muted-foreground mb-1 block">Valor</Label>
                             <div className="relative">
-                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-gray-500 z-10">R$</span>
+                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground z-10">R$</span>
                               <Input
                                 type="number"
                                 step="0.01"
                                 min="0"
                                 value={distribution.amount || ''}
                                 onChange={(e) => updateProjectDistribution(index, 'amount', parseFloat(e.target.value) || 0)}
-                                className="pl-10 border-gray-200 focus:border-blue-400"
+                                className="pl-10 border-muted focus:border-blue-400"
                                 placeholder="0,00"
                               />
                             </div>
@@ -955,15 +952,15 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       <h4 className="text-sm font-semibold text-blue-800 mb-3">Resumo da Distribuição</h4>
                       <div className="grid grid-cols-3 gap-4">
                         <div className="text-center">
-                          <div className="text-xs text-gray-600 mb-1">Valor Total</div>
+                          <div className="text-xs text-muted-foreground mb-1">Valor Total</div>
                           <div className="text-lg font-bold text-gray-800">{formatCurrency(parseFloat(formData.amount) || 0)}</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xs text-gray-600 mb-1">Distribuído</div>
+                          <div className="text-xs text-muted-foreground mb-1">Distribuído</div>
                           <div className="text-lg font-bold text-blue-600">{formatCurrency(projectDistributions.reduce((sum, dist) => sum + dist.amount, 0))}</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xs text-gray-600 mb-1">Restante</div>
+                          <div className="text-xs text-muted-foreground mb-1">Restante</div>
                           <div className={`text-lg font-bold ${remainingAmount < 0 ? 'text-red-600' : remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                             {formatCurrency(remainingAmount)}
                           </div>
@@ -1060,11 +1057,11 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                   onChange={handleFileUpload}
                   className="hidden"
                   id="file-upload"
-                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.xml"
                 />
                 <label htmlFor="file-upload" className="cursor-pointer">
                   <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                  <p className="text-sm text-gray-600">Clique para adicionar arquivos</p>
+                  <p className="text-sm text-muted-foreground">Clique para adicionar arquivos</p>
                   <p className="text-xs text-gray-400 mt-1">PDF e imagens (máx. 10MB cada)</p>
                 </label>
               </div>
@@ -1077,7 +1074,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       <div className="flex items-center space-x-2">
                         <FileText className="h-4 w-4 text-blue-500" />
                         <span className="text-sm">{file.name}</span>
-                        <span className="text-xs text-gray-500">({formatFileSize(file.size)})</span>
+                        <span className="text-xs text-muted-foreground">({formatFileSize(file.size)})</span>
                       </div>
                       <Button
                         type="button"

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,12 +15,13 @@ import {
   Timer,
   Search,
   Filter,
-  User,
   Building2
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 import { TaskTimer } from './TaskTimer'
+import { TaskChecklist } from './TaskChecklist'
+import { TaskDetailsModal } from './TaskDetailsModal'
+import { FileText } from 'lucide-react'
+import { AddTaskImagesModal } from './AddTaskImagesModal'
 
 // Função para formatar data sem problemas de fuso horário
 const formatDateSafe = (dateString: string) => {
@@ -99,7 +100,7 @@ interface Task {
   id: string
   title: string
   description?: string
-  status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED'
+  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   dueDate?: string
   startDate?: string
@@ -126,12 +127,22 @@ export function TaskListView({ token }: TaskListViewProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
-  const [collaborator, setCollaborator] = useState<any>(null)
+  type CollaboratorInfo = {
+    id: string
+    user?: {
+      id: string
+      name: string
+      email: string
+    }
+  }
+  const [collaborator, setCollaborator] = useState<CollaboratorInfo | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [sprintFilter, setSprintFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState<'today' | 'all'>('today')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false)
 
   useEffect(() => {
     fetchTasks()
@@ -205,7 +216,7 @@ export function TaskListView({ token }: TaskListViewProps) {
       case 'HIGH': return 'bg-orange-500'
       case 'MEDIUM': return 'bg-yellow-500'
       case 'LOW': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 
@@ -213,8 +224,9 @@ export function TaskListView({ token }: TaskListViewProps) {
     switch (status) {
       case 'COMPLETED': return 'text-green-600 bg-green-100'
       case 'IN_PROGRESS': return 'text-blue-600 bg-blue-100'
-      case 'TODO': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'IN_REVIEW': return 'text-yellow-600 bg-yellow-100'
+      case 'TODO': return 'text-muted-foreground bg-gray-100'
+      default: return 'text-muted-foreground bg-gray-100'
     }
   }
 
@@ -222,6 +234,7 @@ export function TaskListView({ token }: TaskListViewProps) {
     switch (status) {
       case 'COMPLETED': return <CheckCircle2 className="w-4 h-4" />
       case 'IN_PROGRESS': return <Clock className="w-4 h-4" />
+      case 'IN_REVIEW': return <Clock className="w-4 h-4" />
       case 'TODO': return <AlertCircle className="w-4 h-4" />
       default: return <AlertCircle className="w-4 h-4" />
     }
@@ -271,10 +284,10 @@ export function TaskListView({ token }: TaskListViewProps) {
       {/* Header e Filtros */}
       <div className="space-y-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">
+          <h2 className="text-2xl font-bold text-foreground">
             Minhas Tarefas {dateFilter === 'today' ? '- Hoje' : ''}
           </h2>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             {filteredTasks.length} de {tasks.length} tarefas {dateFilter === 'today' ? 'para hoje' : 'no total'}
           </p>
         </div>
@@ -374,8 +387,8 @@ export function TaskListView({ token }: TaskListViewProps) {
           <Card>
             <CardContent className="p-8 text-center">
               <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa encontrada</h3>
-              <p className="text-gray-600">Tente ajustar os filtros para ver mais resultados.</p>
+              <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma tarefa encontrada</h3>
+              <p className="text-muted-foreground">Tente ajustar os filtros para ver mais resultados.</p>
             </CardContent>
           </Card>
         ) : (
@@ -393,29 +406,30 @@ export function TaskListView({ token }: TaskListViewProps) {
               <CardContent>
                 <div className="space-y-3">
                   {sprintTasks.map(task => (
-                    <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div key={task.id} className="border rounded-lg p-4 hover:bg-card transition-colors">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 space-y-2">
                           {/* Título e prioridade */}
                           <div className="flex items-center gap-2">
                             <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)}`} />
-                            <h4 className="font-medium text-gray-900">{task.title}</h4>
+                            <h4 className="font-medium text-foreground">{task.title}</h4>
                             <Badge variant="outline" className={getStatusColor(task.status)}>
                               {getStatusIcon(task.status)}
                               <span className="ml-1">
-                                {task.status === 'TODO' ? 'A Fazer' :
-                                 task.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Concluída'}
+                                  {task.status === 'TODO' ? 'A Fazer' :
+                                   task.status === 'IN_PROGRESS' ? 'Em Progresso' :
+                                   task.status === 'IN_REVIEW' ? 'Para Revisar' : 'Concluída'}
                               </span>
                             </Badge>
                           </div>
 
                           {/* Descrição */}
                           {task.description && (
-                            <p className="text-sm text-gray-600">{task.description}</p>
+                            <p className="text-sm text-muted-foreground">{task.description}</p>
                           )}
 
                           {/* Informações adicionais */}
-                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Building2 className="w-3 h-3" />
                               {task.project.name}
@@ -444,8 +458,28 @@ export function TaskListView({ token }: TaskListViewProps) {
                           </div>
                         </div>
 
-                        {/* Timer */}
-                        <div className="ml-4">
+                        {/* Ações e Timer */}
+                        <div className="ml-4 flex flex-col items-end gap-3">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={() => {
+                                setSelectedTask(task)
+                                setDetailsModalOpen(true)
+                              }}
+                            >
+                              <FileText className="w-4 h-4" />
+                              Ver Detalhes
+                            </Button>
+                            <AddTaskImagesModal 
+                              token={token} 
+                              taskId={task.id} 
+                              onUpdated={fetchTasks} 
+                            />
+                          </div>
+
                           <TaskTimer 
                             taskId={task.id}
                             taskTitle={task.title}
@@ -455,6 +489,9 @@ export function TaskListView({ token }: TaskListViewProps) {
                           />
                         </div>
                       </div>
+                      <div className="mt-3">
+                        <TaskChecklist token={token} taskId={task.id} />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -463,6 +500,13 @@ export function TaskListView({ token }: TaskListViewProps) {
           ))
         )}
       </div>
+      
+        <TaskDetailsModal
+          task={selectedTask}
+          open={detailsModalOpen}
+          onOpenChange={setDetailsModalOpen}
+          token={token}
+        />
     </div>
   )
 }

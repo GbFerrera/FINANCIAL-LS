@@ -212,17 +212,17 @@ export default function CollaboratorPage() {
       case 'HIGH': return 'bg-orange-500'
       case 'MEDIUM': return 'bg-yellow-500'
       case 'LOW': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'TODO': return 'bg-gray-500'
+      case 'TODO': return 'bg-card0'
       case 'IN_PROGRESS': return 'bg-blue-500'
       case 'IN_REVIEW': return 'bg-purple-500'
       case 'COMPLETED': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 

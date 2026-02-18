@@ -30,11 +30,11 @@ const activityIcons = {
 }
 
 const activityColors = {
-  task_completed: 'text-green-600 bg-green-100',
-  payment_received: 'text-blue-600 bg-blue-100',
-  comment_added: 'text-yellow-600 bg-yellow-100',
-  project_updated: 'text-purple-600 bg-purple-100',
-  milestone_reached: 'text-indigo-600 bg-indigo-100'
+  task_completed: 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/20',
+  payment_received: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20',
+  comment_added: 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/20',
+  project_updated: 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20',
+  milestone_reached: 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/20'
 }
 
 export function RecentActivity({ activities }: RecentActivityProps) {
@@ -65,13 +65,13 @@ export function RecentActivity({ activities }: RecentActivityProps) {
   }
 
   return (
-    <div className="bg-white shadow rounded-lg">
+    <div className="bg-card shadow rounded-lg">
       <div className="px-4 py-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
+          <h3 className="text-lg leading-6 font-medium text-card-foreground">
             Atividades Recentes
           </h3>
-          <button className="text-sm text-indigo-600 hover:text-indigo-500">
+          <button className="text-sm text-primary hover:text-primary/80">
             Ver todas
           </button>
         </div>
@@ -80,8 +80,8 @@ export function RecentActivity({ activities }: RecentActivityProps) {
           <ul className="-mb-8">
             {activities.length === 0 ? (
               <li className="text-center py-8">
-                <Clock className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-500">Nenhuma atividade recente</p>
+                <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
+                <p className="mt-2 text-sm text-muted-foreground">Nenhuma atividade recente</p>
               </li>
             ) : (
               activities.map((activity, activityIdx) => {
@@ -93,49 +93,49 @@ export function RecentActivity({ activities }: RecentActivityProps) {
                     <div className="relative pb-8">
                       {activityIdx !== activities.length - 1 ? (
                         <span
-                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-border"
                           aria-hidden="true"
                         />
                       ) : null}
                       <div className="relative flex space-x-3">
                         <div>
-                          <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white ${colorClasses}`}>
+                          <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-card ${colorClasses}`}>
                             <Icon className="h-4 w-4" aria-hidden="true" />
                           </span>
                         </div>
                         <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-medium text-card-foreground">
                               {activity.title}
                             </p>
-                            <p className="text-sm text-gray-500">
+                            <p className="text-sm text-muted-foreground">
                               {activity.description}
                             </p>
                             {activity.metadata && (
-                              <div className="mt-1 text-xs text-gray-400">
+                              <div className="mt-1 text-xs text-muted-foreground">
                                 {activity.metadata.projectName && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground mr-2">
                                     {activity.metadata.projectName}
                                   </span>
                                 )}
                                 {activity.metadata.amount && (
-                                  <span className="font-medium text-green-600">
+                                  <span className="font-medium text-green-600 dark:text-green-400">
                                     {formatCurrency(activity.metadata.amount)}
                                   </span>
                                 )}
                                 {activity.metadata.taskName && (
-                                  <span className="text-gray-600">
+                                  <span className="text-muted-foreground">
                                     Tarefa: {activity.metadata.taskName}
                                   </span>
                                 )}
                               </div>
                             )}
-                            <div className="mt-1 flex items-center text-xs text-gray-400">
+                            <div className="mt-1 flex items-center text-xs text-muted-foreground">
                               <User className="h-3 w-3 mr-1" />
                               <span>{activity.user}</span>
                             </div>
                           </div>
-                          <div className="text-right text-xs text-gray-400 whitespace-nowrap">
+                          <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
                             <time dateTime={activity.timestamp}>
                               {formatTimeAgo(activity.timestamp)}
                             </time>
@@ -152,7 +152,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
 
         {activities.length > 0 && (
           <div className="mt-6">
-            <button className="w-full bg-gray-50 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-100 transition-colors">
+            <button className="w-full bg-secondary/50 text-secondary-foreground py-2 px-4 rounded-md hover:bg-secondary transition-colors">
               Carregar mais atividades
             </button>
           </div>

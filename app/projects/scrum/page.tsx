@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { 
   Kanban, 
   Target, 
@@ -93,22 +92,19 @@ export default function ScrumOverviewPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestão Scrum</h1>
-          <p className="text-gray-600">Gerencie seus projetos com metodologia ágil</p>
+          <h1 className="text-2xl font-bold text-foreground">Gestão Scrum</h1>
+          <p className="text-muted-foreground">Gerencie seus projetos com metodologia ágil</p>
         </div>
         <Button onClick={() => router.push('/projects/new')} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="w-4 h-4 mr-2" />
@@ -122,7 +118,7 @@ export default function ScrumOverviewPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Projetos Ativos</p>
+                <p className="text-sm text-muted-foreground">Projetos Ativos</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {projects?.filter(p => p.status === 'IN_PROGRESS')?.length || 0}
                 </p>
@@ -136,7 +132,7 @@ export default function ScrumOverviewPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Sprints Ativas</p>
+                <p className="text-sm text-muted-foreground">Sprints Ativas</p>
                 <p className="text-2xl font-bold text-green-600">
                   {projects?.reduce((sum, p) => sum + (p.sprints?.filter(s => s.status === 'ACTIVE')?.length || 0), 0) || 0}
                 </p>
@@ -150,7 +146,7 @@ export default function ScrumOverviewPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total de Sprints</p>
+                <p className="text-sm text-muted-foreground">Total de Sprints</p>
                 <p className="text-2xl font-bold text-purple-600">
                   {projects?.reduce((sum, p) => sum + (p.sprints?.length || 0), 0) || 0}
                 </p>
@@ -164,7 +160,7 @@ export default function ScrumOverviewPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Story Points</p>
+                <p className="text-sm text-muted-foreground">Story Points</p>
                 <p className="text-2xl font-bold text-orange-600">
                   {projects?.reduce((sum, p) => {
                     const metrics = getProjectMetrics(p)
@@ -189,9 +185,9 @@ export default function ScrumOverviewPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">Cliente: {project.client.name}</p>
+                    <p className="text-sm text-muted-foreground mt-1">Cliente: {project.client.name}</p>
                     {project.description && (
-                      <p className="text-sm text-gray-500 mt-2 line-clamp-2">{project.description}</p>
+                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{project.description}</p>
                     )}
                   </div>
                   <Badge 
@@ -258,8 +254,8 @@ export default function ScrumOverviewPage() {
         <Card>
           <CardContent className="p-8 text-center">
             <Kanban className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum projeto encontrado</h3>
-            <p className="text-gray-600 mb-4">Crie seu primeiro projeto para começar a usar o Scrum</p>
+            <h3 className="text-lg font-medium text-foreground mb-2">Nenhum projeto encontrado</h3>
+            <p className="text-muted-foreground mb-4">Crie seu primeiro projeto para começar a usar o Scrum</p>
             <Button onClick={() => router.push('/projects/new')} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="w-4 h-4 mr-2" />
               Criar Projeto
@@ -268,6 +264,5 @@ export default function ScrumOverviewPage() {
         </Card>
       )}
       </div>
-    </DashboardLayout>
   )
 }

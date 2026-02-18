@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { StatsCard } from '@/components/ui/stats-card'
 import {
   Dialog,
@@ -250,19 +249,18 @@ export default function ClientsPage() {
   ]
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Clientes</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Clientes</h1>
+            <p className="text-muted-foreground">
               Gerencie seus clientes e gere links de acesso para o portal
             </p>
           </div>
           <Dialog open={isAddClientOpen} onOpenChange={setIsAddClientOpen}>
             <DialogTrigger asChild>
-              <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+              <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors">
                 <UserPlus className="h-4 w-4 mr-2" />
                 Adicionar Cliente
               </button>
@@ -278,44 +276,44 @@ export default function ClientsPage() {
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                      <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
                       <input
                         type="text"
                         value={newClient.name}
                         onChange={(e) => setNewClient({...newClient, name: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                      <label className="block text-sm font-medium text-foreground mb-1">Email</label>
                       <input
                         type="email"
                         value={newClient.email}
                         onChange={(e) => setNewClient({...newClient, email: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                      <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
                       <input
                         type="tel"
                         value={newClient.phone}
                         onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+                      <label className="block text-sm font-medium text-foreground mb-1">Empresa</label>
                       <input
                         type="text"
                         value={newClient.company}
                         onChange={(e) => setNewClient({...newClient, company: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
@@ -326,13 +324,13 @@ export default function ClientsPage() {
                   <button
                     type="button"
                     onClick={() => setIsAddClientOpen(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
                   >
                     Adicionar Cliente
                   </button>
@@ -352,89 +350,89 @@ export default function ClientsPage() {
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <input
               type="text"
               placeholder="Buscar clientes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              className="pl-10 pr-4 py-2 w-full border border-input rounded-md focus:ring-2 focus:ring-primary bg-background text-foreground"
             />
           </div>
 
         </div>
 
         {/* Clients Table */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-card shadow rounded-lg overflow-hidden border border-border">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Cliente
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Contato
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Empresa
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Projetos
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Valor Total
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Link de Acesso
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-card divide-y divide-border">
                 {filteredClients.map((client) => (
-                  <tr key={client.id} className="hover:bg-gray-50">
+                  <tr key={client.id} className="hover:bg-muted/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-blue-600" />
+                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Users className="h-5 w-5 text-primary" />
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{client.name}</div>
-                          <div className="text-sm text-gray-500">Cliente desde {parseISO(client.createdAt).toLocaleDateString('pt-BR')}</div>
+                          <div className="text-sm font-medium text-foreground">{client.name}</div>
+                          <div className="text-sm text-muted-foreground">Cliente desde {parseISO(client.createdAt).toLocaleDateString('pt-BR')}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{client.email}</div>
-                      <div className="text-sm text-gray-500">{client.phone}</div>
+                      <div className="text-sm text-foreground">{client.email}</div>
+                      <div className="text-sm text-muted-foreground">{client.phone}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{client.company}</div>
+                      <div className="text-sm text-foreground">{client.company}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                         Ativo
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                       {client.totalProjects}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                       R$ {client.totalValue.toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => copyClientLink(client)}
-                          className="inline-flex items-center px-2 py-1 border border-gray-300 rounded text-xs font-medium text-gray-700 bg-white hover:bg-gray-50"
+                          className="inline-flex items-center px-2 py-1 border border-input rounded text-xs font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
                         >
                           <Copy className="h-3 w-3 mr-1" />
                           Copiar Link
@@ -443,7 +441,7 @@ export default function ClientsPage() {
                           href={generateClientLink(client)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center px-2 py-1 border border-blue-300 rounded text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100"
+                          className="inline-flex items-center px-2 py-1 border border-primary/20 rounded text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
                           Abrir Portal
@@ -457,7 +455,7 @@ export default function ClientsPage() {
                             setSelectedClient(client)
                             setIsViewClientOpen(true)
                           }}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-primary hover:text-primary/80 transition-colors"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
@@ -466,13 +464,13 @@ export default function ClientsPage() {
                             setSelectedClient(client)
                             setIsEditClientOpen(true)
                           }}
-                          className="text-yellow-600 hover:text-yellow-900"
+                          className="text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400 transition-colors"
                         >
                           <Edit className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteClient(client.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-destructive hover:text-destructive/80 transition-colors"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -487,9 +485,9 @@ export default function ClientsPage() {
 
         {filteredClients.length === 0 && (
           <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum cliente encontrado</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <Users className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum cliente encontrado</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               {searchTerm 
                 ? 'Tente ajustar os filtros de busca.'
                 : 'Comece adicionando um novo cliente.'
@@ -508,59 +506,59 @@ export default function ClientsPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nome</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedClient.name}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Nome</label>
+                    <p className="mt-1 text-sm text-foreground">{selectedClient.name}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedClient.email}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Email</label>
+                    <p className="mt-1 text-sm text-foreground">{selectedClient.email}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Telefone</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedClient.phone}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Telefone</label>
+                    <p className="mt-1 text-sm text-foreground">{selectedClient.phone}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Empresa</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedClient.company}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Empresa</label>
+                    <p className="mt-1 text-sm text-foreground">{selectedClient.company}</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Status</label>
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                    <label className="block text-sm font-medium text-muted-foreground">Status</label>
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                       Ativo
                     </span>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Cliente desde</label>
-                    <p className="mt-1 text-sm text-gray-900">{parseISO(selectedClient.createdAt).toLocaleDateString('pt-BR')}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Cliente desde</label>
+                    <p className="mt-1 text-sm text-foreground">{parseISO(selectedClient.createdAt).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Total de Projetos</label>
-                    <p className="mt-1 text-sm text-gray-900">{selectedClient.totalProjects}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Total de Projetos</label>
+                    <p className="mt-1 text-sm text-foreground">{selectedClient.totalProjects}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Valor Total</label>
-                    <p className="mt-1 text-sm text-gray-900">R$ {selectedClient.totalValue.toLocaleString()}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Valor Total</label>
+                    <p className="mt-1 text-sm text-foreground">R$ {selectedClient.totalValue.toLocaleString()}</p>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Link de Acesso</label>
+                  <label className="block text-sm font-medium text-muted-foreground">Link de Acesso</label>
                   <div className="mt-1 flex items-center space-x-2">
                     <input
                       type="text"
                       value={generateClientLink(selectedClient)}
                       readOnly
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm"
+                      className="flex-1 px-3 py-2 border border-input rounded-md bg-muted text-foreground text-sm"
                     />
                     <button
                       onClick={() => copyClientLink(selectedClient)}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                      className="px-3 py-2 border border-input rounded-md text-sm font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
                       <Copy className="h-4 w-4" />
                     </button>
@@ -568,8 +566,8 @@ export default function ClientsPage() {
                 </div>
                 {selectedClient.lastAccess && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Último Acesso</label>
-                    <p className="mt-1 text-sm text-gray-900">{parseISO(selectedClient.lastAccess).toLocaleDateString('pt-BR')}</p>
+                    <label className="block text-sm font-medium text-muted-foreground">Último Acesso</label>
+                    <p className="mt-1 text-sm text-foreground">{parseISO(selectedClient.lastAccess).toLocaleDateString('pt-BR')}</p>
                   </div>
                 )}
               </div>
@@ -577,7 +575,7 @@ export default function ClientsPage() {
             <DialogFooter>
               <button
                 onClick={() => setIsViewClientOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               >
                 Fechar
               </button>
@@ -585,6 +583,5 @@ export default function ClientsPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
   )
 }

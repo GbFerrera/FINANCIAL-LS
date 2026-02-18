@@ -179,8 +179,8 @@ export default function CollaboratorsPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Gerenciar Colaboradores</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold text-foreground">Gerenciar Colaboradores</h1>
+            <p className="text-muted-foreground">
               Gerencie tokens de acesso e links do portal para colaboradores.
             </p>
           </div>
@@ -243,7 +243,7 @@ export default function CollaboratorsPage() {
               <Key className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-600">
+              <div className="text-2xl font-bold text-muted-foreground">
                 {collaborators.filter(c => !c.user.accessToken).length}
               </div>
             </CardContent>
@@ -259,10 +259,10 @@ export default function CollaboratorsPage() {
               <CardContent className="flex items-center justify-center py-12">
                 <div className="text-center">
                   <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <h3 className="text-lg font-medium text-foreground mb-2">
                     {searchTerm ? 'Nenhum colaborador encontrado' : 'Nenhum colaborador cadastrado'}
                   </h3>
-                  <p className="text-gray-500">
+                  <p className="text-muted-foreground">
                     {searchTerm 
                       ? 'Tente ajustar os termos de busca.' 
                       : 'Cadastre colaboradores para gerenciar seus acessos.'}

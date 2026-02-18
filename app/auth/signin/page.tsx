@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -47,32 +48,29 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-8">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen flex w-full">
+      {/* Lado Esquerdo - Imagem */}
+  <div className="hidden lg:flex w-1/2 relative bg-[#161f46]">
+  <Image
+    src="/login.png"
+    alt="Login Visual"
+    fill
+    priority
+    className="object-cover"
+  />
+  <div className="absolute inset-0 bg-black/10" />
+</div>
+
+      {/* Lado Direito - Formulário */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-card">
+        <div className="max-w-md w-full space-y-8 bg-card p-10 rounded-2xl shadow-lg">
           <div className="text-center mb-8">
-            <div className="mx-auto h-12 w-12 bg-indigo-600 rounded-xl flex items-center justify-center mb-4">
-              <Building2 className="h-6 w-6 text-white" />
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900">SoftHouse Manager</h2>
-            <p className="text-gray-600 mt-2">Faça login para acessar o sistema</p>
+            
+            <h2 className="text-3xl font-bold text-foreground">SoftHouse Manager</h2>
+            <p className="text-muted-foreground mt-2">Faça login para acessar o sistema</p>
           </div>
 
-          {/* Tipos de Acesso */}
-          <div className="grid grid-cols-3 gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
-            <div className="flex flex-col items-center p-2 text-xs text-gray-600">
-              <User className="h-4 w-4 mb-1" />
-              <span>Admin</span>
-            </div>
-            <div className="flex flex-col items-center p-2 text-xs text-gray-600">
-              <Users className="h-4 w-4 mb-1" />
-              <span>Equipe</span>
-            </div>
-            <div className="flex flex-col items-center p-2 text-xs text-gray-600">
-              <Building2 className="h-4 w-4 mb-1" />
-              <span>Cliente</span>
-            </div>
-          </div>
+    
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -85,7 +83,7 @@ export default function SignIn() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#161f46] focus:border-transparent transition-colors"
                 placeholder="seu@email.com"
               />
             </div>
@@ -101,13 +99,13 @@ export default function SignIn() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors pr-12"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#161f46] focus:border-transparent transition-colors pr-12"
                   placeholder="••••••••"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-muted-foreground"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -117,29 +115,19 @@ export default function SignIn() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-[#161f46] text-white py-3 px-4 rounded-lg hover:bg-[#1a212d] focus:ring-2 focus:ring-[#161f46] focus:ring-offset-2 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? "Entrando..." : "Entrar"}
             </button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Problemas para acessar?{" "}
-              <a href="mailto:suporte@softhouse.com" className="text-indigo-600 hover:text-indigo-500">
+              <a href="mailto:suporte@softhouse.com" className="text-[#161f46] hover:text-[#1a212d] font-medium">
                 Entre em contato
               </a>
             </p>
-          </div>
-        </div>
-
-        {/* Demo Credentials */}
-        <div className="bg-white rounded-lg shadow-md p-4 text-sm text-gray-600">
-          <h3 className="font-medium mb-2">Credenciais de Demonstração:</h3>
-          <div className="space-y-1">
-            <p><strong>Admin:</strong> admin@softhouse.com / admin123</p>
-            <p><strong>Equipe:</strong> dev@softhouse.com / dev123</p>
-            <p><strong>Cliente:</strong> cliente@empresa.com / cliente123</p>
           </div>
         </div>
       </div>

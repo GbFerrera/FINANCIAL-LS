@@ -16,7 +16,7 @@ import { useSocket } from '@/hooks/useSocket'
 interface TaskTimerProps {
   taskId: string
   taskTitle: string
-  currentStatus: 'TODO' | 'IN_PROGRESS' | 'COMPLETED'
+  currentStatus: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   userId: string
   onStatusChange?: () => void
 }
@@ -237,7 +237,7 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
     }
     
     try {
-      await updateTaskStatus('COMPLETED')
+      await updateTaskStatus('IN_REVIEW')
       
       // Emitir evento de conclusão da tarefa
       sendTimerEvent({
@@ -251,9 +251,9 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
         totalTime: Math.floor(totalTime / 60) // converter para minutos
       })
       
-      toast.success('Tarefa concluída!')
+      toast.success('Tarefa enviada para revisão!')
     } catch (error) {
-      toast.error('Erro ao concluir tarefa')
+      toast.error('Erro ao enviar para revisão')
     }
   }
 
@@ -269,7 +269,7 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
         if (onStatusChange) {
           onStatusChange()
         }
-        toast.success(`Status atualizado para: ${status === 'IN_PROGRESS' ? 'Em Progresso' : status === 'COMPLETED' ? 'Concluída' : 'A Fazer'}`)
+        toast.success(`Status atualizado para: ${status === 'IN_PROGRESS' ? 'Em Progresso' : status === 'IN_REVIEW' ? 'Para Revisar' : status === 'COMPLETED' ? 'Concluída' : 'A Fazer'}`)
       } else {
         toast.error('Erro ao atualizar status da tarefa')
       }
@@ -322,7 +322,23 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
           Concluída
         </Badge>
         {totalTime > 0 && (
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-muted-foreground">
+            Tempo total: {formatTotalTime(totalTime)}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (currentStatus === 'IN_REVIEW') {
+    return (
+      <div className="text-center">
+        <Badge variant="outline" className="text-yellow-600 bg-yellow-100 mb-2">
+          <Clock className="w-3 h-3 mr-1" />
+          Para Revisar
+        </Badge>
+        {totalTime > 0 && (
+          <div className="text-xs text-muted-foreground">
             Tempo total: {formatTotalTime(totalTime)}
           </div>
         )}
@@ -333,13 +349,13 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
   return (
     <div className="text-center space-y-2">
       {/* Timer Display */}
-      <div className="font-mono text-lg font-bold text-gray-900">
+      <div className="font-mono text-lg font-bold text-foreground">
         {isRunning ? formatTime(elapsedTime) : '00:00'}
       </div>
       
       {/* Total Time */}
       {totalTime > 0 && (
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted-foreground">
           Total: {formatTotalTime(totalTime)}
         </div>
       )}
@@ -359,7 +375,7 @@ export function TaskTimer({ taskId, taskTitle, currentStatus, userId, onStatusCh
           <div className="text-lg font-bold text-blue-600 font-mono">
             {formatTime(elapsedTime)}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-muted-foreground">
             {formatTimeWithSeconds(elapsedTime)} - sessão atual
           </div>
         </div>

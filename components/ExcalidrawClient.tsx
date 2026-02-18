@@ -41,6 +41,7 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
   const hasUnsavedChangesRef = useRef(false);
+  const suppressNextChangeRef = useRef(0);
 
   const sanitizeAppState = (appState: any) => {
     if (!appState) return appState;
@@ -94,6 +95,7 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
       const arr: BinaryFileData[] = Object.values(data.files as Record<string, BinaryFileData>);
       api.addFiles(arr);
     }
+    suppressNextChangeRef.current += 1;
     api.updateScene({ elements: data.elements, appState: data.appState } as any);
   };
 
@@ -102,13 +104,26 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
     if (!scene) throw new Error("Editor ainda inicializando. Tente novamente.");
     const pid = maybeId || projectId;
     if (!pid) throw new Error("ProjectId ausente");
-    const res = await fetch(`/api/projects/${pid}/excalidraw`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scene }),
-    });
-    if (!res.ok) throw new Error("Failed to save scene");
-    return pid;
+    if (isSavingRef.current) return pid;
+    isSavingRef.current = true;
+    setSaveStatus("saving");
+    try {
+      const res = await fetch(`/api/projects/${pid}/excalidraw`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scene }),
+      });
+      if (!res.ok) throw new Error("Failed to save scene");
+      hasUnsavedChangesRef.current = false;
+      setSaveStatus("success");
+      return pid;
+    } catch (err) {
+      setSaveStatus("error");
+      throw err;
+    } finally {
+      isSavingRef.current = false;
+      setTimeout(() => setSaveStatus(""), 1500);
+    }
   };
 
   const load = async (id: string) => {
@@ -160,36 +175,11 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
     }
   }, [initialLoadId]);
 
-  // SIMPLIFIED SAVE: Auto-save direto e confiável
-  const autoSave = useCallback(async (scene: SceneData) => {
-    if (!projectId || isSavingRef.current) return;
-    
-    isSavingRef.current = true;
-    setSaveStatus("saving");
-    
-    try {
-      const response = await fetch(`/api/projects/${projectId}/excalidraw`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scene }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Save failed: ${response.status}`);
-      }
-      
-      hasUnsavedChangesRef.current = false;
-      setSaveStatus("success");
-      console.log('✅ Canvas salvo com sucesso');
-      
-    } catch (error) {
-      console.error('❌ Erro ao salvar canvas:', error);
-      setSaveStatus("error");
-    } finally {
-      isSavingRef.current = false;
-      setTimeout(() => setSaveStatus(""), 1500);
-    }
-  }, [projectId]);
+  // Removido auto-save para operar com salvamento manual via botão
+
+  useEffect(() => {
+    suppressNextChangeRef.current += 1;
+  }, []);
 
   // Cleanup quando componente é desmontado
   useEffect(() => {
@@ -197,23 +187,15 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      // Salvar mudanças pendentes usando sendBeacon
-      if (hasUnsavedChangesRef.current && projectId) {
-        const scene = getScene();
-        if (scene && navigator.sendBeacon) {
-          const data = new Blob([JSON.stringify({ scene })], { type: 'application/json' });
-          navigator.sendBeacon(`/api/projects/${projectId}/excalidraw`, data);
-        }
-      }
     };
   }, [projectId]);
 
   useImperativeHandle(ref, () => ({ getScene, updateScene: updateSceneLocal, save, load }), [projectId]);
 
   return (
-    <div style={{ height: "100vh", width: "100vw", display: "flex", flexDirection: "column", minHeight: 0, margin: 0, padding: 0 }}>
+    <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", minHeight: 0, margin: 0, padding: 0, overflowX: "hidden", overflowY: "hidden", position: "relative" }}>
      
-      <div style={{ flex: 1, minHeight: 0, width: "100%" }}>
+      <div style={{ flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
         <ExcalidrawComponent
           excalidrawAPI={(api) => {
             apiRef.current = api;
@@ -229,16 +211,12 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
             };
             
             latestSceneRef.current = sceneData;
+            if (suppressNextChangeRef.current > 0) {
+              suppressNextChangeRef.current -= 1;
+              return;
+            }
             hasUnsavedChangesRef.current = true;
             onChange?.(sceneData);
-            
-            // Auto-save com debounce de 2 segundos
-            if (saveTimeoutRef.current) {
-              clearTimeout(saveTimeoutRef.current);
-            }
-            saveTimeoutRef.current = setTimeout(() => {
-              autoSave(sceneData);
-            }, 2000);
           }}
         />
         

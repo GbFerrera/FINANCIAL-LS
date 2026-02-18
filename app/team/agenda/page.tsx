@@ -5,7 +5,6 @@ import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay, addMinutes, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { 
   Plus, 
   Calendar as CalendarIcon, 
@@ -222,77 +221,71 @@ export default function AgendaPage() {
   }
 
   const eventStyleGetter = (event: Appointment) => {
-    let backgroundColor = '#6b7280' // Cinza neutro padrão
-    let color = 'white'
+    let className = 'bg-gray-500 dark:bg-gray-600 text-white border-none block rounded transition-colors hover:brightness-90'
     
     const type = event.type || 'other'
 
     if (type === 'meeting') {
-      backgroundColor = '#2563EB' // Azul
+      className = 'bg-blue-600 dark:bg-blue-500 text-white border-none block rounded transition-colors hover:brightness-90'
     } else if (type === 'visit') {
-      backgroundColor = '#F97316' // Laranja
+      className = 'bg-orange-500 dark:bg-orange-600 text-white border-none block rounded transition-colors hover:brightness-90'
     } else if (type === 'integration') {
-      backgroundColor = '#7C3AED' // Roxo
+      className = 'bg-violet-600 dark:bg-violet-500 text-white border-none block rounded transition-colors hover:brightness-90'
     } else if (type === 'interval') {
-      backgroundColor = '#E5E7EB' // Cinza
-      color = '#374151' // Texto escuro para fundo claro
+      className = 'bg-muted text-muted-foreground border border-border block rounded transition-colors hover:bg-accent'
     } else if (type === 'creative') {
-      backgroundColor = '#EC4899' // Rosa
+      className = 'bg-pink-500 dark:bg-pink-600 text-white border-none block rounded transition-colors hover:brightness-90'
     } else if (type === 'support') {
-      backgroundColor = '#16A34A' // Verde
+      className = 'bg-green-600 dark:bg-green-500 text-white border-none block rounded transition-colors hover:brightness-90'
     }
 
     return {
+      className,
       style: {
-        backgroundColor,
-        borderRadius: '4px',
-        color,
-        border: 'none',
-        display: 'block'
+        border: 'none'
       }
     }
   }
 
   return (
-    <DashboardLayout>
-      <div className="flex flex-col h-full space-y-4 p-6 bg-gray-50/50">
+      <div className="flex flex-col h-full space-y-4 p-6 bg-card/50">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Agenda de Atendimento</h1>
+            <h1 className="text-2xl font-bold text-foreground">Agenda de Atendimento</h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1">
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#2563EB]" />
-                <span className="text-xs text-gray-500 font-medium">Reunião</span>
+                <div className="w-3 h-3 rounded-full bg-blue-600 dark:bg-blue-500" />
+                <span className="text-xs text-muted-foreground font-medium">Reunião</span>
               </div>
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#F97316]" />
-                <span className="text-xs text-gray-500 font-medium">Visita Técnica</span>
+                <div className="w-3 h-3 rounded-full bg-orange-500 dark:bg-orange-600" />
+                <span className="text-xs text-muted-foreground font-medium">Visita Técnica</span>
               </div>
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#7C3AED]" />
-                <span className="text-xs text-gray-500 font-medium">Integração de App</span>
+                <div className="w-3 h-3 rounded-full bg-violet-600 dark:bg-violet-500" />
+                <span className="text-xs text-muted-foreground font-medium">Integração de App</span>
               </div>
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#E5E7EB] border border-gray-300" />
-                <span className="text-xs text-gray-500 font-medium">Intervalo</span>
+                <div className="w-3 h-3 rounded-full bg-muted border border-border" />
+                <span className="text-xs text-muted-foreground font-medium">Intervalo</span>
               </div>
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#EC4899]" />
-                <span className="text-xs text-gray-500 font-medium">Gestão criativa</span>
+                <div className="w-3 h-3 rounded-full bg-pink-500 dark:bg-pink-600" />
+                <span className="text-xs text-muted-foreground font-medium">Gestão criativa</span>
               </div>
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#16A34A]" />
-                <span className="text-xs text-gray-500 font-medium">Suporte técnico</span>
+                <div className="w-3 h-3 rounded-full bg-green-600 dark:bg-green-500" />
+                <span className="text-xs text-muted-foreground font-medium">Suporte técnico</span>
               </div>
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-[#6b7280]" />
-                <span className="text-xs text-gray-500 font-medium">Outros</span>
+                <div className="w-3 h-3 rounded-full bg-gray-500 dark:bg-gray-600" />
+                <span className="text-xs text-muted-foreground font-medium">Outros</span>
               </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" onClick={() => setDate(new Date())}>Hoje</Button>
-            <div className="flex items-center border rounded-md bg-white">
+            <div className="flex items-center border rounded-md bg-card">
               <Button variant="ghost" size="icon" onClick={() => setDate(d => new Date(d.setDate(d.getDate() - 1)))}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -317,7 +310,7 @@ export default function AgendaPage() {
           </div>
         </div>
 
-        <Card className="flex-1 overflow-hidden shadow-sm border-none bg-white">
+        <Card className="flex-1 overflow-hidden shadow-sm border-none bg-card">
           <CardContent className="p-0 h-[calc(100vh-200px)]">
             <Calendar
               localizer={localizer}
@@ -355,13 +348,13 @@ export default function AgendaPage() {
               components={{
                 resourceHeader: ({ label, resource }: any) => (
                   <div className="flex items-center justify-center py-4 space-x-3">
-                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                    <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
                       <AvatarImage src={resource.avatar} />
-                      <AvatarFallback className="bg-gray-100 text-gray-600 font-bold">
+                      <AvatarFallback className="bg-muted text-muted-foreground font-bold">
                         {label.substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-bold text-sm text-gray-700">{label}</span>
+                    <span className="font-bold text-sm text-foreground">{label}</span>
                   </div>
                 ),
                 event: ({ event }: any) => (
@@ -511,32 +504,33 @@ export default function AgendaPage() {
           .rbc-header {
             padding: 16px 0;
             font-weight: 600;
-            background-color: white;
-            border-bottom: 1px solid #f3f4f6;
-            border-left: 1px solid #f3f4f6;
+            background-color: hsl(var(--background));
+            border-bottom: 1px solid hsl(var(--border));
+            border-left: 1px solid hsl(var(--border));
+            color: hsl(var(--foreground));
           }
           .rbc-time-view {
-            border: 1px solid #f3f4f6;
+            border: 1px solid hsl(var(--border));
             border-radius: 8px;
             overflow: hidden;
-            background-color: white;
+            background-color: hsl(var(--background));
           }
           .rbc-timeslot-group {
             min-height: 64px;
-            border-bottom: 1px solid #f9fafb;
+            border-bottom: 1px solid hsl(var(--border));
           }
           .rbc-day-slot .rbc-time-slot {
-            border-top: 1px solid #f3f4f6;
+            border-top: 1px solid hsl(var(--border));
           }
           .rbc-current-time-indicator {
-            background-color: #166534; /* Darker green */
+            background-color: hsl(var(--primary));
             height: 2px;
             z-index: 5;
           }
           .rbc-current-time-indicator::before {
             content: '';
             position: absolute;
-            background-color: #166534;
+            background-color: hsl(var(--primary));
             width: 12px;
             height: 12px;
             border-radius: 50%;
@@ -548,8 +542,8 @@ export default function AgendaPage() {
             position: absolute;
             right: 0;
             top: -10px;
-            background: #166534;
-            color: white;
+            background: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
             font-size: 10px;
             padding: 2px 4px;
             border-radius: 4px;
@@ -566,48 +560,47 @@ export default function AgendaPage() {
             box-shadow: 0 2px 4px rgba(0,0,0,0.15);
           }
           .rbc-selected-cell {
-            background-color: rgba(0, 0, 0, 0.02);
+            background-color: hsl(var(--accent) / 0.1);
           }
           .rbc-day-slot {
-            background-color: white;
+            background-color: hsl(var(--background));
           }
           .rbc-time-content {
-            background-color: white;
+            background-color: hsl(var(--background));
             border-top: none;
           }
           .rbc-time-header {
-            background-color: white;
+            background-color: hsl(var(--background));
           }
           .rbc-off-range-bg {
-            background-color: #f9fafb;
+            background-color: hsl(var(--muted) / 0.5);
           }
           .rbc-time-column {
-            background-color: white;
+            background-color: hsl(var(--background));
           }
           .rbc-label {
             padding: 0 8px;
             font-size: 12px;
-            color: #9ca3af;
+            color: hsl(var(--muted-foreground));
           }
           .rbc-time-gutter {
-            background-color: white;
+            background-color: hsl(var(--background));
           }
           .rbc-toolbar button {
-            color: #6b7280;
-            border: 1px solid #e5e7eb;
-            background-color: white;
+            color: hsl(var(--foreground));
+            border: 1px solid hsl(var(--input));
+            background-color: hsl(var(--background));
           }
           .rbc-toolbar button:active, .rbc-toolbar button.rbc-active {
-            background-color: #f3f4f6;
+            background-color: hsl(var(--accent));
             box-shadow: none;
-            color: #111827;
+            color: hsl(var(--accent-foreground));
           }
           .rbc-toolbar button:hover {
-            background-color: #f9fafb;
-            color: #111827;
+            background-color: hsl(var(--accent));
+            color: hsl(var(--accent-foreground));
           }
         `}</style>
       </div>
-    </DashboardLayout>
   )
 }

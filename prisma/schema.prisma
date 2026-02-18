@@ -145,10 +145,43 @@ model Task {
   sprint           Sprint?      @relation(fields: [sprintId], references: [id])
   timeEntries      TimeEntry[]
   timerEvents      TimerEvent[]
+  checklistGroups  TaskChecklistGroup[]
+  checklistItems   TaskChecklistItem[]
 
   @@map("tasks")
 }
 
+model TaskChecklistGroup {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  items     TaskChecklistItem[]
+
+  @@index([taskId])
+  @@map("task_checklist_groups")
+}
+
+model TaskChecklistItem {
+  id        String   @id @default(cuid())
+  title     String
+  description String?
+  done      Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  taskId    String
+  groupId   String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  group     TaskChecklistGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([groupId])
+  @@map("task_checklist_items")
+}
 model Sprint {
   id          String          @id @default(cuid())
   name        String

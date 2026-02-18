@@ -1,17 +1,16 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { 
   Target, 
   Calendar, 
   TrendingUp, 
   Search,
-  Filter,
   Eye,
   Edit,
   Play,
@@ -56,11 +55,15 @@ interface Sprint {
 }
 
 export default function SprintsPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [filteredSprints, setFilteredSprints] = useState<Sprint[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState((searchParams && searchParams.get('search')) || '')
+  const [statusFilter, setStatusFilter] = useState<string>((searchParams && searchParams.get('status')) || 'all')
   const [showCreateSprint, setShowCreateSprint] = useState(false)
 
   useEffect(() => {
@@ -69,6 +72,14 @@ export default function SprintsPage() {
 
   useEffect(() => {
     filterSprints()
+    
+    // Atualizar URL com os parâmetros
+    const params = new URLSearchParams()
+    if (searchTerm) params.set('search', searchTerm)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    
+    const queryString = params.toString()
+    router.push(`${pathname}${queryString ? `?${queryString}` : ''}`, { scroll: false })
   }, [sprints, searchTerm, statusFilter])
 
   const fetchSprints = async () => {
@@ -135,15 +146,15 @@ export default function SprintsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PLANNING':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-amber-100 text-amber-800 border border-amber-200'
       case 'ACTIVE':
-        return 'bg-green-100 text-green-800'
+        return 'bg-emerald-100 text-emerald-800 border border-emerald-200'
       case 'COMPLETED':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-[#161f46]/10 text-[#161f46] border border-[#161f46]/20'
       case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
+        return 'bg-rose-100 text-rose-800 border border-rose-200'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-gray-100 text-gray-800 border border-muted'
     }
   }
 
@@ -202,26 +213,23 @@ export default function SprintsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Todas as Sprints</h1>
-          <p className="text-gray-600">Visualize e gerencie todas as sprints dos seus projetos</p>
+          <h1 className="text-2xl font-bold text-foreground">Todas as Sprints</h1>
+          <p className="text-muted-foreground">Visualize e gerencie todas as sprints dos seus projetos</p>
         </div>
         <Button
           onClick={() => setShowCreateSprint(true)}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-[#161f46] hover:bg-[#0f1634]"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nova Sprint
@@ -272,12 +280,12 @@ export default function SprintsPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <CardTitle className="text-lg line-clamp-1">{sprint.name}</CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       {sprint.project?.name || (sprint.projects && sprint.projects.length > 0 
                         ? `${sprint.projects.length} projeto${sprint.projects.length > 1 ? 's' : ''}` 
                         : 'Nenhum projeto')}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       {sprint.project?.client?.name || (sprint.projects && sprint.projects.length > 0 
                         ? sprint.projects.map(p => p.client.name).join(', ')
                         : 'Sem cliente')}
@@ -290,14 +298,14 @@ export default function SprintsPage() {
                 </div>
                 
                 {sprint.goal && (
-                  <p className="text-sm text-gray-600 mt-2 line-clamp-2">{sprint.goal}</p>
+                  <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{sprint.goal}</p>
                 )}
               </CardHeader>
               
               <CardContent className="pt-0">
                 <div className="space-y-4">
                   {/* Datas */}
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-muted-foreground">
                     <div className="flex items-center gap-2 mb-1">
                       <Calendar className="w-4 h-4" />
                       <span>
@@ -305,31 +313,31 @@ export default function SprintsPage() {
                       </span>
                     </div>
                     {daysRemaining && (
-                      <p className="text-xs text-gray-500 ml-6">{daysRemaining}</p>
+                      <p className="text-xs text-muted-foreground ml-6">{daysRemaining}</p>
                     )}
                   </div>
 
                   {/* Métricas */}
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-blue-500" />
+                      <Target className="w-4 h-4 text-[#161f46]" />
                       <span>{metrics.completedTasks}/{metrics.totalTasks} tarefas</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-purple-500" />
+                      <TrendingUp className="w-4 h-4 text-[#161f46]" />
                       <span>{metrics.completedStoryPoints}/{metrics.totalStoryPoints} SP</span>
                     </div>
                   </div>
 
                   {/* Barra de Progresso */}
                   <div>
-                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
                       <span>Progresso</span>
                       <span>{metrics.progress}%</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        className="bg-[#161f46] h-2 rounded-full transition-all duration-300"
                         style={{ width: `${metrics.progress}%` }}
                       />
                     </div>
@@ -358,10 +366,10 @@ export default function SprintsPage() {
         <Card>
           <CardContent className="p-8 text-center">
             <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-foreground mb-2">
               {searchTerm || statusFilter !== 'all' ? 'Nenhuma sprint encontrada' : 'Nenhuma sprint criada'}
             </h3>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               {searchTerm || statusFilter !== 'all' 
                 ? 'Tente ajustar os filtros de busca' 
                 : 'Crie sprints nos seus projetos para vê-las aqui'
@@ -370,14 +378,15 @@ export default function SprintsPage() {
           </CardContent>
         </Card>
       )}
-      </div>
 
-      {/* Modal de Criação de Sprint */}
       <CreateSprintModal
         isOpen={showCreateSprint}
         onClose={() => setShowCreateSprint(false)}
-        onSuccess={fetchSprints}
+        onSuccess={() => {
+          fetchSprints()
+          setShowCreateSprint(false)
+        }}
       />
-    </DashboardLayout>
+    </div>
   )
 }

@@ -179,7 +179,7 @@ export function CreateSprintModal({
             <Label>Projetos *</Label>
             <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border rounded-md p-3">
               {projects.length === 0 ? (
-                <p className="text-sm text-gray-500">Carregando projetos...</p>
+                <p className="text-sm text-muted-foreground">Carregando projetos...</p>
               ) : (
                 projects.map((project) => (
                   <div key={project.id} className="flex items-center space-x-2">
@@ -248,7 +248,7 @@ export function CreateSprintModal({
               {...register('capacity', { valueAsNumber: true })}
               placeholder="Ex: 40"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Capacidade total da equipe em story points para esta sprint
             </p>
           </div>

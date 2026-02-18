@@ -229,21 +229,21 @@ export default function TeamChatPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex h-[calc(100vh-4rem)] bg-white rounded-lg shadow overflow-hidden">
+      <div className="flex h-[calc(100vh-4rem)] bg-card rounded-lg shadow overflow-hidden">
         {/* Sidebar - Canais */}
-        <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div className="w-64 bg-card border-r border-muted flex flex-col">
           {/* Header */}
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-muted">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Chat da Equipe</h2>
-              <button className="p-1 text-gray-400 hover:text-gray-600">
+              <h2 className="text-lg font-semibold text-foreground">Chat da Equipe</h2>
+              <button className="p-1 text-gray-400 hover:text-muted-foreground">
                 <Settings className="h-4 w-4" />
               </button>
             </div>
           </div>
 
           {/* Search */}
-          <div className="p-3 border-b border-gray-200">
+          <div className="p-3 border-b border-muted">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -260,10 +260,10 @@ export default function TeamChatPage() {
           <div className="flex-1 overflow-y-auto">
             <div className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Canais
                 </h3>
-                <button className="p-1 text-gray-400 hover:text-gray-600">
+                <button className="p-1 text-gray-400 hover:text-muted-foreground">
                   <Plus className="h-3 w-3" />
                 </button>
               </div>
@@ -300,7 +300,7 @@ export default function TeamChatPage() {
           </div>
 
           {/* User Status */}
-          <div className="p-3 border-t border-gray-200">
+          <div className="p-3 border-t border-muted">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-medium">
@@ -308,7 +308,7 @@ export default function TeamChatPage() {
                 </span>
               </div>
               <div className="ml-2 flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium text-foreground truncate">
                   {session?.user?.name}
                 </p>
                 <p className="text-xs text-green-600">Online</p>
@@ -322,15 +322,15 @@ export default function TeamChatPage() {
           {activeChannel ? (
             <>
               {/* Chat Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-white">
+              <div className="px-6 py-4 border-b border-muted bg-card">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     {getChannelIcon(activeChannel)}
-                    <h3 className="ml-2 text-lg font-semibold text-gray-900">
+                    <h3 className="ml-2 text-lg font-semibold text-foreground">
                       {activeChannel.name}
                     </h3>
                     {activeChannel.description && (
-                      <span className="ml-2 text-sm text-gray-500">
+                      <span className="ml-2 text-sm text-muted-foreground">
                         {activeChannel.description}
                       </span>
                     )}
@@ -338,17 +338,17 @@ export default function TeamChatPage() {
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setShowUserList(!showUserList)}
-                      className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+                      className="p-2 text-gray-400 hover:text-muted-foreground rounded-md hover:bg-gray-100"
                     >
                       <Users className="h-5 w-5" />
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+                    <button className="p-2 text-gray-400 hover:text-muted-foreground rounded-md hover:bg-gray-100">
                       <Phone className="h-5 w-5" />
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+                    <button className="p-2 text-gray-400 hover:text-muted-foreground rounded-md hover:bg-gray-100">
                       <Video className="h-5 w-5" />
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+                    <button className="p-2 text-gray-400 hover:text-muted-foreground rounded-md hover:bg-gray-100">
                       <MoreVertical className="h-5 w-5" />
                     </button>
                   </div>
@@ -366,7 +366,7 @@ export default function TeamChatPage() {
                       {showDate && (
                         <div className="flex items-center justify-center my-4">
                           <div className="bg-gray-100 px-3 py-1 rounded-full">
-                            <span className="text-xs text-gray-600">
+                            <span className="text-xs text-muted-foreground">
                               {formatDate(message.createdAt)}
                             </span>
                           </div>
@@ -381,10 +381,10 @@ export default function TeamChatPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2">
-                            <span className="text-sm font-medium text-gray-900">
+                            <span className="text-sm font-medium text-foreground">
                               {message.author.name}
                             </span>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               {formatTime(message.createdAt)}
                             </span>
                             {message.edited && (
@@ -405,7 +405,7 @@ export default function TeamChatPage() {
               </div>
 
               {/* Message Input */}
-              <div className="px-4 py-4 border-t border-gray-200 bg-white">
+              <div className="px-4 py-4 border-t border-muted bg-card">
                 <form onSubmit={sendMessage} className="flex items-end space-x-2">
                   <div className="flex-1">
                     <div className="relative">
@@ -426,13 +426,13 @@ export default function TeamChatPage() {
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="p-1 text-gray-400 hover:text-gray-600"
+                          className="p-1 text-gray-400 hover:text-muted-foreground"
                         >
                           <Paperclip className="h-4 w-4" />
                         </button>
                         <button
                           type="button"
-                          className="p-1 text-gray-400 hover:text-gray-600"
+                          className="p-1 text-gray-400 hover:text-muted-foreground"
                         >
                           <Smile className="h-4 w-4" />
                         </button>
@@ -461,10 +461,10 @@ export default function TeamChatPage() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
                 <Hash className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                <h3 className="mt-2 text-sm font-medium text-foreground">
                   Selecione um canal
                 </h3>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Escolha um canal para começar a conversar
                 </p>
               </div>
@@ -474,9 +474,9 @@ export default function TeamChatPage() {
 
         {/* User List Sidebar */}
         {showUserList && activeChannel && (
-          <div className="w-64 bg-gray-50 border-l border-gray-200">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-900">
+          <div className="w-64 bg-card border-l border-muted">
+            <div className="p-4 border-b border-muted">
+              <h3 className="text-sm font-semibold text-foreground">
                 Membros ({activeChannel.participants.length})
               </h3>
             </div>
@@ -494,10 +494,10 @@ export default function TeamChatPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {user.name}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       {user.isOnline ? 'Online' : user.lastSeen ? `Visto ${user.lastSeen}` : 'Offline'}
                     </p>
                   </div>

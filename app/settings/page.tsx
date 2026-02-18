@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { StatsCard } from '@/components/ui/stats-card'
 import {
   Dialog,
@@ -285,25 +284,22 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Carregando configurações...</p>
+            <p className="mt-4 text-muted-foreground">Carregando configurações...</p>
           </div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Configurações</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Configurações</h1>
+            <p className="text-muted-foreground">
               Gerencie suas preferências e configurações do sistema
             </p>
           </div>
@@ -329,8 +325,8 @@ export default function SettingsPage() {
         </div>
 
         {/* Settings Content */}
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="border-b border-gray-200">
+        <div className="bg-card shadow sm:rounded-lg">
+          <div className="border-b border-muted">
             <nav className="-mb-px flex space-x-8 px-6">
               {tabs.map((tab) => {
                 const IconComponent = tab.icon
@@ -341,7 +337,7 @@ export default function SettingsPage() {
                     className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
                       activeTab === tab.id
                         ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
                     <IconComponent className="h-4 w-4 mr-2" />
@@ -357,7 +353,7 @@ export default function SettingsPage() {
             {activeTab === 'profile' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Informações do Perfil</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Informações do Perfil</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
@@ -418,7 +414,7 @@ export default function SettingsPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Alterar Senha</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Alterar Senha</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
@@ -471,7 +467,7 @@ export default function SettingsPage() {
             {activeTab === 'notifications' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Preferências de Notificação</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Preferências de Notificação</h3>
                   <div className="space-y-4">
                     {[
                       { key: 'email', label: 'Notificações por Email', description: 'Receber notificações importantes por email' },
@@ -480,10 +476,10 @@ export default function SettingsPage() {
                       { key: 'projects', label: 'Projetos', description: 'Atualizações sobre status de projetos' },
                       { key: 'financial', label: 'Financeiro', description: 'Alertas sobre movimentações financeiras' }
                     ].map((item) => (
-                      <div key={item.key} className="flex items-center justify-between py-3 border-b border-gray-200 last:border-b-0">
+                      <div key={item.key} className="flex items-center justify-between py-3 border-b border-muted last:border-b-0">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                          <p className="text-sm text-gray-500">{item.description}</p>
+                          <p className="text-sm font-medium text-foreground">{item.label}</p>
+                          <p className="text-sm text-muted-foreground">{item.description}</p>
                         </div>
                         <button
                           onClick={() => setSettings(prev => ({
@@ -500,7 +496,7 @@ export default function SettingsPage() {
                           }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${
                               settings.notifications[item.key as keyof typeof settings.notifications]
                                 ? 'translate-x-6'
                                 : 'translate-x-1'
@@ -518,12 +514,12 @@ export default function SettingsPage() {
             {activeTab === 'security' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Configurações de Segurança</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Configurações de Segurança</h3>
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between py-3 border-b border-muted">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Autenticação de Dois Fatores</p>
-                        <p className="text-sm text-gray-500">Adicione uma camada extra de segurança à sua conta</p>
+                        <p className="text-sm font-medium text-foreground">Autenticação de Dois Fatores</p>
+                        <p className="text-sm text-muted-foreground">Adicione uma camada extra de segurança à sua conta</p>
                       </div>
                       <button
                         onClick={() => setSettings(prev => ({
@@ -535,7 +531,7 @@ export default function SettingsPage() {
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${
                             settings.security.twoFactor ? 'translate-x-6' : 'translate-x-1'
                           }`}
                         />
@@ -586,7 +582,7 @@ export default function SettingsPage() {
             {activeTab === 'appearance' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Personalização da Interface</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Personalização da Interface</h3>
                   <div className="space-y-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">Tema</label>
@@ -605,7 +601,7 @@ export default function SettingsPage() {
                             className={`p-3 border rounded-lg text-sm font-medium ${
                               settings.appearance.theme === theme.value
                                 ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                : 'border-gray-300 text-gray-700 hover:bg-card'
                             }`}
                           >
                             {theme.label}
@@ -630,7 +626,7 @@ export default function SettingsPage() {
                             className={`p-3 border rounded-lg text-sm font-medium ${
                               settings.appearance.density === density.value
                                 ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                : 'border-gray-300 text-gray-700 hover:bg-card'
                             }`}
                           >
                             {density.label}
@@ -639,10 +635,10 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between py-3 border-b border-muted">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Sidebar Recolhida</p>
-                        <p className="text-sm text-gray-500">Manter a barra lateral recolhida por padrão</p>
+                        <p className="text-sm font-medium text-foreground">Sidebar Recolhida</p>
+                        <p className="text-sm text-muted-foreground">Manter a barra lateral recolhida por padrão</p>
                       </div>
                       <button
                         onClick={() => setSettings(prev => ({
@@ -654,7 +650,7 @@ export default function SettingsPage() {
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${
                             settings.appearance.sidebarCollapsed ? 'translate-x-6' : 'translate-x-1'
                           }`}
                         />
@@ -669,12 +665,12 @@ export default function SettingsPage() {
             {activeTab === 'system' && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Configurações do Sistema</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Configurações do Sistema</h3>
                   <div className="space-y-6">
-                    <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between py-3 border-b border-muted">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Backup Automático</p>
-                        <p className="text-sm text-gray-500">Fazer backup automático dos dados do sistema</p>
+                        <p className="text-sm font-medium text-foreground">Backup Automático</p>
+                        <p className="text-sm text-muted-foreground">Fazer backup automático dos dados do sistema</p>
                       </div>
                       <button
                         onClick={() => setSettings(prev => ({
@@ -686,7 +682,7 @@ export default function SettingsPage() {
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${
                             settings.system.autoBackup ? 'translate-x-6' : 'translate-x-1'
                           }`}
                         />
@@ -702,7 +698,7 @@ export default function SettingsPage() {
                           system: { ...prev.system, backupFrequency: e.target.value as any }
                         }))}
                         disabled={!settings.system.autoBackup}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-muted-foreground"
                       >
                         <option value="daily">Diário</option>
                         <option value="weekly">Semanal</option>
@@ -728,10 +724,10 @@ export default function SettingsPage() {
                       </select>
                     </div>
 
-                    <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between py-3 border-b border-muted">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">Acesso à API</p>
-                        <p className="text-sm text-gray-500">Permitir acesso programático via API</p>
+                        <p className="text-sm font-medium text-foreground">Acesso à API</p>
+                        <p className="text-sm text-muted-foreground">Permitir acesso programático via API</p>
                       </div>
                       <button
                         onClick={() => setSettings(prev => ({
@@ -743,19 +739,19 @@ export default function SettingsPage() {
                         }`}
                       >
                         <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${
                             settings.system.apiAccess ? 'translate-x-6' : 'translate-x-1'
                           }`}
                         />
                       </button>
                     </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h4 className="text-sm font-medium text-gray-900 mb-3">Ações do Sistema</h4>
+                    <div className="bg-card p-4 rounded-lg">
+                      <h4 className="text-sm font-medium text-foreground mb-3">Ações do Sistema</h4>
                       <div className="flex flex-wrap gap-3">
                         <Dialog open={isBackupDialogOpen} onOpenChange={setIsBackupDialogOpen}>
                           <DialogTrigger asChild>
-                            <button className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                            <button className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-card hover:bg-card">
                               <Download className="h-4 w-4 mr-2" />
                               Fazer Backup Agora
                             </button>
@@ -783,7 +779,7 @@ export default function SettingsPage() {
                             </DialogFooter>
                           </DialogContent>
                         </Dialog>
-                        <button className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                        <button className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-card hover:bg-card">
                           <Upload className="h-4 w-4 mr-2" />
                           Restaurar Backup
                         </button>
@@ -810,6 +806,5 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
   )
 }

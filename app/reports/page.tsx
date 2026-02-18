@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { StatsCard } from '@/components/ui/stats-card'
 import {
   Dialog,
@@ -276,25 +275,22 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Carregando relatórios...</p>
+            <p className="mt-4 text-muted-foreground">Carregando relatórios...</p>
           </div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Relatórios</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Relatórios</h1>
+            <p className="text-muted-foregroundreground">
               Gere e gerencie relatórios do sistema
             </p>
           </div>
@@ -426,20 +422,20 @@ export default function ReportsPage() {
         </div>
 
         {/* Reports List */}
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="bg-card shadow overflow-hidden sm:rounded-md">
           <ul className="divide-y divide-gray-200">
             {filteredReports.length === 0 ? (
-              <li className="px-6 py-8 text-center text-gray-500">
+              <li className="px-6 py-8 text-center text-muted-foreground">
                 <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum relatório encontrado</h3>
-                <p className="mt-1 text-sm text-gray-500">Comece gerando seu primeiro relatório.</p>
+                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum relatório encontrado</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Comece gerando seu primeiro relatório.</p>
               </li>
             ) : (
               filteredReports.map((report) => {
                 const IconComponent = getTypeIcon(report.type)
                 return (
                   <li key={report.id}>
-                    <div className="px-6 py-4 flex items-center justify-between hover:bg-gray-50">
+                    <div className="px-6 py-4 flex items-center justify-between hover:bg-card">
                       <div className="flex items-center">
                         <div className="flex-shrink-0">
                           <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -448,14 +444,14 @@ export default function ReportsPage() {
                         </div>
                         <div className="ml-4">
                           <div className="flex items-center">
-                            <p className="text-sm font-medium text-gray-900">{report.name}</p>
+                            <p className="text-sm font-medium text-foreground">{report.name}</p>
                             <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>
                               {report.status === 'ready' && 'Pronto'}
                               {report.status === 'generating' && 'Gerando'}
                               {report.status === 'failed' && 'Falhou'}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-500">{report.description}</p>
+                          <p className="text-sm text-muted-foreground">{report.description}</p>
                           <div className="flex items-center mt-1 text-xs text-gray-400">
                             <Calendar className="h-3 w-3 mr-1" />
                             {parseISO(report.createdAt).toLocaleDateString('pt-BR')}
@@ -495,10 +491,10 @@ export default function ReportsPage() {
         </div>
 
         {/* Templates Section */}
-        <div className="bg-white shadow sm:rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Templates de Relatórios</h3>
-            <p className="mt-1 text-sm text-gray-500">
+        <div className="bg-card shadow sm:rounded-lg">
+          <div className="px-6 py-4 border-b border-muted">
+            <h3 className="text-lg font-medium text-foreground">Templates de Relatórios</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               Modelos pré-configurados para geração rápida de relatórios
             </p>
           </div>
@@ -507,14 +503,14 @@ export default function ReportsPage() {
               {templates.map((template) => {
                 const IconComponent = getTypeIcon(template.type)
                 return (
-                  <div key={template.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div key={template.id} className="border border-muted rounded-lg p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center mb-3">
                       <div className="h-8 w-8 rounded bg-blue-100 flex items-center justify-center">
                         <IconComponent className="h-4 w-4 text-blue-600" />
                       </div>
-                      <h4 className="ml-3 text-sm font-medium text-gray-900">{template.name}</h4>
+                      <h4 className="ml-3 text-sm font-medium text-foreground">{template.name}</h4>
                     </div>
-                    <p className="text-xs text-gray-500 mb-3">{template.description}</p>
+                    <p className="text-xs text-muted-foreground mb-3">{template.description}</p>
                     <div className="flex flex-wrap gap-1 mb-3">
                       {template.fields.slice(0, 3).map((field) => (
                         <span key={field} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
@@ -543,6 +539,5 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
   )
 }

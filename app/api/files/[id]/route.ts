@@ -2,19 +2,73 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { readFile } from 'fs/promises'
+import { existsSync } from 'fs'
+import path from 'path'
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+    const { id } = params
+    const isFilename = id.includes('.')
+
+    if (isFilename) {
+      const uploadsDir = path.join(process.cwd(), 'uploads')
+      const publicDir = path.join(process.cwd(), 'public')
+      let fullPath = path.join(uploadsDir, id)
+      let isPublic = false
+      if (!existsSync(fullPath)) {
+        const publicPath = path.join(publicDir, id)
+        if (existsSync(publicPath)) {
+          fullPath = publicPath
+          isPublic = true
+        } else {
+          return NextResponse.json({ error: 'Arquivo não encontrado' }, { status: 404 })
+        }
+      }
+      if (!(fullPath.startsWith(uploadsDir) || fullPath.startsWith(publicDir))) {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+      }
+      const fileBuffer = await readFile(fullPath)
+      const ext = path.extname(fullPath).toLowerCase()
+      let contentType = 'application/octet-stream'
+      switch (ext) {
+        case '.pdf':
+          contentType = 'application/pdf'
+          break
+        case '.jpg':
+        case '.jpeg':
+          contentType = 'image/jpeg'
+          break
+        case '.png':
+          contentType = 'image/png'
+          break
+        case '.gif':
+          contentType = 'image/gif'
+          break
+        case '.webp':
+          contentType = 'image/webp'
+          break
+        case '.svg':
+          contentType = 'image/svg+xml'
+          break
+      }
+      if (isPublic) {
+        return NextResponse.redirect(new URL(`/${id}`, request.url))
+      }
+      return new NextResponse(fileBuffer as any, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': fileBuffer.length.toString(),
+          'Cache-Control': 'public, max-age=31536000',
+        },
+      })
     }
 
-    const { id } = params
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
     const action = searchParams.get('action') // 'download', 'info', 'versions'
     const version = searchParams.get('version')

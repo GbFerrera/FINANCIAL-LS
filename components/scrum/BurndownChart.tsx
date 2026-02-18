@@ -128,7 +128,7 @@ export function BurndownChart({ sprint }: BurndownChartProps) {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+        <div className="bg-card p-3 border border-muted rounded-lg shadow-lg">
           <p className="font-medium">{`Dia ${label}`}</p>
           <p className="text-blue-600">
             {`Ideal: ${payload[0]?.value?.toFixed(1)} SP`}
@@ -159,21 +159,21 @@ export function BurndownChart({ sprint }: BurndownChartProps) {
               <div className="text-2xl font-bold text-blue-600">
                 {stats.completedStoryPoints}
               </div>
-              <div className="text-sm text-gray-600">SP Concluídos</div>
+              <div className="text-sm text-muted-foreground">SP Concluídos</div>
             </div>
             
             <div className="text-center p-3 bg-orange-50 rounded-lg">
               <div className="text-2xl font-bold text-orange-600">
                 {stats.remainingStoryPoints}
               </div>
-              <div className="text-sm text-gray-600">SP Restantes</div>
+              <div className="text-sm text-muted-foreground">SP Restantes</div>
             </div>
             
             <div className="text-center p-3 bg-purple-50 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">
                 {stats.currentVelocity.toFixed(1)}
               </div>
-              <div className="text-sm text-gray-600">SP/Dia</div>
+              <div className="text-sm text-muted-foreground">SP/Dia</div>
             </div>
             
             <div className={`text-center p-3 rounded-lg ${
@@ -184,7 +184,7 @@ export function BurndownChart({ sprint }: BurndownChartProps) {
               }`}>
                 {stats.progressPercentage}%
               </div>
-              <div className="text-sm text-gray-600">Progresso</div>
+              <div className="text-sm text-muted-foreground">Progresso</div>
             </div>
           </div>
 
@@ -242,7 +242,7 @@ export function BurndownChart({ sprint }: BurndownChartProps) {
                 <Calendar className="w-4 h-4" />
                 Cronograma
               </h4>
-              <div className="space-y-1 text-gray-600">
+              <div className="space-y-1 text-muted-foreground">
                 <p>Dias decorridos: {stats.elapsedDays} de {stats.totalDays}</p>
                 <p>Dias restantes: {stats.remainingDays}</p>
                 {stats.daysToComplete && (
@@ -258,7 +258,7 @@ export function BurndownChart({ sprint }: BurndownChartProps) {
                 <Target className="w-4 h-4" />
                 Status
               </h4>
-              <div className="space-y-1 text-gray-600">
+              <div className="space-y-1 text-muted-foreground">
                 <p>Velocidade média: {stats.currentVelocity.toFixed(1)} SP/dia</p>
                 <p className={stats.isOnTrack ? 'text-green-600' : 'text-red-600'}>
                   {stats.isOnTrack ? '✓ No prazo' : '⚠ Atrasado'}

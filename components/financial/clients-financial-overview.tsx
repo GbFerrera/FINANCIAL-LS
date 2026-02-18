@@ -4,14 +4,16 @@ import { useState, useEffect } from "react"
 import { 
   Users, 
   ChevronDown, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronUp, 
   DollarSign, 
   FolderOpen,
   TrendingUp,
   TrendingDown,
   Building,
   Mail,
-  Phone
+  Phone,
+  X
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -59,6 +61,9 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
   const [loading, setLoading] = useState(true)
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set())
   const [selectedClient, setSelectedClient] = useState<string | null>(null)
+  const [isCollapsed, setIsCollapsed] = useState(true)
+
+  const selectedClientData = clients.find(c => c.id === selectedClient)
 
   useEffect(() => {
     fetchClientsFinancialData()
@@ -119,15 +124,15 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
     switch (status.toLowerCase()) {
       case 'completed':
       case 'paid':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
       case 'in_progress':
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
       case 'cancelled':
       case 'failed':
-        return 'bg-red-100 text-red-800'
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
     }
   }
 
@@ -152,11 +157,16 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
           <CardTitle className="flex items-center">
             <Users className="h-5 w-5 mr-2" />
             Visão Financeira por Cliente
+            {selectedClientData && (
+              <Badge variant="secondary" className="ml-4 bg-primary/10 text-primary border-primary/20 border">
+                Filtrando por: {selectedClientData.name}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           </div>
         </CardContent>
       </Card>
@@ -165,20 +175,45 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Users className="h-5 w-5 mr-2" />
-          Visão Financeira por Cliente
-        </CardTitle>
-        <p className="text-sm text-gray-500">
-          Visualize pagamentos e projetos organizados por cliente
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <div 
+        className="p-6 cursor-pointer hover:bg-muted/50 transition-colors flex items-center justify-between"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
+        <div className="space-y-1.5">
+          <CardTitle className="flex items-center">
+            <Users className="h-5 w-5 mr-2" />
+            Visão Financeira por Cliente
+            {selectedClientData && (
+              <div 
+                className="ml-4 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary border border-primary/20"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleClientFilter(selectedClientData.id)
+                }}
+              >
+                Filtrando por: {selectedClientData.name}
+                <div className="ml-1 hover:bg-primary/20 rounded-full p-0.5 cursor-pointer">
+                  <X className="h-3 w-3" />
+                </div>
+              </div>
+            )}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Visualize pagamentos e projetos organizados por cliente
+          </p>
+        </div>
+        {isCollapsed ? (
+          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+        ) : (
+          <ChevronUp className="h-5 w-5 text-muted-foreground" />
+        )}
+      </div>
+      {!isCollapsed && (
+        <CardContent className="space-y-4 pt-0 border-t">
         {clients.length === 0 ? (
           <div className="text-center py-8">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Nenhum cliente encontrado</p>
+            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground">Nenhum cliente encontrado</p>
           </div>
         ) : (
           clients.map((client) => {
@@ -200,7 +235,7 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
               <div 
                 key={client.id} 
                 className={`border rounded-lg p-4 transition-all ${
-                  isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'
+                  isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -218,8 +253,8 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                       )}
                     </Button>
                     <div>
-                      <h3 className="font-medium text-gray-900">{client.name}</h3>
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <h3 className="font-medium text-foreground">{client.name}</h3>
+                      <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                         {client.company && (
                           <span className="flex items-center">
                             <Building className="h-3 w-3 mr-1" />
@@ -241,12 +276,12 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Projetos</div>
+                      <div className="text-sm text-muted-foreground">Projetos</div>
                       <div className="font-medium">{client.totalProjects}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-gray-500">Valor Total</div>
-                      <div className="font-medium text-green-600">{formatCurrency(totalPayments)}</div>
+                      <div className="text-sm text-muted-foreground">Valor Total</div>
+                      <div className="font-medium text-green-600 dark:text-green-400">{formatCurrency(totalPayments)}</div>
                     </div>
                     <Button
                       variant={isSelected ? "default" : "outline"}
@@ -262,30 +297,30 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                   <div className="mt-4 space-y-4 border-t pt-4">
                     {/* Resumo Financeiro */}
                     <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-green-50 p-3 rounded-lg">
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
                         <div className="flex items-center">
-                          <TrendingUp className="h-4 w-4 text-green-600 mr-2" />
-                          <span className="text-sm text-green-600">Receitas</span>
+                          <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400 mr-2" />
+                          <span className="text-sm text-green-600 dark:text-green-400">Receitas</span>
                         </div>
-                        <div className="text-lg font-semibold text-green-700">
+                        <div className="text-lg font-semibold text-green-700 dark:text-green-300">
                           {formatCurrency(totalIncome)}
                         </div>
                       </div>
-                      <div className="bg-red-50 p-3 rounded-lg">
+                      <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
                         <div className="flex items-center">
-                          <TrendingDown className="h-4 w-4 text-red-600 mr-2" />
-                          <span className="text-sm text-red-600">Despesas</span>
+                          <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400 mr-2" />
+                          <span className="text-sm text-red-600 dark:text-red-400">Despesas</span>
                         </div>
-                        <div className="text-lg font-semibold text-red-700">
+                        <div className="text-lg font-semibold text-red-700 dark:text-red-300">
                           {formatCurrency(totalExpenses)}
                         </div>
                       </div>
-                      <div className="bg-blue-50 p-3 rounded-lg">
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                         <div className="flex items-center">
-                          <DollarSign className="h-4 w-4 text-blue-600 mr-2" />
-                          <span className="text-sm text-blue-600">Pagamentos</span>
+                          <DollarSign className="h-4 w-4 text-blue-600 dark:text-blue-400 mr-2" />
+                          <span className="text-sm text-blue-600 dark:text-blue-400">Pagamentos</span>
                         </div>
-                        <div className="text-lg font-semibold text-blue-700">
+                        <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">
                           {formatCurrency(totalPayments)}
                         </div>
                       </div>
@@ -294,13 +329,13 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                     {/* Projetos */}
                     {client.projects.length > 0 && (
                       <div>
-                        <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                        <h4 className="font-medium text-foreground mb-2 flex items-center">
                           <FolderOpen className="h-4 w-4 mr-2" />
                           Projetos ({client.projects.length})
                         </h4>
                         <div className="space-y-2">
                           {client.projects.map((project) => (
-                            <div key={project.id} className="bg-gray-50 p-3 rounded-lg">
+                            <div key={project.id} className="bg-card p-3 rounded-lg">
                               <div className="flex items-center justify-between">
                                 <div>
                                   <span className="font-medium">{project.name}</span>
@@ -309,12 +344,12 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                                   </Badge>
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm text-gray-500">Orçamento</div>
+                                  <div className="text-sm text-muted-foreground">Orçamento</div>
                                   <div className="font-medium">{formatCurrency(project.budget)}</div>
                                 </div>
                               </div>
                               {project.financialEntries.length > 0 && (
-                                <div className="mt-2 text-sm text-gray-600">
+                                <div className="mt-2 text-sm text-muted-foreground">
                                   {project.financialEntries.length} entrada(s) financeira(s)
                                 </div>
                               )}
@@ -327,24 +362,24 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                     {/* Pagamentos Recentes */}
                     {client.payments.length > 0 && (
                       <div>
-                        <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                        <h4 className="font-medium text-foreground mb-2 flex items-center">
                           <DollarSign className="h-4 w-4 mr-2" />
                           Pagamentos Recentes ({client.payments.length})
                         </h4>
                         <div className="space-y-2">
                           {client.payments.slice(0, 3).map((payment) => (
-                            <div key={payment.id} className="bg-gray-50 p-3 rounded-lg">
+                            <div key={payment.id} className="bg-card p-3 rounded-lg">
                               <div className="flex items-center justify-between">
                                 <div>
                                   <span className="font-medium">{formatCurrency(payment.amount)}</span>
                                   {payment.description && (
-                                    <span className="text-sm text-gray-500 ml-2">
+                                    <span className="text-sm text-muted-foreground ml-2">
                                       - {payment.description}
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm text-gray-500">
+                                  <div className="text-sm text-muted-foreground">
                                     {formatDate(payment.paymentDate)}
                                   </div>
                                   <Badge className={getStatusColor(payment.status)}>
@@ -355,7 +390,7 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
                             </div>
                           ))}
                           {client.payments.length > 3 && (
-                            <div className="text-sm text-gray-500 text-center">
+                            <div className="text-sm text-muted-foreground text-center">
                               +{client.payments.length - 3} pagamento(s) adicional(is)
                             </div>
                           )}
@@ -369,6 +404,7 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
           })
         )}
       </CardContent>
+      )}
     </Card>
   )
 }

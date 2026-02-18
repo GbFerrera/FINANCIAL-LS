@@ -182,7 +182,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
               className="w-full"
               maxLength={100}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {formData.title.length}/100 caracteres
             </p>
           </div>
@@ -198,7 +198,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
               className="w-full min-h-[80px]"
               maxLength={500}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {formData.description.length}/500 caracteres
             </p>
           </div>
@@ -264,7 +264,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {formData.sprintId && formData.sprintId !== 'backlog' ? 'Tarefa será adicionada à sprint selecionada' : 'Tarefa ficará no backlog geral para ser organizada'}
             </p>
           </div>
@@ -303,7 +303,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
               maxFiles={3}
               disabled={isLoading}
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Adicione imagens ou PDFs para complementar a descrição da tarefa
             </p>
           </div>

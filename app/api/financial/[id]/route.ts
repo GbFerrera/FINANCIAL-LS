@@ -14,7 +14,7 @@ const updateFinancialEntrySchema = z.object({
   date: z.string().datetime('Data inválida').optional(),
   isRecurring: z.boolean().optional(),
   recurringType: z.nativeEnum(RecurringType).optional(),
-  projectId: z.string().optional(),
+  projectId: z.string().nullable().optional(),
   addAttachments: z.array(z.object({
     originalName: z.string(),
     mimeType: z.string(),

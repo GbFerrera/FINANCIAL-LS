@@ -158,7 +158,7 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
           {/* Descrição */}
           {task.description && (
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Descrição</h3>
+              <h3 className="font-medium text-foreground mb-2">Descrição</h3>
               <p className="text-gray-700 text-sm leading-relaxed">
                 {task.description}
               </p>
@@ -169,7 +169,7 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {task.assignee && (
               <div className="flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-gray-500" />
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex items-center gap-2">
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={task.assignee.avatar} />
@@ -184,7 +184,7 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
 
             {task.dueDate && (
               <div className="flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-gray-700">
                   Prazo: {formatDate(task.dueDate)}
                 </span>
@@ -193,7 +193,7 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
 
             {task.estimatedHours && (
               <div className="flex items-center gap-2">
-                <ClockIcon className="h-4 w-4 text-gray-500" />
+                <ClockIcon className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-gray-700">
                   Estimativa: {task.estimatedHours}h
                 </span>
@@ -201,26 +201,26 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
             )}
 
             <div className="flex items-center gap-2">
-              <PlayIcon className="h-4 w-4 text-gray-500" />
+              <PlayIcon className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm text-gray-700">
                 Tempo gasto: {totalTimeSpent.toFixed(1)}h
               </span>
             </div>
           </div>
 
-          <div className="border-t border-gray-200 my-6"></div>
+          <div className="border-t border-muted my-6"></div>
 
           {/* Entradas de Tempo */}
           {task.timeEntries.length > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900 mb-3">Registro de Tempo</h3>
+              <h3 className="font-medium text-foreground mb-3">Registro de Tempo</h3>
               <div className="space-y-2">
                 {task.timeEntries.map((entry) => (
-                  <div key={entry.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={entry.id} className="flex items-center justify-between p-3 bg-card rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1">
                         {entry.endTime ? (
-                          <StopIcon className="h-4 w-4 text-gray-500" />
+                          <StopIcon className="h-4 w-4 text-muted-foreground" />
                         ) : (
                           <PlayIcon className="h-4 w-4 text-green-500" />
                         )}
@@ -228,9 +228,9 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
                           {formatDuration(entry.startTime, entry.endTime)}
                         </span>
                       </div>
-                      <span className="text-sm text-gray-600">{entry.user.name}</span>
+                      <span className="text-sm text-muted-foreground">{entry.user.name}</span>
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       {formatDate(entry.startTime)}
                       {entry.endTime && ` - ${formatDate(entry.endTime)}`}
                     </div>
@@ -240,11 +240,11 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
             </div>
           )}
 
-          <div className="border-t border-gray-200 my-6"></div>
+          <div className="border-t border-muted my-6"></div>
 
           {/* Comentários */}
           <div>
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <h3 className="font-medium text-foreground mb-3 flex items-center gap-2">
               <ChatBubbleLeftIcon className="h-4 w-4" />
               Comentários ({task.comments.length})
             </h3>
@@ -280,10 +280,10 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className="text-sm font-medium text-foreground">
                         {comment.author?.name || 'Usuário'}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {formatDate(comment.createdAt)}
                       </span>
                     </div>
@@ -295,7 +295,7 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
               ))}
 
               {task.comments.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
+                <p className="text-sm text-muted-foreground text-center py-4">
                   Nenhum comentário ainda. Seja o primeiro a comentar!
                 </p>
               )}

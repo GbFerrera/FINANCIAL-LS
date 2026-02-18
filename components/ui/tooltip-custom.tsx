@@ -62,7 +62,7 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
 
   return (
     <div
-      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm"
+      className="fixed z-50 bg-card border border-muted rounded-lg shadow-lg p-4 max-w-sm"
       style={{
         left: position.x - 150,
         top: position.y - 10,
@@ -72,7 +72,7 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
       <div className="space-y-3">
         {/* Header */}
         <div>
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Calendar className="h-4 w-4" />
             {date}
           </div>
@@ -111,7 +111,7 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
         {/* Tasks Preview */}
         {totalTasks > 0 && (
           <div className="space-y-2">
-            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Tarefas
             </div>
             <div className="space-y-1 max-h-32 overflow-y-auto">
@@ -146,7 +146,7 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
               ))}
               
               {totalTasks > 6 && (
-                <div className="text-xs text-gray-500 italic">
+                <div className="text-xs text-muted-foreground italic">
                   +{totalTasks - 6} mais tarefas...
                 </div>
               )}
@@ -157,7 +157,7 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
         {/* Projects */}
         {data.projects && data.projects.length > 0 && (
           <div className="space-y-2">
-            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Projetos Envolvidos
             </div>
             <div className="flex flex-wrap gap-1">
@@ -176,7 +176,7 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
         )}
 
         {totalTasks === 0 && (
-          <div className="text-sm text-gray-500 italic">
+          <div className="text-sm text-muted-foreground italic">
             Nenhuma atividade registrada neste dia
           </div>
         )}

@@ -87,7 +87,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
       case 'high': return 'bg-red-100 text-red-800 border-red-200'
       case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
       case 'low': return 'bg-green-100 text-green-800 border-green-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      default: return 'bg-gray-100 text-gray-800 border-muted'
     }
   }
 
@@ -95,8 +95,8 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
     switch (status.toLowerCase()) {
       case 'completed': return 'text-green-600'
       case 'in_progress': return 'text-blue-600'
-      case 'todo': return 'text-gray-600'
-      default: return 'text-gray-600'
+      case 'todo': return 'text-muted-foreground'
+      default: return 'text-muted-foreground'
     }
   }
 
@@ -104,8 +104,8 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
     switch (status.toLowerCase()) {
       case 'completed': return 'bg-green-100 text-green-800 border-green-200'
       case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'todo': return 'bg-gray-100 text-gray-800 border-gray-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'todo': return 'bg-gray-100 text-gray-800 border-muted'
+      default: return 'bg-gray-100 text-gray-800 border-muted'
     }
   }
 
@@ -131,7 +131,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                   <div className="min-w-0">
                     <div className="text-2xl font-bold">{data.count}</div>
-                    <div className="text-sm text-gray-600 truncate">Atividades</div>
+                    <div className="text-sm text-muted-foreground truncate">Atividades</div>
                   </div>
                 </div>
               </CardContent>
@@ -143,7 +143,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <Clock className="h-4 w-4 text-blue-600 flex-shrink-0" />
                   <div className="min-w-0">
                     <div className="text-2xl font-bold truncate">{data.totalHours}h</div>
-                    <div className="text-sm text-gray-600 truncate">Tempo gasto</div>
+                    <div className="text-sm text-muted-foreground truncate">Tempo gasto</div>
                   </div>
                 </div>
               </CardContent>
@@ -155,7 +155,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <Target className="h-4 w-4 text-purple-600 flex-shrink-0" />
                   <div className="min-w-0">
                     <div className="text-2xl font-bold">{data.projects.length}</div>
-                    <div className="text-sm text-gray-600 truncate">Projetos</div>
+                    <div className="text-sm text-muted-foreground truncate">Projetos</div>
                   </div>
                 </div>
               </CardContent>
@@ -167,7 +167,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <TrendingUp className="h-4 w-4 text-orange-600 flex-shrink-0" />
                   <div className="min-w-0">
                     <div className="text-2xl font-bold">{data.productivity.completionRate}%</div>
-                    <div className="text-sm text-gray-600 truncate">Conclusão</div>
+                    <div className="text-sm text-muted-foreground truncate">Conclusão</div>
                   </div>
                 </div>
               </CardContent>
@@ -201,10 +201,10 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                           </div>
                           
                           {task.description && (
-                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
+                            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{task.description}</p>
                           )}
                           
-                          <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                             {task.project && (
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <Building2 className="h-3 w-3" />
@@ -231,7 +231,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                             <div className="text-sm font-medium">{task.actualHours}h</div>
                           )}
                           {task.estimatedHours && (
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               Est: {task.estimatedHours}h
                             </div>
                           )}
@@ -251,13 +251,13 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                       <div className="flex items-center justify-between gap-4">
                         <div className="min-w-0 flex-1">
                           <h4 className="font-medium truncate">{project.name}</h4>
-                          <div className="text-sm text-gray-600 truncate">
+                          <div className="text-sm text-muted-foreground truncate">
                             {project.tasksCount} atividades concluídas
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-lg font-bold">{project.hoursSpent}h</div>
-                          <div className="text-xs text-gray-500">tempo gasto</div>
+                          <div className="text-xs text-muted-foreground">tempo gasto</div>
                         </div>
                       </div>
                     </CardContent>
@@ -275,7 +275,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <CardContent>
                     <div className="space-y-2">
                       <Progress value={data.productivity.completionRate} className="h-2" />
-                      <div className="text-sm text-gray-600 break-words">
+                      <div className="text-sm text-muted-foreground break-words">
                         {data.productivity.completionRate}% das atividades foram concluídas
                       </div>
                     </div>
@@ -289,7 +289,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <CardContent>
                     <div className="space-y-2">
                       <Progress value={data.productivity.efficiency} className="h-2" />
-                      <div className="text-sm text-gray-600 break-words">
+                      <div className="text-sm text-muted-foreground break-words">
                         {data.productivity.efficiency}% de eficiência no tempo
                       </div>
                     </div>
@@ -303,7 +303,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   <CardContent>
                     <div className="space-y-2">
                       <Progress value={data.productivity.timeAccuracy} className="h-2" />
-                      <div className="text-sm text-gray-600 break-words">
+                      <div className="text-sm text-muted-foreground break-words">
                         {data.productivity.timeAccuracy}% de precisão nas estimativas
                       </div>
                     </div>
@@ -323,7 +323,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="font-medium text-sm truncate">{comment.author}</span>
-                              <span className="text-xs text-gray-500 flex-shrink-0">
+                              <span className="text-xs text-muted-foreground flex-shrink-0">
                                 {format(parseISO(comment.createdAt), 'HH:mm')}
                               </span>
                             </div>
@@ -335,7 +335,7 @@ export function DayDetailsModal({ data, open, onOpenChange }: DayDetailsModalPro
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-muted-foreground">
                   <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>Nenhum comentário foi adicionado neste dia</p>
                 </div>

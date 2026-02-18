@@ -41,34 +41,34 @@ export function TimerEventsLog() {
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'timer_start':
-        return <Play className="w-4 h-4 text-green-600" />
+        return <Play className="w-4 h-4 text-green-600 dark:text-green-400" />
       case 'timer_pause':
-        return <Pause className="w-4 h-4 text-yellow-600" />
+        return <Pause className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
       case 'timer_stop':
-        return <Square className="w-4 h-4 text-red-600" />
+        return <Square className="w-4 h-4 text-red-600 dark:text-red-400" />
       case 'task_complete':
-        return <CheckCircle2 className="w-4 h-4 text-blue-600" />
+        return <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
       case 'timer_update':
-        return <Clock className="w-4 h-4 text-gray-400" />
+        return <Clock className="w-4 h-4 text-muted-foreground" />
       default:
-        return <Clock className="w-4 h-4 text-gray-400" />
+        return <Clock className="w-4 h-4 text-muted-foreground" />
     }
   }
 
   const getEventColor = (type: string) => {
     switch (type) {
       case 'timer_start':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
       case 'timer_pause':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300'
       case 'timer_stop':
-        return 'bg-red-100 text-red-800'
+        return 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
       case 'task_complete':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
       case 'timer_update':
-        return 'bg-gray-100 text-gray-600'
+        return 'bg-secondary text-muted-foreground'
       default:
-        return 'bg-gray-100 text-gray-600'
+        return 'bg-secondary text-muted-foreground'
     }
   }
 
@@ -122,30 +122,34 @@ export function TimerEventsLog() {
       <CardContent>
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {filteredEvents.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">
-              Nenhum evento registrado ainda
-            </p>
-          ) : (
-            filteredEvents.map((event, index) => (
-              <div
-                key={`${event.taskId}-${event.timestamp}-${index}`}
-                className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
-              >
-                {getEventIcon(event.type)}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{event.userName}</span>
-                    <Badge className={`text-xs ${getEventColor(event.type)}`}>
-                      {getEventText(event)}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-gray-600">
-                    {event.taskTitle} • {event.projectName}
-                    {event.sprintName && ` • ${event.sprintName}`}
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  {format(new Date(event.timestamp), 'HH:mm:ss', { locale: ptBR })}
+        <p className="text-muted-foreground text-center py-4">
+          Nenhum evento registrado ainda
+        </p>
+      ) : (
+        filteredEvents.map((event, index) => (
+          <div
+            key={`${event.taskId}-${event.timestamp}-${index}`}
+            className="flex items-center gap-3 p-2 bg-card/50 rounded-lg"
+          >
+            {getEventIcon(event.type)}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">{event.userName}</span>
+                <Badge className={`text-xs ${getEventColor(event.type)}`}>
+                  {getEventText(event)}
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {event.taskTitle} • {event.projectName}
+                {event.sprintName && ` • ${event.sprintName}`}
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {format(new Date(event.timestamp), 'HH:mm:ss', { locale: ptBR })}
+            </div>
+          </div>
+        ))
+      )}
                 </div>
               </div>
             ))

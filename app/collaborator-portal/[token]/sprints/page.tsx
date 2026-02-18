@@ -13,7 +13,7 @@ export default function CollaboratorSprintsPage({ params }: PageProps) {
   const { token } = use(params)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-card">
       <div className="container mx-auto px-4 py-8">
         <SprintView token={token} />
       </div>

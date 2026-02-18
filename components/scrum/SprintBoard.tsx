@@ -179,39 +179,106 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
 
   const handleDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result
-
     if (!destination) return
-
-    // Se moveu para a mesma posição, não faz nada
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    ) {
+    if (destination.droppableId === source.droppableId && destination.index === source.index) {
       return
     }
-
+    const parse = (id: string) => {
+      if (id === 'backlog') return { sprintId: null as string | null, column: null as string | null }
+      if (id.includes('|')) {
+        const [sid, col] = id.split('|')
+        return { sprintId: sid, column: col }
+      }
+      return { sprintId: id, column: null }
+    }
+    const src = parse(source.droppableId)
+    const dst = parse(destination.droppableId)
+    let destinationIndex = destination.index
+    if (dst.sprintId) {
+      const sprint = sprints.find(s => s.id === dst.sprintId)
+      if (sprint) {
+        const all = [...sprint.tasks].sort((a, b) => a.order - b.order)
+        const inCol = all.filter(t => t.status === dst.column)
+        if (inCol.length === 0) {
+          destinationIndex = all.length
+        } else if (destination.index >= inCol.length) {
+          const last = inCol[inCol.length - 1]
+          const lastIdx = all.findIndex(t => t.id === last.id)
+          destinationIndex = lastIdx + 1
+        } else {
+          const target = inCol[destination.index]
+          const targetIdx = all.findIndex(t => t.id === target.id)
+          destinationIndex = targetIdx
+        }
+      }
+    }
+    const prevSprints = sprints.map(s => ({ ...s, tasks: s.tasks.map(t => ({ ...t })) }))
+    const prevBacklog = backlog.map(t => ({ ...t }))
     try {
-      const sourceSprintId = source.droppableId === 'backlog' ? null : source.droppableId
-      const destinationSprintId = destination.droppableId === 'backlog' ? null : destination.droppableId
-
-      // Chamar API para mover a tarefa
-      await fetch('/api/tasks/move', {
+      let nextSprints = sprints.map(s => ({ ...s, tasks: s.tasks.map(t => ({ ...t })) }))
+      let nextBacklog = backlog.map(t => ({ ...t }))
+      let movedTask: Task | null = null
+      if (src.sprintId) {
+        const sIdx = nextSprints.findIndex(s => s.id === src.sprintId)
+        if (sIdx !== -1) {
+          const idx = nextSprints[sIdx].tasks.findIndex(t => t.id === draggableId)
+          if (idx !== -1) {
+            movedTask = nextSprints[sIdx].tasks[idx]
+            nextSprints[sIdx].tasks.splice(idx, 1)
+            nextSprints[sIdx].tasks = nextSprints[sIdx].tasks
+              .sort((a, b) => a.order - b.order)
+              .map((t, i) => ({ ...t, order: i }))
+          }
+        }
+      } else {
+        const bIdx = nextBacklog.findIndex(t => t.id === draggableId)
+        if (bIdx !== -1) {
+          movedTask = nextBacklog[bIdx]
+          nextBacklog.splice(bIdx, 1)
+        }
+      }
+      if (dst.sprintId) {
+        const dIdx = nextSprints.findIndex(s => s.id === dst.sprintId)
+        if (dIdx !== -1 && movedTask) {
+          const all = [...nextSprints[dIdx].tasks].sort((a, b) => a.order - b.order)
+          const newStatus = (dst.column || movedTask.status) as Task['status']
+          const taskToInsert = { ...movedTask, status: newStatus }
+          all.splice(destinationIndex, 0, taskToInsert)
+          nextSprints[dIdx].tasks = all.map((t, i) => ({ ...t, order: i }))
+        }
+        setBacklog(nextBacklog)
+      } else {
+        if (movedTask) {
+          nextBacklog = [{ ...movedTask }, ...nextBacklog]
+          setBacklog(nextBacklog)
+        }
+      }
+      setSprints(nextSprints)
+      const moveRes = fetch('/api/tasks/move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskId: draggableId,
-          destinationSprintId,
-          destinationIndex: destination.index,
-          sourceSprintId
+          destinationSprintId: dst.sprintId,
+          destinationIndex,
+          sourceSprintId: src.sprintId
         })
       })
-
-      // Atualizar estado local
-      fetchData()
-    } catch (error) {
-      console.error('Erro ao mover tarefa:', error)
-      // Recarregar dados em caso de erro
-      fetchData()
+      const patchRes = dst.column && dst.column !== null
+        ? fetch(`/api/tasks/${draggableId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: dst.column })
+          })
+        : Promise.resolve(new Response())
+      const [moveOk, patchOk] = await Promise.all([moveRes, patchRes])
+      if (!moveOk.ok || !patchOk.ok) {
+        setSprints(prevSprints)
+        setBacklog(prevBacklog)
+      }
+    } catch {
+      setSprints(prevSprints)
+      setBacklog(prevBacklog)
     }
   }
 
@@ -401,8 +468,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Quadro Scrum</h1>
-          <p className="text-gray-600">Gerencie suas sprints e backlog</p>
+          <h1 className="text-2xl font-bold text-foreground">Quadro Scrum</h1>
+          <p className="text-muted-foreground">Gerencie suas sprints e backlog</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -428,7 +495,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
           {(sprints || []).length === 0 && (backlog || []).length === 0 && (
             <Card className="border-dashed border-2 border-gray-300">
               <CardContent className="p-8 text-center">
-                <div className="text-gray-500">
+                <div className="text-muted-foreground">
                   <Target className="w-16 h-16 mx-auto mb-4 opacity-50" />
                   <h3 className="text-lg font-medium mb-2">Bem-vindo ao Scrum!</h3>
                   <p className="text-sm mb-4">
@@ -463,7 +530,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-green-200 bg-green-50/50">
+                <Card key={sprint.id} className="border-border bg-background shadow-sm">
                   <CardHeader>
                     <SprintHeader
                       sprint={sprint}
@@ -473,21 +540,23 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     />
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {[
                         { key: 'TODO', label: 'A Fazer' },
                         { key: 'IN_PROGRESS', label: 'Em Progresso' },
+                        { key: 'IN_REVIEW', label: 'Testar' },
                         { key: 'COMPLETED', label: 'Concluído' }
                       ].map((col) => {
                         const tasksInColumn = sprint.tasks
-                          .filter(t => col.key === 'IN_PROGRESS' ? (t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW') : t.status === col.key)
+                          .filter(t => t.status === col.key)
+                          .sort((a, b) => a.order - b.order)
                           .sort((a, b) => a.order - b.order)
                         
                         return (
-                          <div key={col.key} className="bg-gray-50/50 rounded-lg border border-gray-200">
-                            <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 mb-2">
-                              <span className="text-sm font-medium text-gray-700">{col.label}</span>
-                              <Badge variant="outline" className="text-xs bg-white text-gray-500 border-gray-200">{tasksInColumn.length}</Badge>
+                          <div key={col.key} className="bg-slate-100/50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-800/60 p-1.5">
+                            <div className="px-3 py-3 flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-foreground/80">{col.label}</span>
+                              <Badge variant="secondary" className="text-xs font-mono bg-background/80 shadow-sm">{tasksInColumn.length}</Badge>
                             </div>
                             <Droppable droppableId={`${sprint.id}|${col.key}`} direction="vertical">
                               {(provided) => (
@@ -529,16 +598,16 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                   <CardContent className="pt-0">
                     <div className="border-t pt-4">
                       <div 
-                        className="flex items-center gap-2 mb-4 cursor-pointer hover:bg-gray-50 p-2 rounded-md -m-2"
+                        className="flex items-center gap-2 mb-4 cursor-pointer hover:bg-card p-2 rounded-md -m-2"
                         onClick={() => setShowDailyProgress(!showDailyProgress)}
                       >
                         {showDailyProgress ? (
-                          <ChevronDown className="w-5 h-5 text-gray-500" />
+                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
                         ) : (
-                          <ChevronRight className="w-5 h-5 text-gray-500" />
+                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
                         )}
                         <Users className="w-5 h-5 text-blue-600" />
-                        <h3 className="font-semibold text-gray-900">Progresso Diário por Colaborador</h3>
+                        <h3 className="font-semibold text-foreground">Progresso Diário por Colaborador</h3>
                         <Badge variant="outline" className="ml-auto text-xs">
                           {showDailyProgress ? 'Clique para fechar' : 'Clique para expandir'}
                         </Badge>
@@ -549,7 +618,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                         
                         if (dailyProgress.length === 0) {
                           return (
-                            <div className="text-center py-4 text-gray-500">
+                            <div className="text-center py-4 text-muted-foreground">
                               <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
                               <p className="text-sm">Nenhuma tarefa agendada com datas específicas</p>
                             </div>
@@ -559,10 +628,10 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                         return (
                           <div className="space-y-4">
                             {dailyProgress.map((day: any) => (
-                              <div key={day.dateStr} className="bg-white rounded-lg border p-4">
+                              <div key={day.dateStr} className="bg-card rounded-lg border p-4">
                                 <div className="flex items-center gap-2 mb-3">
-                                  <Calendar className="w-4 h-4 text-gray-600" />
-                                  <span className="font-medium text-gray-900">
+                                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-medium text-foreground">
                                     {day.date.toLocaleDateString('pt-BR', { 
                                       weekday: 'long', 
                                       day: '2-digit', 
@@ -583,7 +652,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                     const isExpanded = expandedCollaborators[collaboratorKey]
                                     
                                     return (
-                                      <div key={collaborator.collaboratorId} className="bg-gray-50 rounded-md p-3">
+                                      <div key={collaborator.collaboratorId} className="bg-card rounded-md p-3">
                                         <div 
                                           className="flex items-center justify-between cursor-pointer"
                                           onClick={() => setExpandedCollaborators(prev => ({
@@ -593,12 +662,12 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                         >
                                           <div className="flex items-center gap-2">
                                             {isExpanded ? (
-                                              <ChevronDown className="w-4 h-4 text-gray-500" />
+                                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                             ) : (
-                                              <ChevronRight className="w-4 h-4 text-gray-500" />
+                                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
                                             )}
                                             <Users className="w-4 h-4 text-blue-600" />
-                                            <span className="font-medium text-sm text-gray-900">
+                                            <span className="font-medium text-sm text-foreground">
                                               {collaborator.collaboratorName}
                                             </span>
                                           </div>
@@ -606,7 +675,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                             <Badge variant="outline" className="text-xs">
                                               {collaborator.total} tarefas
                                             </Badge>
-                                            <div className="text-xs text-gray-500">
+                                            <div className="text-xs text-muted-foreground">
                                               {collaborator.total > 0 ? Math.round((collaborator.completed / collaborator.total) * 100) : 0}%
                                             </div>
                                           </div>
@@ -621,7 +690,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                             <span className="text-blue-600">⚡ {collaborator.inProgress}</span>
                                           )}
                                           {collaborator.todo > 0 && (
-                                            <span className="text-gray-600">○ {collaborator.todo}</span>
+                                            <span className="text-muted-foreground">○ {collaborator.todo}</span>
                                           )}
                                         </div>
                                         
@@ -660,7 +729,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                                 return a.title.localeCompare(b.title)
                                               })
                                               .map((task: Task) => (
-                                              <div key={task.id} className="flex items-center justify-between text-xs bg-white rounded p-2">
+                                              <div key={task.id} className="flex items-center justify-between text-xs bg-card rounded p-2">
                                                 <div className="flex items-center gap-2">
                                                   <div className={`w-2 h-2 rounded-full ${
                                                     task.status === 'COMPLETED' ? 'bg-green-500' :
@@ -679,7 +748,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                                     {task.priority}
                                                   </Badge>
                                                   {task.startTime && (
-                                                    <span className="text-gray-500">{task.startTime}</span>
+                                                    <span className="text-muted-foreground">{task.startTime}</span>
                                                   )}
                                                 </div>
                                               </div>
@@ -711,7 +780,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-yellow-200 bg-yellow-50/50">
+                <Card key={sprint.id} className="border-dashed border-border bg-background/50 shadow-sm">
                   <CardHeader>
                     <SprintHeader
                       sprint={sprint}
@@ -721,21 +790,23 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     />
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {[
                         { key: 'TODO', label: 'A Fazer' },
                         { key: 'IN_PROGRESS', label: 'Em Progresso' },
+                        { key: 'IN_REVIEW', label: 'Testar' },
                         { key: 'COMPLETED', label: 'Concluído' }
                       ].map((col) => {
                         const tasksInColumn = sprint.tasks
-                          .filter(t => col.key === 'IN_PROGRESS' ? (t.status === 'IN_PROGRESS' || t.status === 'IN_REVIEW') : t.status === col.key)
+                          .filter(t => t.status === col.key)
+                          .sort((a, b) => a.order - b.order)
                           .sort((a, b) => a.order - b.order)
                         
                         return (
-                          <div key={col.key} className="bg-gray-50/50 rounded-lg border border-gray-200">
-                            <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 mb-2">
-                              <span className="text-sm font-medium text-gray-700">{col.label}</span>
-                              <Badge variant="outline" className="text-xs bg-white text-gray-500 border-gray-200">{tasksInColumn.length}</Badge>
+                          <div key={col.key} className="bg-slate-100/50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-800/60 p-1.5">
+                            <div className="px-3 py-3 flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-foreground/80">{col.label}</span>
+                              <Badge variant="secondary" className="text-xs font-mono bg-background/80 shadow-sm">{tasksInColumn.length}</Badge>
                             </div>
                             <Droppable droppableId={`${sprint.id}|${col.key}`} direction="vertical">
                               {(provided) => (
@@ -777,7 +848,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
             })}
 
           {/* Backlog */}
-          <Card className="border-gray-200">
+          <Card className="border-muted">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 flex-wrap">
                 <Target className="w-5 h-5" />
@@ -795,8 +866,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               {/* Filtro por Milestone */}
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">Filtrar por milestone:</span>
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Filtrar por milestone:</span>
                 </div>
                 <Select value={selectedMilestone} onValueChange={setSelectedMilestone}>
                   <SelectTrigger className="w-48">
@@ -878,7 +949,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
 
               {sprintId && sprintProjects.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-sm text-gray-600 mb-2">
+                  <p className="text-sm text-muted-foreground mb-2">
                     <strong>Projetos incluídos nesta sprint:</strong>
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -900,7 +971,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     className="flex gap-4 min-h-[200px] overflow-x-auto pb-4"
                   >
                     {filteredBacklog.length === 0 ? (
-                      <div className="flex-1 flex items-center justify-center text-gray-500">
+                      <div className="flex-1 flex items-center justify-center text-muted-foreground">
                         <div className="text-center">
                           <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
                           <p className="text-sm">
@@ -939,9 +1010,9 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                 {selectionMode && (
                                   <div className="absolute top-2 left-2 z-10">
                                     {selectedTasks.includes(task.id) ? (
-                                      <CheckSquare className="w-5 h-5 text-blue-600 bg-white rounded border-2 border-blue-600" />
+                                      <CheckSquare className="w-5 h-5 text-blue-600 bg-card rounded border-2 border-blue-600" />
                                     ) : (
-                                      <Square className="w-5 h-5 text-gray-400 bg-white rounded border-2 border-gray-300" />
+                                      <Square className="w-5 h-5 text-gray-400 bg-card rounded border-2 border-gray-300" />
                                     )}
                                   </div>
                                 )}
@@ -975,7 +1046,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-gray-200 bg-gray-50 opacity-75 text-gray-400">
+                <Card key={sprint.id} className="border-muted bg-card opacity-75 text-gray-400">
                   <CardHeader>
                     <SprintHeader
                       sprint={sprint}

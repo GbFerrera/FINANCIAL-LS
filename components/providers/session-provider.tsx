@@ -3,6 +3,7 @@
 import { SessionProvider } from "next-auth/react"
 import { Toaster } from "react-hot-toast"
 import { WebSocketProvider } from "@/contexts/WebSocketContext"
+import { ThemeProvider } from "next-themes"
 
 interface ProvidersProps {
   children: React.ReactNode
@@ -11,33 +12,35 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <SessionProvider>
-      <WebSocketProvider>
-        {children}
-      </WebSocketProvider>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },
-          success: {
-            duration: 3000,
-            iconTheme: {
-              primary: '#4ade80',
-              secondary: '#fff',
-            },
-          },
-          error: {
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <WebSocketProvider>
+          {children}
+        </WebSocketProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
             duration: 4000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
+            style: {
+              background: '#363636',
+              color: '#fff',
             },
-          },
-        }}
-      />
+            success: {
+              duration: 3000,
+              iconTheme: {
+                primary: '#4ade80',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              duration: 4000,
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
+      </ThemeProvider>
     </SessionProvider>
   )
 }

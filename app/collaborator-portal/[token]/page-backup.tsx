@@ -337,17 +337,17 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
       case 'HIGH': return 'bg-orange-500'
       case 'MEDIUM': return 'bg-yellow-500'
       case 'LOW': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'TODO': return 'bg-gray-500'
+      case 'TODO': return 'bg-card0'
       case 'IN_PROGRESS': return 'bg-blue-500'
       case 'IN_REVIEW': return 'bg-purple-500'
       case 'COMPLETED': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 
@@ -421,7 +421,7 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-card">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
       </div>
     )
@@ -429,13 +429,13 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-card">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-red-600">Erro de Acesso</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">{error}</p>
+            <p className="text-muted-foreground">{error}</p>
             <Button onClick={() => fetchData()} className="mt-4 w-full">
               Tentar Novamente
             </Button>
@@ -450,14 +450,14 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-card py-8">
       <div className="container mx-auto px-4 space-y-6">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-card rounded-lg shadow-sm p-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Portal do Colaborador</h1>
-              <p className="text-gray-600">
+              <h1 className="text-3xl font-bold text-foreground">Portal do Colaborador</h1>
+              <p className="text-muted-foreground">
                 Olá, {data.user.name}! Aqui estão suas atividades.
               </p>
             </div>
@@ -493,7 +493,7 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
               </div>
               {viewMode !== 'weekly' && (
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
                   <Input
                     type="date"
                     value={selectedDate}
@@ -512,7 +512,7 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex flex-col sm:flex-row gap-3 flex-1">
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-gray-500" />
+                  <Filter className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium text-gray-700">Filtros:</span>
                 </div>
                 
@@ -549,7 +549,7 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 border rounded-lg p-1 bg-gray-50">
+              <div className="flex items-center gap-2 border rounded-lg p-1 bg-card">
                 <Button
                   variant={viewMode === 'sections' ? 'default' : 'ghost'}
                   size="sm"
@@ -651,7 +651,7 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
               {/* Today's Tasks */}
               {filterTasks(data.tasks.today).length > 0 && (
                 <div>
-                  <h2 className="text-xl font-semibold mb-4 text-gray-900">
+                  <h2 className="text-xl font-semibold mb-4 text-foreground">
                     Tarefas de Hoje ({filterTasks(data.tasks.today).length})
                   </h2>
                   <div className="space-y-4">
@@ -763,7 +763,7 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
           ) : (
             /* Unified View */
             <div>
-              <h2 className="text-xl font-semibold mb-4 text-gray-900">
+              <h2 className="text-xl font-semibold mb-4 text-foreground">
                 Todas as Tarefas ({getAllFilteredTasks().length})
               </h2>
               <div className="space-y-4">
@@ -802,14 +802,14 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
                   {statusFilter === 'all' && priorityFilter === 'all' ? (
                     <>
                       <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa para hoje!</h3>
-                      <p className="text-gray-500">Você está em dia com suas atividades.</p>
+                      <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma tarefa para hoje!</h3>
+                      <p className="text-muted-foreground">Você está em dia com suas atividades.</p>
                     </>
                   ) : (
                     <>
                       <Filter className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma tarefa encontrada</h3>
-                      <p className="text-gray-500">Tente ajustar os filtros para ver mais tarefas.</p>
+                      <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma tarefa encontrada</h3>
+                      <p className="text-muted-foreground">Tente ajustar os filtros para ver mais tarefas.</p>
                     </>
                   )}
                 </div>

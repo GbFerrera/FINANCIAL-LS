@@ -87,13 +87,19 @@ export async function POST(
 
     const nextOrder = lastTask ? lastTask.order + 1 : 0
 
-    // Preparar descrição com anexos se houver
     let taskDescription = description?.trim() || `Tarefa reportada por ${collaborator.name}`
-    if (attachments.length > 0) {
-      taskDescription += `\n\n📎 Anexos (${attachments.length}):\n`
-      attachments.forEach((file: any) => {
-        taskDescription += `• ${file.originalName} (${file.fileType})\n`
+    if (Array.isArray(attachments) && attachments.length > 0) {
+      const count = attachments.length
+      const header = `📎 Anexos (${count}):`
+      const lines = attachments.map((a: any) => {
+        const name = a.originalName || a.fileName || ''
+        const type = a.fileType || a.mimeType || 'application/octet-stream'
+        const path = a.filePath || ''
+        return `• ${name} (${type}) - ${path}`
       })
+      taskDescription = taskDescription
+        ? `${taskDescription}\n\n${header}\n${lines.join('\n')}`
+        : `${header}\n${lines.join('\n')}`
     }
 
     // Criar a tarefa reportada

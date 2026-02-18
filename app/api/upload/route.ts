@@ -9,10 +9,35 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = [
   'application/pdf',
   'image/jpeg',
-  'image/jpg', 
+  'image/jpg',
   'image/png',
   'image/gif',
-  'image/webp'
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'application/zip',
+  'application/x-rar-compressed',
+  'application/xml',
+  'text/xml'
+]
+const ALLOWED_EXTS = [
+  '.pdf',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.doc',
+  '.docx',
+  '.xls',
+  '.xlsx',
+  '.txt',
+  '.zip',
+  '.rar',
+  '.xml'
 ]
 
 export async function POST(request: NextRequest) {
@@ -40,10 +65,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Objeto enviado não é um arquivo válido' }, { status: 400 })
     }
 
-    // Validar tipo de arquivo
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ 
-        error: 'Tipo de arquivo não permitido. Apenas PDF e imagens (JPG, PNG, GIF, WebP)' 
+    // Validar tipo/extension do arquivo
+    const fileExtension = path.extname(file.name).toLowerCase()
+    const isAllowedType = ALLOWED_TYPES.includes(file.type)
+    const isAllowedExt = ALLOWED_EXTS.includes(fileExtension)
+    if (!(isAllowedType || isAllowedExt)) {
+      return NextResponse.json({
+        error: 'Tipo de arquivo não permitido. Permitidos: PDF, imagens (JPG, PNG, GIF, WebP), DOC/DOCX, XLS/XLSX, TXT, ZIP, RAR, XML'
       }, { status: 400 })
     }
 
@@ -55,7 +83,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Gerar nome único para o arquivo
-    const fileExtension = path.extname(file.name)
     const uniqueFileName = `${uuidv4()}${fileExtension}`
     
     // Criar subpasta por tarefa se taskId fornecido

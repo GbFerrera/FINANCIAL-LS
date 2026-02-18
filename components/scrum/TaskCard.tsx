@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { 
@@ -18,7 +18,7 @@ import {
   Trash2,
   MessageSquare,
   Paperclip,
-  Image,
+  Image as ImageIcon,
   FileText
 } from 'lucide-react'
 import {
@@ -81,6 +81,7 @@ const formatDateSafe = (dateString: string) => {
 export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showAttachments, setShowAttachments] = useState(false)
+  const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string }>>([])
 
   const isOverdue = () => {
     if (!task.dueDate) return false
@@ -95,45 +96,45 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
   const getStatusIcon = () => {
     switch (task.status) {
       case 'TODO':
-        return <Circle className="w-4 h-4 text-gray-400" />
+        return <Circle className="w-4 h-4 text-slate-400 dark:text-slate-500" />
       case 'IN_PROGRESS':
-        return <PlayCircle className="w-4 h-4 text-blue-500" />
+        return <PlayCircle className="w-4 h-4 text-blue-500 dark:text-blue-400" />
       case 'IN_REVIEW':
-        return <PauseCircle className="w-4 h-4 text-yellow-500" />
+        return <PauseCircle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
       case 'COMPLETED':
-        return <CheckCircle2 className="w-4 h-4 text-green-500" />
+        return <CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400" />
       default:
-        return <Circle className="w-4 h-4 text-gray-400" />
+        return <Circle className="w-4 h-4 text-slate-400 dark:text-slate-500" />
     }
   }
 
   const getStatusColor = () => {
     switch (task.status) {
       case 'TODO':
-        return 'bg-white border-gray-200 hover:border-gray-300'
+        return 'bg-card border-l-slate-400 dark:border-l-slate-500 border-border hover:border-slate-300 dark:hover:border-slate-600'
       case 'IN_PROGRESS':
-        return 'bg-blue-50/50 border-l-blue-500 border-y-blue-100 border-r-blue-100 hover:border-blue-200'
+        return 'bg-card border-l-blue-500 dark:border-l-blue-400 border-border hover:border-blue-300 dark:hover:border-blue-700'
       case 'IN_REVIEW':
-        return 'bg-yellow-50/50 border-l-yellow-500 border-y-yellow-100 border-r-yellow-100 hover:border-yellow-200'
+        return 'bg-card border-l-amber-500 dark:border-l-amber-400 border-border hover:border-amber-300 dark:hover:border-amber-700'
       case 'COMPLETED':
-        return 'bg-green-50/50 border-l-green-500 border-y-green-100 border-r-green-100 hover:border-green-200'
+        return 'bg-card border-l-green-500 dark:border-l-green-400 border-border hover:border-green-300 dark:hover:border-green-700'
       default:
-        return 'bg-white border-gray-200 hover:border-gray-300'
+        return 'bg-card border-l-slate-400 dark:border-l-slate-500 border-border hover:border-slate-300 dark:hover:border-slate-600'
     }
   }
 
   const getPriorityColor = () => {
     switch (task.priority) {
       case 'LOW':
-        return 'bg-gray-100 text-gray-700 border-gray-200'
+        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700'
       case 'MEDIUM':
-        return 'bg-blue-100 text-blue-700 border-blue-200'
+        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/50'
       case 'HIGH':
-        return 'bg-orange-100 text-orange-700 border-orange-200'
+        return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800/50'
       case 'URGENT':
-        return 'bg-red-100 text-red-700 border-red-200'
+        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/50'
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200'
+        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700'
     }
   }
 
@@ -159,7 +160,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
       case 'IN_PROGRESS':
         return 'Em Andamento'
       case 'IN_REVIEW':
-        return 'Em Revisão'
+        return 'Em Teste'
       case 'COMPLETED':
         return 'Concluído'
       default:
@@ -172,29 +173,22 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
   }
 
   const hasAttachments = () => {
-    // Verificar se tem anexos no campo attachments ou na descrição
-    if (task.attachments && task.attachments.length > 0) {
-      return true
-    }
-    // Verificar se a descrição contém indicação de anexos
+    if (diskAttachments.length > 0) return true
+    if (task.attachments && task.attachments.length > 0) return true
     return task.description?.includes('📎 Anexos (') || false
   }
 
   const getAttachmentsCount = () => {
-    if (task.attachments && task.attachments.length > 0) {
-      return task.attachments.length
-    }
-    // Extrair número de anexos da descrição
+    if (diskAttachments.length > 0) return diskAttachments.length
+    if (task.attachments && task.attachments.length > 0) return task.attachments.length
     const match = task.description?.match(/📎 Anexos \((\d+)\):/)
     return match ? parseInt(match[1]) : 0
   }
 
   const getAttachmentsFromDescription = () => {
-    if (task.attachments && task.attachments.length > 0) {
-      return task.attachments
-    }
+    if (diskAttachments.length > 0) return diskAttachments
+    if (task.attachments && task.attachments.length > 0) return task.attachments
     
-    // Extrair anexos da descrição
     const attachments: Array<{name: string, type: string, filePath?: string}> = []
     const lines = task.description?.split('\n') || []
     
@@ -206,13 +200,19 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
       }
       
       if (inAttachmentsSection && line.startsWith('• ')) {
-        const match = line.match(/• (.+) \((.+)\)/)
-        if (match) {
+        const withPath = line.match(/• (.+) \((.+)\) - (.+)$/)
+        const basic = line.match(/• (.+) \((.+)\)/)
+        if (withPath) {
           attachments.push({
-            name: match[1],
-            type: match[2],
-            // Tentar construir caminho baseado no nome do arquivo
-            filePath: match[1]
+            name: withPath[1],
+            type: withPath[2],
+            filePath: withPath[3]
+          })
+        } else if (basic) {
+          attachments.push({
+            name: basic[1],
+            type: basic[2],
+            filePath: basic[1]
           })
         }
       } else if (inAttachmentsSection && !line.startsWith('• ')) {
@@ -223,7 +223,30 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
     return attachments
   }
 
-  const handleAttachmentClick = async (attachment: any, fileName: string, fileType: string) => {
+  useEffect(() => {
+    let cancelled = false
+    const fetchDiskAttachments = async () => {
+      try {
+        const res = await fetch(`/api/tasks/${task.id}/attachments`)
+        if (!res.ok) return
+        const data: { attachments?: Array<{ originalName: string; mimeType: string; filePath?: string }> } = await res.json()
+        const mapped = (data.attachments || []).map((a) => ({
+          originalName: a.originalName,
+          fileType: a.mimeType,
+          filePath: a.filePath
+        }))
+        if (!cancelled) {
+          setDiskAttachments(mapped)
+        }
+      } catch {}
+    }
+    fetchDiskAttachments()
+    return () => { cancelled = true }
+  }, [task.id])
+
+  type DescriptionAttachment = { name: string; type: string; filePath?: string }
+  type RealAttachment = { id?: string; originalName?: string; fileType?: string; filePath?: string }
+  const handleAttachmentClick = async (attachment: DescriptionAttachment | RealAttachment, fileName: string, fileType: string) => {
     const isImage = fileType?.startsWith('image/')
     const isPDF = fileType === 'application/pdf'
     
@@ -231,7 +254,10 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
     
     // Se tem filePath (anexo real), tentar abrir
     if ('filePath' in attachment && attachment.filePath && !attachment.filePath.startsWith('blob:')) {
-      window.open(`/api/files/${attachment.filePath}`, '_blank')
+      const raw = attachment.filePath as string
+      const isUploadsPath = raw.includes('/') && !raw.startsWith('http')
+      const url = isUploadsPath ? `/api/files/${raw}` : `/${raw}`
+      window.open(url, '_blank')
       return
     }
     
@@ -252,9 +278,14 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
     // Tentar cada possibilidade
     for (const path of possiblePaths) {
       try {
-        const response = await fetch(`/api/files/${path}`, { method: 'HEAD' })
-        if (response.ok) {
+        const responseApi = await fetch(`/api/files/${path}`, { method: 'HEAD' })
+        if (responseApi.ok) {
           window.open(`/api/files/${path}`, '_blank')
+          return
+        }
+        const responsePublic = await fetch(`/${path}`, { method: 'HEAD' })
+        if (responsePublic.ok) {
+          window.open(`/${path}`, '_blank')
           return
         }
       } catch (error) {
@@ -294,7 +325,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
   return (
     <Card 
-      className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-red-50 border-red-200 ring-1 ring-red-100' : getStatusColor()} border-l-4`}
+      className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800' : getStatusColor()} border-l-4`}
       onClick={onClick}
     >
       <CardHeader className="pb-2">
@@ -326,7 +357,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
           </div>
           <div className="flex items-center gap-2">
             {task.storyPoints && (
-              <Badge variant="outline" className="text-xs font-mono text-gray-500 border-gray-200">
+              <Badge variant="outline" className="text-xs font-mono text-muted-foreground border-muted">
                 {task.storyPoints} SP
               </Badge>
             )}
@@ -377,23 +408,38 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
       <CardContent className="pt-0">
         <div className="space-y-3">
           {/* Título */}
-          <h3 className="font-medium text-sm leading-tight line-clamp-2 text-gray-900">
+          <h3 className="font-medium text-sm leading-tight line-clamp-2 text-foreground">
             {task.title}
           </h3>
 
           {/* Descrição */}
           {task.description && (
-            <p className="text-xs text-gray-500 line-clamp-2">
-              {task.description}
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              {(() => {
+                const lines = task.description?.split('\n') || []
+                const clean: string[] = []
+                let skip = false
+                for (const line of lines) {
+                  if (line.includes('📎 Anexos (')) {
+                    skip = true
+                    continue
+                  }
+                  if (skip && (line.trim() === '' || !line.startsWith('• '))) {
+                    skip = false
+                  }
+                  if (!skip) clean.push(line)
+                }
+                return clean.join(' ').trim()
+              })()}
             </p>
           )}
 
           {/* Informações de Tempo e Data */}
           {(task.startDate || task.startTime || task.estimatedMinutes) && (
-            <div className="bg-gray-50 p-2 rounded-md space-y-1 border border-gray-100">
+            <div className="bg-card p-2 rounded-md space-y-1 border border-muted">
               {/* Data e Hora de Início */}
               {(task.startDate || task.startTime) && (
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="w-3 h-3 text-green-500" />
                   <span className="font-medium">Início:</span>
                   {task.startDate && (
@@ -407,7 +453,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
               
               {/* Tempo Estimado */}
               {task.estimatedMinutes && (
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="w-3 h-3 text-blue-500" />
                   <span className="font-medium">Estimado:</span>
                   <span className="text-blue-500 font-mono">
@@ -422,7 +468,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
           )}
 
           {/* Metadados */}
-          <div className="flex items-center justify-between text-xs text-gray-500">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             {/* Prioridade */}
             <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${getPriorityColor()}`}>
               {getPriorityIcon()}
@@ -431,8 +477,8 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
             {/* Data de vencimento */}
             {task.dueDate && (
-              <div className={`flex items-center gap-1 ${isOverdue() ? 'text-red-400' : 'text-gray-400'}`}>
-                <Calendar className={`w-3 h-3 ${isOverdue() ? 'text-red-400' : 'text-gray-400'}`} />
+              <div className={`flex items-center gap-1 ${isOverdue() ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'}`}>
+                <Calendar className={`w-3 h-3 ${isOverdue() ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'}`} />
                 <span>{formatDateSafe(task.dueDate)}</span>
               </div>
             )}
@@ -440,14 +486,14 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
           {/* Responsável */}
           {task.assignee && (
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-2 pt-2 border-t border-muted">
               <Avatar className="w-6 h-6 ring-1 ring-gray-200">
                 <AvatarImage src={task.assignee.avatar} />
-                <AvatarFallback className="text-xs bg-gray-100 text-gray-600">
+                <AvatarFallback className="text-xs bg-gray-100 text-muted-foreground">
                   {task.assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs text-gray-500 truncate">
+              <span className="text-xs text-muted-foreground truncate">
                 {task.assignee.name}
               </span>
             </div>
@@ -455,7 +501,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
           {/* Lista de Anexos */}
           {showAttachments && hasAttachments() && (
-            <div className="pt-3 border-t border-gray-200">
+            <div className="pt-3 border-t border-muted">
               <h4 className="text-xs font-medium text-gray-700 mb-2">
                 Anexos ({getAttachmentsCount()})
               </h4>
@@ -471,7 +517,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
                   return (
                     <div 
                       key={index}
-                      className={`flex items-center gap-2 p-2 bg-gray-50 rounded text-xs transition-colors ${
+                      className={`flex items-center gap-2 p-2 bg-card rounded text-xs transition-colors ${
                         isImage || isPDF ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-gray-100'
                       }`}
                       onClick={(e) => {
@@ -481,18 +527,18 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {isImage ? (
-                          <Image className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                          <ImageIcon className="w-3 h-3 text-blue-600 flex-shrink-0" />
                         ) : isPDF ? (
                           <FileText className="w-3 h-3 text-red-600 flex-shrink-0" />
                         ) : (
-                          <Paperclip className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                          <Paperclip className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                         )}
                         
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate">
+                          <p className="font-medium text-foreground truncate">
                             {fileName}
                           </p>
-                          <p className="text-gray-500">
+                          <p className="text-muted-foreground">
                             {isImage ? 'Imagem' : isPDF ? 'PDF' : 'Arquivo'}
                             {(isImage || isPDF) && (
                               <span className="ml-1 text-blue-600">• Clique para ver</span>
@@ -502,14 +548,20 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
                       </div>
                       
                       <div className="text-xs text-gray-400">
-                        {(isImage || isPDF) ? '👁️' : '📎'}
+                        {isImage ? (
+                          <ImageIcon className="w-3 h-3" />
+                        ) : isPDF ? (
+                          <FileText className="w-3 h-3" />
+                        ) : (
+                          <Paperclip className="w-3 h-3" />
+                        )}
                       </div>
                     </div>
                   )
                 })}
               </div>
               
-              <p className="text-xs text-gray-500 mt-2 italic">
+              <p className="text-xs text-muted-foreground mt-2 italic">
                 💡 Os anexos estão salvos no servidor e podem ser acessados pelos administradores
               </p>
             </div>

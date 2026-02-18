@@ -113,10 +113,10 @@ export function EditSprintStatusModal({
         {sprint && (
           <div className="space-y-6">
             {/* Sprint Info */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-2">{sprint.name}</h3>
+            <div className="bg-card p-4 rounded-lg">
+              <h3 className="font-medium text-foreground mb-2">{sprint.name}</h3>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Status atual:</span>
+                <span className="text-sm text-muted-foreground">Status atual:</span>
                 {currentStatus && (
                   <Badge className={`${currentStatus.color} flex items-center gap-1`}>
                     {currentStatus.icon}

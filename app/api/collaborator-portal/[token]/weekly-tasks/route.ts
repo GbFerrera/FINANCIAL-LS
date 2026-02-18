@@ -57,6 +57,13 @@ export async function GET(
               lte: new Date(endDate + 'T23:59:59.999Z')
             }
           },
+          // Tarefas concluídas no período
+          {
+            completedAt: {
+              gte: new Date(startDate + 'T00:00:00.000Z'),
+              lte: new Date(endDate + 'T23:59:59.999Z')
+            }
+          },
           // Tarefas em progresso sem data específica
           {
             status: 'IN_PROGRESS',
@@ -89,6 +96,8 @@ export async function GET(
         estimatedMinutes: true,
         actualMinutes: true,
         storyPoints: true,
+        completedAt: true,
+        updatedAt: true,
         project: {
           select: {
             id: true,

@@ -451,7 +451,7 @@ export default function ClientPortalPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
       </div>
     )
@@ -459,11 +459,11 @@ export default function ClientPortalPage() {
 
   if (!client) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-          <h3 className="mt-2 text-lg font-medium text-gray-900">Link inválido</h3>
-          <p className="mt-1 text-sm text-gray-500">
+          <h3 className="mt-2 text-lg font-medium text-foreground">Link inválido</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
             Este link não é válido ou pode ter expirado.
           </p>
         </div>
@@ -478,20 +478,20 @@ export default function ClientPortalPage() {
   const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-card">
       {/* Header */}
-      <div className="bg-white shadow">
+      <div className="bg-card shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
               <Building2 className="h-8 w-8 text-indigo-600 mr-3" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Portal do Cliente</h1>
-                <p className="text-sm text-gray-500">Bem-vindo, {client.name}</p>
+                <h1 className="text-2xl font-bold text-foreground">Portal do Cliente</h1>
+                <p className="text-sm text-muted-foreground">Bem-vindo, {client.name}</p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
               {client.company && (
                 <div className="flex items-center">
                   <Building2 className="h-4 w-4 mr-1" />
@@ -505,8 +505,8 @@ export default function ClientPortalPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Tabs */}
-        <div className="bg-white shadow rounded-lg mb-6">
-          <div className="border-b border-gray-200">
+        <div className="bg-card shadow rounded-lg mb-6">
+          <div className="border-b border-muted">
             <nav className="-mb-px flex gap-6 px-4 overflow-x-auto sm:flex-wrap">
               {[
                 { id: 'overview', name: 'Visão Geral', icon: BarChart3 },
@@ -520,7 +520,7 @@ export default function ClientPortalPage() {
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`${activeTab === tab.id
                       ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
                     } sm:whitespace-nowrap whitespace-normal py-4 px-2 border-b-2 font-medium text-sm flex items-center relative`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
@@ -540,42 +540,42 @@ export default function ClientPortalPage() {
               <div className="space-y-6">
                 {/* Stats */}
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
                       <FileText className="h-8 w-8 text-blue-600" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-500">Total de Projetos</p>
-                        <p className="text-2xl font-semibold text-gray-900">{totalProjects}</p>
+                        <p className="text-sm font-medium text-muted-foreground">Total de Projetos</p>
+                        <p className="text-2xl font-semibold text-foreground">{totalProjects}</p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
                       <CheckCircle className="h-8 w-8 text-green-600" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-500">Concluídos</p>
-                        <p className="text-2xl font-semibold text-gray-900">{completedProjects}</p>
+                        <p className="text-sm font-medium text-muted-foreground">Concluídos</p>
+                        <p className="text-2xl font-semibold text-foreground">{completedProjects}</p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
                       <Clock className="h-8 w-8 text-yellow-600" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-500">Em Andamento</p>
-                        <p className="text-2xl font-semibold text-gray-900">{inProgressProjects}</p>
+                        <p className="text-sm font-medium text-muted-foreground">Em Andamento</p>
+                        <p className="text-2xl font-semibold text-foreground">{inProgressProjects}</p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
                       <DollarSign className="h-8 w-8 text-purple-600" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-500">Investimento Total</p>
-                        <p className="text-lg font-semibold text-gray-900">{formatCurrency(totalBudget)}</p>
+                        <p className="text-sm font-medium text-muted-foreground">Investimento Total</p>
+                        <p className="text-lg font-semibold text-foreground">{formatCurrency(totalBudget)}</p>
                       </div>
                     </div>
                   </div>
@@ -583,23 +583,23 @@ export default function ClientPortalPage() {
 
                 {/* Recent Projects */}
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Projetos Recentes</h3>
+                  <h3 className="text-lg font-medium text-foreground mb-4">Projetos Recentes</h3>
                   <div className="space-y-3">
                     {projects.slice(0, 3).map((project) => (
-                      <div key={project.id} className="border border-gray-200 rounded-lg p-4">
+                      <div key={project.id} className="border border-muted rounded-lg p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <div className="flex items-center space-x-3">
-                              <h4 className="text-lg font-medium text-gray-900">{project.name}</h4>
+                              <h4 className="text-lg font-medium text-foreground">{project.name}</h4>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
                                 {project.status === 'IN_PROGRESS' ? 'Em Andamento' : 
                                  project.status === 'COMPLETED' ? 'Concluído' :
                                  project.status === 'PLANNING' ? 'Planejamento' : project.status}
                               </span>
                             </div>
-                            <p className="mt-1 text-sm text-gray-600">{project.description}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
                             
-                            <div className="mt-3 flex items-center space-x-4 text-sm text-gray-500">
+                            <div className="mt-3 flex items-center space-x-4 text-sm text-muted-foreground">
                               <div className="flex items-center">
                                 <Calendar className="h-4 w-4 mr-1" />
                                 Início: {formatDate(project.startDate)}
@@ -612,8 +612,8 @@ export default function ClientPortalPage() {
                           </div>
                           
                           <div className="text-right">
-                            <div className="text-2xl font-bold text-gray-900">{project.progress}%</div>
-                            <div className="text-sm text-gray-500">Progresso</div>
+                            <div className="text-2xl font-bold text-foreground">{project.progress}%</div>
+                            <div className="text-sm text-muted-foreground">Progresso</div>
                             <div className="mt-2 w-20 bg-gray-200 rounded-full h-2">
                               <div 
                                 className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
@@ -632,37 +632,37 @@ export default function ClientPortalPage() {
             {/* Projects Tab */}
             {activeTab === 'projects' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">Todos os Projetos</h3>
+                <h3 className="text-lg font-medium text-foreground">Todos os Projetos</h3>
                 
                 <div className="space-y-4">
                   {projects.map((project) => (
-                    <div key={project.id} className="border border-gray-200 rounded-lg p-6">
+                    <div key={project.id} className="border border-muted rounded-lg p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3">
-                            <h4 className="text-xl font-medium text-gray-900">{project.name}</h4>
+                            <h4 className="text-xl font-medium text-foreground">{project.name}</h4>
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
                               {project.status === 'IN_PROGRESS' ? 'Em Andamento' : 
                                project.status === 'COMPLETED' ? 'Concluído' :
                                project.status === 'PLANNING' ? 'Planejamento' : project.status}
                             </span>
                           </div>
-                          <p className="mt-2 text-gray-600">{project.description}</p>
+                          <p className="mt-2 text-muted-foreground">{project.description}</p>
                         </div>
                         
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-gray-900">{project.progress}%</div>
-                          <div className="text-sm text-gray-500">Concluído</div>
+                          <div className="text-3xl font-bold text-foreground">{project.progress}%</div>
+                          <div className="text-sm text-muted-foreground">Concluído</div>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Milestones */}
                         <div>
-                          <h5 className="font-medium text-gray-900 mb-3">Milestones</h5>
+                          <h5 className="font-medium text-foreground mb-3">Milestones</h5>
                           <div className="space-y-2">
                             {project.milestones.map((milestone) => (
-                              <div key={milestone.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <div key={milestone.id} className="flex items-center justify-between p-2 bg-card rounded">
                                 <span className="text-sm text-gray-700">{milestone.title}</span>
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(milestone.status)}`}>
                                   {milestone.status === 'COMPLETED' ? 'Concluído' :
@@ -675,14 +675,14 @@ export default function ClientPortalPage() {
 
                         {/* Recent Tasks */}
                         <div>
-                          <h5 className="font-medium text-gray-900 mb-3">Tarefas Recentes</h5>
+                          <h5 className="font-medium text-foreground mb-3">Tarefas Recentes</h5>
                           <div className="space-y-2">
                             {project.tasks.slice(0, 5).map((task) => (
-                              <div key={task.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <div key={task.id} className="flex items-center justify-between p-2 bg-card rounded">
                                 <div className="flex flex-col">
                                   <span className="text-sm text-gray-700">{task.title}</span>
                                   {task.estimatedHours && (
-                                     <span className="text-xs text-gray-500">
+                                     <span className="text-xs text-muted-foreground">
                                        {formatEstimatedTime(task.estimatedHours)}
                                      </span>
                                    )}
@@ -706,11 +706,11 @@ export default function ClientPortalPage() {
             {activeTab === 'financial' && (
               <div className="space-y-8">
                 {/* Header com seletor de projeto */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div className="bg-card rounded-xl shadow-sm border border-muted p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900">Informações Financeiras</h2>
-                      <p className="text-gray-600 mt-1">Acompanhe o desempenho financeiro dos seus projetos</p>
+                      <h2 className="text-2xl font-bold text-foreground">Informações Financeiras</h2>
+                      <p className="text-muted-foreground mt-1">Acompanhe o desempenho financeiro dos seus projetos</p>
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -718,7 +718,7 @@ export default function ClientPortalPage() {
                         <select 
                           value={selectedProjectId || ''} 
                           onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                          className="w-full sm:w-[220px] md:w-[260px] px-4 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          className="w-full sm:w-[220px] md:w-[260px] px-4 py-2 bg-card border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         >
                           <option value="">Todos os projetos</option>
                           {projects.map(project => (
@@ -731,7 +731,7 @@ export default function ClientPortalPage() {
                         <select
                           value={statusFilter}
                           onChange={(e) => setStatusFilter(e.target.value as any)}
-                          className="w-full sm:w-[200px] px-4 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          className="w-full sm:w-[200px] px-4 py-2 bg-card border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                         >
                           <option value="all">Todos</option>
                           <option value="IN_PROGRESS">Em andamento</option>
@@ -798,12 +798,12 @@ export default function ClientPortalPage() {
                             <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
                               <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Em Andamento - Retorno Financeiro</p>
                               <p className="text-3xl font-bold text-blue-900 mt-2">{formatCurrency(inProgressPaid)}</p>
-                              <p className="text-sm text-gray-600 mt-1">Somatório dos valores pagos em projetos em andamento</p>
+                              <p className="text-sm text-muted-foreground mt-1">Somatório dos valores pagos em projetos em andamento</p>
                             </div>
                             <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
                               <p className="text-sm font-semibold text-yellow-700 uppercase tracking-wide">Em Andamento - Restante a repassar</p>
                               <p className="text-3xl font-bold text-yellow-900 mt-2">{formatCurrency(inProgressRemaining)}</p>
-                              <p className="text-sm text-gray-600 mt-1">Saldo ainda não repassado frente ao orçamento</p>
+                              <p className="text-sm text-muted-foreground mt-1">Saldo ainda não repassado frente ao orçamento</p>
                             </div>
                           </div>
                         )
@@ -824,24 +824,24 @@ export default function ClientPortalPage() {
                             <div className="bg-green-50 rounded-xl p-6 border border-green-200">
                               <p className="text-sm font-semibold text-green-700 uppercase tracking-wide">Concluídos - Retorno Financeiro</p>
                               <p className="text-3xl font-bold text-green-900 mt-2">{formatCurrency(concludedPaid)}</p>
-                              <p className="text-sm text-gray-600 mt-1">Somatório dos valores pagos em projetos concluídos</p>
+                              <p className="text-sm text-muted-foreground mt-1">Somatório dos valores pagos em projetos concluídos</p>
                             </div>
                             <div className="bg-orange-50 rounded-xl p-6 border border-orange-200">
                               <p className="text-sm font-semibold text-orange-700 uppercase tracking-wide">Concluídos - Restante a repassar</p>
                               <p className="text-3xl font-bold text-orange-900 mt-2">{formatCurrency(concludedRemaining)}</p>
-                              <p className="text-sm text-gray-600 mt-1">Saldo ainda não repassado frente ao orçamento</p>
+                              <p className="text-sm text-muted-foreground mt-1">Saldo ainda não repassado frente ao orçamento</p>
                             </div>
                           </div>
                         )
                       })()}
 
                         {/* Lista de movimentações financeiras (mantida para compatibilidade) */}
-                      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                          <h3 className="text-lg font-semibold text-gray-900">
+                      <div className="bg-card rounded-xl shadow-sm border border-muted overflow-hidden">
+                        <div className="bg-card px-6 py-4 border-b border-muted">
+                          <h3 className="text-lg font-semibold text-foreground">
                             Movimentações Financeiras {selectedProjectId && projectData ? `- ${projectData.name}` : ''}
                           </h3>
-                          <p className="text-sm text-gray-600 mt-1">
+                          <p className="text-sm text-muted-foreground mt-1">
                             {allFinancials.length} {allFinancials.length === 1 ? 'movimentação encontrada' : 'movimentações encontradas'}
                           </p>
                           <div className="mt-2 flex items-center gap-2">
@@ -856,8 +856,8 @@ export default function ClientPortalPage() {
                               <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                                 <DollarSign className="h-8 w-8 text-gray-400" />
                               </div>
-                              <h4 className="text-lg font-medium text-gray-900 mb-2">Nenhuma movimentação encontrada</h4>
-                              <p className="text-gray-500">Não há registros financeiros para o período selecionado.</p>
+                              <h4 className="text-lg font-medium text-foreground mb-2">Nenhuma movimentação encontrada</h4>
+                              <p className="text-muted-foreground">Não há registros financeiros para o período selecionado.</p>
                             </div>
                           ) : (
                             allFinancials.map((entry: ClientFinancialEntry) => {
@@ -865,9 +865,9 @@ export default function ClientPortalPage() {
                               const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
                               
                               return (
-                                <div key={entry.id} className="border-b border-gray-100 last:border-b-0">
+                                <div key={entry.id} className="border-b border-muted last:border-b-0">
                                   <div
-                                    className="px-4 py-4 hover:bg-gray-50 transition-colors duration-150 cursor-pointer"
+                                    className="px-4 py-4 hover:bg-card transition-colors duration-150 cursor-pointer"
                                     onClick={() => (hasDistributions || !!entry.projectName) && toggleEntryExpansion(entry.id)}
                                     role="button"
                                     aria-expanded={isExpanded}
@@ -903,18 +903,18 @@ export default function ClientPortalPage() {
                                           </div>
                                           {/* Descrição abaixo */}
                                           <div className="mt-1">
-                                            <h4 className="text-sm font-semibold text-gray-900 break-words leading-snug">{entry.description}</h4>
+                                            <h4 className="text-sm font-semibold text-foreground break-words leading-snug">{entry.description}</h4>
                                           </div>
                                           {/* Data pequena abaixo */}
-                                          <div className="mt-0.5 text-xs text-gray-500">{formatDate(entry.date)}</div>
+                                          <div className="mt-0.5 text-xs text-muted-foreground">{formatDate(entry.date)}</div>
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2 justify-end">
                                         {(hasDistributions || !!entry.projectName) && (
                                           isExpanded ? (
-                                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                           ) : (
-                                            <ChevronRight className="h-4 w-4 text-gray-500" />
+                                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                           )
                                         )}
                                       </div>
@@ -923,17 +923,17 @@ export default function ClientPortalPage() {
                                   
                                   {/* Distribuições expandidas */}
                                   {hasDistributions && isExpanded && (
-                                    <div className="px-4 pb-3 bg-gray-50">
+                                    <div className="px-4 pb-3 bg-card">
                                       <div className="border-l-2 border-purple-200 pl-4">
                                         <div className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium mb-2">
                                           Distribuído entre {entry.projectDistributions?.length ?? 0} projeto{(entry.projectDistributions?.length ?? 0) > 1 ? 's' : ''}
                                         </div>
                                         <div className="space-y-2">
                                           {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
-                                            <div key={index} className="flex items-center justify-between py-2 px-3 bg-white rounded-md border border-gray-200">
+                                            <div key={index} className="flex items-center justify-between py-2 px-3 bg-card rounded-md border border-muted">
                                               <div className="flex items-center space-x-2">
                                                 <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                                                <span className="text-sm font-medium text-gray-900">{dist.projectName}</span>
+                                                <span className="text-sm font-medium text-foreground">{dist.projectName}</span>
                                               </div>
                                               <span className={`text-sm font-semibold ${
                                                 entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
@@ -947,11 +947,11 @@ export default function ClientPortalPage() {
                                     </div>
                                   )}
                                   {!hasDistributions && !!entry.projectName && isExpanded && (
-                                    <div className="px-4 pb-3 bg-gray-50">
+                                    <div className="px-4 pb-3 bg-card">
                                       <div className="border-l-2 border-blue-200 pl-4">
                                         <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium mb-2">Projeto</div>
-                                        <div className="flex items-center justify-between py-2 px-3 bg-white rounded-md border border-gray-200">
-                                          <span className="text-sm font-medium text-gray-900">{entry.projectName}</span>
+                                        <div className="flex items-center justify-between py-2 px-3 bg-card rounded-md border border-muted">
+                                          <span className="text-sm font-medium text-foreground">{entry.projectName}</span>
                                           <span className={`text-sm font-semibold ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>{entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}</span>
                                         </div>
                                       </div>
@@ -967,28 +967,28 @@ export default function ClientPortalPage() {
                             <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                               <DollarSign className="h-8 w-8 text-gray-400" />
                             </div>
-                            <h4 className="text-lg font-medium text-gray-900 mb-2">Nenhuma movimentação encontrada</h4>
-                            <p className="text-gray-500">Não há registros financeiros para o período selecionado.</p>
+                            <h4 className="text-lg font-medium text-foreground mb-2">Nenhuma movimentação encontrada</h4>
+                            <p className="text-muted-foreground">Não há registros financeiros para o período selecionado.</p>
                           </div>
                         ) : (
                           <div className="hidden md:block overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-50">
+                              <thead className="bg-card">
                                 <tr>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrição</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Projeto</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tipo</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoria</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Valor</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Data</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Projeto</th>
                                 </tr>
                               </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
+                              <tbody className="bg-card divide-y divide-gray-200">
                                 {allFinancials.map((entry: ClientFinancialEntry) => {
                                   const TypeIconEl = getTypeIcon(entry.type)
                                   const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
                                   return (
-                                    <tr key={entry.id} className="hover:bg-gray-50">
+                                    <tr key={entry.id} className="hover:bg-card">
                                       <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(entry.type)}`}>
                                           <TypeIconEl className="w-3 h-3 mr-1" />
@@ -996,9 +996,9 @@ export default function ClientPortalPage() {
                                         </span>
                                       </td>
                                       <td className="px-6 py-4">
-                                        <div className="text-sm font-medium text-gray-900">{entry.description}</div>
+                                        <div className="text-sm font-medium text-foreground">{entry.description}</div>
                                       </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{entry.category}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{entry.category}</td>
                                       <td className="px-6 py-4 whitespace-nowrap">
                                         <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
                                           {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}
@@ -1014,8 +1014,8 @@ export default function ClientPortalPage() {
                                           </div>
                                         )}
                                       </td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(entry.date)}</td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{formatDate(entry.date)}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                                         {hasDistributions ? (
                                           <div className="space-y-1">
                                             {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
@@ -1040,12 +1040,12 @@ export default function ClientPortalPage() {
 
                       {/* Resumo de Pagamentos por Projeto */}
                       {projectPaymentSummaries.length > 0 && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
-                          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                            <h3 className="text-lg font-semibold text-gray-900">
+                        <div className="bg-card rounded-xl shadow-sm border border-muted overflow-hidden mb-6">
+                          <div className="bg-card px-6 py-4 border-b border-muted">
+                            <h3 className="text-lg font-semibold text-foreground">
                               Resumo de Pagamentos por Projeto
                             </h3>
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className="text-sm text-muted-foreground mt-1">
                               Acompanhe o progresso financeiro de cada projeto{statusFilter !== 'all' ? ` • Filtrando: ${statusFilter === 'IN_PROGRESS' ? 'Em andamento' : 'Concluídos'}` : ''}
                             </p>
                           </div>
@@ -1062,7 +1062,7 @@ export default function ClientPortalPage() {
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                                   <div className="flex-1">
                                   <div className="flex items-center gap-2">
-                                    <h4 className="text-base font-semibold text-gray-900">{summary.projectName}</h4>
+                                    <h4 className="text-base font-semibold text-foreground">{summary.projectName}</h4>
                                     {(() => {
                                       const proj = projects.find(p => p.id === summary.projectId)
                                       if (!proj) return null
@@ -1077,7 +1077,7 @@ export default function ClientPortalPage() {
                                     const proj = projects.find(p => p.id === summary.projectId)
                                     if (!proj || !proj.partners || proj.partners.length === 0) return null
                                     return (
-                                      <p className="text-xs text-gray-500 mt-1">
+                                      <p className="text-xs text-muted-foreground mt-1">
                                         Parceiros: {proj.partners.join(', ')}
                                       </p>
                                     )
@@ -1105,8 +1105,8 @@ export default function ClientPortalPage() {
                                   </div>
                                   <div className="flex items-center space-x-4">
                                     <div className="text-right">
-                                      <p className="text-sm text-gray-500">Progresso</p>
-                                      <p className="text-2xl font-bold text-gray-900">{summary.paymentPercentage}%</p>
+                                      <p className="text-sm text-muted-foreground">Progresso</p>
+                                      <p className="text-2xl font-bold text-foreground">{summary.paymentPercentage}%</p>
                                     </div>
                                     <div className="w-16 h-16">
                                       <div className="relative w-16 h-16">
@@ -1136,7 +1136,7 @@ export default function ClientPortalPage() {
                             ))}
                             
                             {/* Total Summary */}
-                            <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="mt-6 pt-6 border-t border-muted">
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div className="bg-blue-50 p-4 rounded-lg">
                                   <p className="text-sm font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
@@ -1179,7 +1179,7 @@ export default function ClientPortalPage() {
             {activeTab === 'files' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium text-gray-900">Arquivos do Projeto</h3>
+                  <h3 className="text-lg font-medium text-foreground">Arquivos do Projeto</h3>
                   <select
                     value={selectedProject || ''}
                     onChange={(e) => setSelectedProject(e.target.value)}
@@ -1194,32 +1194,32 @@ export default function ClientPortalPage() {
                 </div>
                 
                 {selectedProjectData && (
-                  <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-card border border-muted rounded-lg overflow-hidden">
                     <div className="px-4 py-5 sm:p-6">
-                      <h4 className="text-lg font-medium text-gray-900 mb-4">
+                      <h4 className="text-lg font-medium text-foreground mb-4">
                         Arquivos - {selectedProjectData.name}
                       </h4>
                       
                       {selectedProjectData.files.length > 0 ? (
                         <div className="space-y-3">
                           {selectedProjectData.files.map((file) => (
-                            <div key={file.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                            <div key={file.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
                               <div className="flex items-center space-x-3">
                                 <FileText className="h-8 w-8 text-gray-400" />
                                 <div>
-                                  <p className="text-sm font-medium text-gray-900">{file.originalName}</p>
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-sm font-medium text-foreground">{file.originalName}</p>
+                                  <p className="text-xs text-muted-foreground">
                                     {formatFileSize(file.size)} • {formatDate(file.createdAt)}
                                   </p>
                                 </div>
                               </div>
                               
                               <div className="flex space-x-2">
-                                <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
+                                <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-card hover:bg-card">
                                   <Eye className="h-3 w-3 mr-1" />
                                   Visualizar
                                 </button>
-                                <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50">
+                                <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-card hover:bg-card">
                                   <Download className="h-3 w-3 mr-1" />
                                   Download
                                 </button>
@@ -1230,8 +1230,8 @@ export default function ClientPortalPage() {
                       ) : (
                         <div className="text-center py-12">
                           <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                          <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum arquivo</h3>
-                          <p className="mt-1 text-sm text-gray-500">
+                          <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum arquivo</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
                             Ainda não há arquivos disponíveis para este projeto.
                           </p>
                         </div>
@@ -1247,13 +1247,13 @@ export default function ClientPortalPage() {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center space-x-4">
-                    <h3 className="text-lg font-medium text-gray-900">Mensagens</h3>
+                    <h3 className="text-lg font-medium text-foreground">Mensagens</h3>
                     {selectedProject && (
                       <div className="flex items-center space-x-2">
                         <div className={`w-2 h-2 rounded-full ${
                           isConnected ? 'bg-green-500' : 'bg-red-500'
                         }`}></div>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-muted-foreground">
                           {isConnected ? 'Tempo real ativo' : 'Desconectado'}
                         </span>
                       </div>
@@ -1275,9 +1275,9 @@ export default function ClientPortalPage() {
                 {selectedProjectData && (
                   <div className="space-y-4">
                     {/* Messages List */}
-                    <div className="bg-white border border-gray-200 rounded-lg">
+                    <div className="bg-card border border-muted rounded-lg">
                       <div className="px-4 py-5 sm:p-6">
-                        <h4 className="text-lg font-medium text-gray-900 mb-4">
+                        <h4 className="text-lg font-medium text-foreground mb-4">
                           Conversas - {selectedProjectData.name}
                         </h4>
                         
@@ -1288,13 +1288,13 @@ export default function ClientPortalPage() {
                                 <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                                   comment.type === 'CLIENT_REQUEST' 
                                     ? 'bg-indigo-600 text-white' 
-                                    : 'bg-gray-100 text-gray-900'
+                                    : 'bg-gray-100 text-foreground'
                                 }`}>
                                   <p className="text-sm">{comment.content}</p>
                                   <p className={`text-xs mt-1 ${
                                     comment.type === 'CLIENT_REQUEST' 
                                       ? 'text-indigo-200' 
-                                      : 'text-gray-500'
+                                      : 'text-muted-foreground'
                                   }`}>
                                     {comment.authorName || 'Você'} • {formatDate(comment.createdAt)}
                                   </p>
@@ -1304,8 +1304,8 @@ export default function ClientPortalPage() {
                           ) : (
                             <div className="text-center py-8">
                               <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
-                              <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhuma mensagem</h3>
-                              <p className="mt-1 text-sm text-gray-500">
+                              <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma mensagem</h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
                                 Inicie uma conversa enviando uma mensagem.
                               </p>
                             </div>
@@ -1315,7 +1315,7 @@ export default function ClientPortalPage() {
                     </div>
 
                     {/* Send Message */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <div className="bg-card border border-muted rounded-lg p-4">
                       <div className="flex space-x-4">
                         <div className="flex-1">
                           <textarea

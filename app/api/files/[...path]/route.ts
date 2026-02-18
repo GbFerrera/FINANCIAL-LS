@@ -9,38 +9,29 @@ export async function GET(
   { params }: { params: { path: string[] } }
 ) {
   try {
-    console.log('=== FILES API ===')
-    console.log('Params path:', params.path)
-    
-    // Verificar autenticação (temporariamente desabilitado para debug)
-    // const session = await getServerSession()
-    // if (!session?.user) {
-    //   console.log('ERROR: Não autorizado')
-    //   return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    // }
-
     const filePath = params.path.join('/')
-    const fullPath = path.join(process.cwd(), 'uploads', filePath)
+    const uploadsDir = path.join(process.cwd(), 'uploads')
+    const publicDir = path.join(process.cwd(), 'public')
+    let fullPath = path.join(uploadsDir, filePath)
 
-    console.log('File path construído:', filePath)
-    console.log('Full path:', fullPath)
-    console.log('Arquivo existe?', existsSync(fullPath))
-
-    // Verificar se o arquivo existe
+    // Fallback para a pasta public se não existir em uploads
     if (!existsSync(fullPath)) {
-      return NextResponse.json({ error: 'Arquivo não encontrado' }, { status: 404 })
+      const publicPath = path.join(publicDir, filePath)
+      if (existsSync(publicPath)) {
+        fullPath = publicPath
+      } else {
+        return NextResponse.json({ error: 'Arquivo não encontrado' }, { status: 404 })
+      }
     }
 
-    // Verificar se o caminho está dentro da pasta uploads (segurança)
-    const uploadsDir = path.join(process.cwd(), 'uploads')
-    if (!fullPath.startsWith(uploadsDir)) {
+    // Segurança: garantir que está dentro de uploads OU public
+    if (!(fullPath.startsWith(uploadsDir) || fullPath.startsWith(publicDir))) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     // Ler o arquivo
     const fileBuffer = await readFile(fullPath)
     
-    // Determinar o tipo de conteúdo baseado na extensão
     const ext = path.extname(fullPath).toLowerCase()
     let contentType = 'application/octet-stream'
     
@@ -61,10 +52,34 @@ export async function GET(
       case '.webp':
         contentType = 'image/webp'
         break
+      case '.doc':
+        contentType = 'application/msword'
+        break
+      case '.docx':
+        contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        break
+      case '.xls':
+        contentType = 'application/vnd.ms-excel'
+        break
+      case '.xlsx':
+        contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        break
+      case '.txt':
+        contentType = 'text/plain'
+        break
+      case '.zip':
+        contentType = 'application/zip'
+        break
+      case '.rar':
+        contentType = 'application/x-rar-compressed'
+        break
+      case '.xml':
+        contentType = 'application/xml'
+        break
     }
 
     // Retornar o arquivo com headers apropriados
-    return new NextResponse(fileBuffer, {
+    return new Response(fileBuffer, {
       headers: {
         'Content-Type': contentType,
         'Content-Length': fileBuffer.length.toString(),

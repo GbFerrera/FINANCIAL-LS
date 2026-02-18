@@ -107,7 +107,7 @@ export function CollaboratorStats({ userId, userName }: CollaboratorStatsProps) 
       <Card>
         <CardContent className="p-6 text-center">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-sm text-gray-600">Carregando estatísticas...</p>
+          <p className="mt-2 text-sm text-muted-foreground">Carregando estatísticas...</p>
         </CardContent>
       </Card>
     )
@@ -117,8 +117,8 @@ export function CollaboratorStats({ userId, userName }: CollaboratorStatsProps) 
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <Activity className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-gray-600">Nenhuma atividade encontrada</p>
+          <Activity className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+          <p className="text-muted-foreground">Nenhuma atividade encontrada</p>
         </CardContent>
       </Card>
     )
@@ -146,45 +146,45 @@ export function CollaboratorStats({ userId, userName }: CollaboratorStatsProps) 
             ))}
           </div>
         </div>
-        <p className="text-sm text-gray-600">{getPeriodLabel()}</p>
+        <p className="text-sm text-muted-foreground">{getPeriodLabel()}</p>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Métricas Principais */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="text-center p-3 bg-blue-50 rounded-lg">
-            <Clock className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-            <div className="text-lg font-bold text-blue-600">
+          <div className="text-center p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg">
+            <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 mx-auto mb-1" />
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
               {stats.totalWorkTimeFormatted}
             </div>
-            <div className="text-xs text-gray-600">Tempo Total</div>
+            <div className="text-xs text-muted-foreground">Tempo Total</div>
           </div>
           
-          <div className="text-center p-3 bg-green-50 rounded-lg">
-            <CheckCircle2 className="w-5 h-5 text-green-600 mx-auto mb-1" />
-            <div className="text-lg font-bold text-green-600">
+          <div className="text-center p-3 bg-green-50/50 dark:bg-green-900/10 rounded-lg">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mx-auto mb-1" />
+            <div className="text-lg font-bold text-green-600 dark:text-green-400">
               {stats.tasksCompleted}/{stats.tasksWorked}
             </div>
-            <div className="text-xs text-gray-600">Tarefas Concluídas</div>
+            <div className="text-xs text-muted-foreground">Tarefas Concluídas</div>
           </div>
         </div>
 
         {/* Estatísticas Secundárias */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center gap-2">
-            <Play className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600">Sessões:</span>
+            <Play className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Sessões:</span>
             <span className="font-medium">{stats.totalSessions}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600">Taxa:</span>
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Taxa:</span>
             <span className="font-medium">{stats.completionRate}%</span>
           </div>
           
           <div className="flex items-center gap-2 col-span-2">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600">Média por sessão:</span>
+            <Clock className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Média por sessão:</span>
             <span className="font-medium">{stats.averageSessionTimeFormatted}</span>
           </div>
         </div>
@@ -192,23 +192,23 @@ export function CollaboratorStats({ userId, userName }: CollaboratorStatsProps) 
         {/* Breakdown por Tarefa */}
         {stats.taskBreakdown.length > 0 && (
           <div>
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Tarefas Trabalhadas</h4>
+            <h4 className="text-sm font-medium text-foreground mb-2">Tarefas Trabalhadas</h4>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {stats.taskBreakdown.map((task) => (
                 <div
                   key={task.taskId}
-                  className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
+                  className="flex items-center justify-between p-2 bg-card/50 rounded text-xs"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{task.taskTitle}</div>
-                    <div className="text-gray-500 truncate">{task.projectName}</div>
+                    <div className="text-muted-foreground truncate">{task.projectName}</div>
                   </div>
                   <div className="flex items-center gap-2 ml-2">
                     <Badge variant={task.completedAt ? 'default' : 'secondary'} className="text-xs">
                       {Math.floor(task.totalTime / 60)}min
                     </Badge>
                     {task.completedAt && (
-                      <CheckCircle2 className="w-3 h-3 text-green-600" />
+                      <CheckCircle2 className="w-3 h-3 text-green-600 dark:text-green-400" />
                     )}
                   </div>
                 </div>

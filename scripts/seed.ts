@@ -24,6 +24,19 @@ async function main() {
     },
   })
 
+  // Default Admin (Standard)
+  const defaultAdmin = await prisma.user.upsert({
+    where: { email: 'admin@admin.com' },
+    update: {},
+    create: {
+      name: 'Admin Padrão',
+      email: 'admin@admin.com',
+      password: adminPassword,
+      role: UserRole.ADMIN,
+    },
+  })
+
+
   // Membro da equipe
   const teamMember = await prisma.user.upsert({
     where: { email: 'dev@softhouse.com' },
@@ -109,8 +122,8 @@ async function main() {
         status: 'COMPLETED',
         priority: 'HIGH',
         completedAt: new Date('2024-02-05'),
-        estimatedHours: 8,
-        actualHours: 6,
+        estimatedMinutes: 480, // 8 hours
+        actualMinutes: 360, // 6 hours
         projectId: demoProject.id,
         milestoneId: milestone1.id,
         assigneeId: teamMember.id,
@@ -121,8 +134,8 @@ async function main() {
         status: 'IN_PROGRESS',
         priority: 'HIGH',
         dueDate: new Date('2024-03-20'),
-        estimatedHours: 12,
-        actualHours: 8,
+        estimatedMinutes: 720, // 12 hours
+        actualMinutes: 480, // 8 hours
         projectId: demoProject.id,
         milestoneId: milestone2.id,
         assigneeId: teamMember.id,
@@ -133,7 +146,7 @@ async function main() {
         status: 'TODO',
         priority: 'MEDIUM',
         dueDate: new Date('2024-04-01'),
-        estimatedHours: 16,
+        estimatedMinutes: 960, // 16 hours
         projectId: demoProject.id,
         milestoneId: milestone2.id,
         assigneeId: teamMember.id,
@@ -209,7 +222,8 @@ async function main() {
 
   console.log('✅ Seed concluído com sucesso!')
   console.log('\n📋 Usuários criados:')
-  console.log('👤 Admin: admin@softhouse.com / admin123')
+  console.log('👤 Admin 1: admin@softhouse.com / admin123')
+  console.log('👤 Admin 2: admin@admin.com / admin123')
   console.log('👥 Equipe: dev@softhouse.com / dev123')
   console.log('🏢 Cliente: cliente@empresa.com / cliente123')
   console.log(`\n🔗 Token de acesso do cliente: ${demoClient.accessToken}`)

@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { parseISO } from "date-fns"
+import { } from "date-fns"
 import {
   Plus,
   Search,
-  Filter,
   Calendar,
   Users,
   Clock,
@@ -17,13 +16,10 @@ import {
   Eye,
   Edit,
   Trash2,
-  MoreVertical,
   FolderOpen,
   Target,
-  ListTodo,
   Presentation
 } from "lucide-react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
 import {
   Dialog,
@@ -104,6 +100,41 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
 
+  const openOrCreateSprint = async (projectId: string) => {
+    try {
+      const sprintsRes = await fetch(`/api/sprints?projectId=${projectId}`)
+      if (!sprintsRes.ok) throw new Error('Falha ao verificar sprints')
+      const sprintsData = await sprintsRes.json()
+      const hasSprints = Array.isArray(sprintsData) ? sprintsData.length > 0 : (sprintsData?.sprints?.length > 0)
+      if (hasSprints) {
+        router.push('/projects/sprints')
+        return
+      }
+      const now = new Date()
+      const end = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+      const name = `Sprint ${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const createRes = await fetch('/api/sprints/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description: '',
+          projectIds: [projectId],
+          startDate: now.toISOString(),
+          endDate: end.toISOString(),
+          goal: '',
+          capacity: null
+        })
+      })
+      if (!createRes.ok) throw new Error('Falha ao criar sprint')
+      toast.success('Sprint criada')
+      router.push('/projects/sprints')
+    } catch (e) {
+      toast.error('Não foi possível abrir/criar a sprint')
+      console.error(e)
+    }
+  }
+
   useEffect(() => {
     if (status === "loading") return
     
@@ -146,7 +177,7 @@ export default function ProjectsPage() {
       const response = await fetch('/api/clients')
       if (response.ok) {
         const data = await response.json()
-        setClients(data.clients.map((client: any) => ({
+        setClients(data.clients.map((client: { id: string; name: string; email: string; company?: string }) => ({
           id: client.id,
           name: client.name,
           email: client.email,
@@ -219,23 +250,29 @@ export default function ProjectsPage() {
     setNewProject({
       name: project.name,
       description: project.description,
-      clientId: '', // Será preenchido quando tivermos a relação client
+      clientId: '',
       status: project.status,
-      startDate: project.startDate,
-      endDate: project.endDate || '',
+      startDate: toDateInput(project.startDate),
+      endDate: toDateInput(project.endDate),
       budget: project.budget,
       additionalClientIds: []
     })
     setShowAddModal(true)
-    // Prefetch project details to fill clients
     fetch(`/api/projects/${project.id}`).then(async (res) => {
       if (!res.ok) return
       const full = await res.json()
-      setNewProject(prev => ({
-        ...prev,
-        clientId: full.client?.id || prev.clientId,
-        additionalClientIds: (full.clients || []).map((pc: any) => pc.client.id).filter((cid: string) => cid && cid !== full.client?.id)
-      }))
+      setNewProject({
+        name: full.name || project.name,
+        description: full.description || project.description || '',
+        clientId: full.client?.id || '',
+        status: full.status || project.status,
+        startDate: toDateInput(full.startDate || project.startDate),
+        endDate: toDateInput(full.endDate || project.endDate),
+        budget: Number(full.budget) || 0,
+        additionalClientIds: (full.clients || [])
+          .map((pc: { client: { id: string } }) => pc.client.id)
+          .filter((cid: string) => cid && cid !== full.client?.id)
+      })
     }).catch(() => {})
   }
 
@@ -306,17 +343,17 @@ export default function ProjectsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PLANNING':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
       case 'IN_PROGRESS':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
       case 'ON_HOLD':
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground'
       case 'COMPLETED':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
       case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground'
     }
   }
 
@@ -369,34 +406,37 @@ export default function ProjectsPage() {
     const [year, month, day] = datePart.split('-')
     return `${day}/${month}/${year}`
   }
+  
+  const toDateInput = (iso: string | null) => {
+    if (!iso) return ''
+    const parts = iso.split('T')
+    return parts[0] || ''
+  }
 
   if (status === "loading" || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 md:flex-nowrap">
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+            <h2 className="text-2xl font-bold leading-7 text-foreground sm:text-3xl sm:truncate">
               Gestão de Projetos
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Gerencie projetos, milestones e tarefas da sua equipe
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 md:mt-0 md:ml-4">
             <button
               onClick={() => router.push('/projects/cmfv5cmde001lm701frdbxgo4/canvas')}
-              className="inline-flex items-center px-4 py-2 border border-indigo-600 rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-white hover:bg-indigo-50"
+              className="inline-flex items-center px-4 py-2 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-card hover:bg-primary/10 transition-colors"
               title="Ver Canvas da Link System"
             >
               <Presentation className="-ml-1 mr-2 h-5 w-5" />
@@ -405,7 +445,7 @@ export default function ProjectsPage() {
             {session?.user.role === 'ADMIN' && (
               <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
                 <DialogTrigger asChild>
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                  <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors">
                     <Plus className="-ml-1 mr-2 h-5 w-5" />
                     Novo Projeto
                   </button>
@@ -420,40 +460,40 @@ export default function ProjectsPage() {
 
                   <form onSubmit={handleSubmitProject} className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Nome do Projeto *
                       </label>
                       <input
                         type="text"
                         value={newProject.name}
                         onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                         placeholder="Digite o nome do projeto"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Descrição
                       </label>
                       <textarea
                         value={newProject.description}
                         onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full h-[300px] px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                         placeholder="Descreva o projeto"
                         rows={3}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Cliente *
                       </label>
                       <select
                         value={newProject.clientId}
                         onChange={(e) => setNewProject({ ...newProject, clientId: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                         required
                       >
                         <option value="">Selecione um cliente</option>
@@ -466,16 +506,16 @@ export default function ProjectsPage() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-foreground mb-1">
                         Clientes adicionais (opcional)
                       </label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto border rounded p-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-input rounded p-2 bg-card">
                         {clients
                           .filter(c => c.id !== newProject.clientId)
                           .map((client) => {
                             const checked = newProject.additionalClientIds.includes(client.id)
                             return (
-                              <label key={client.id} className="flex items-center gap-2 text-sm">
+                              <label key={client.id} className="flex items-center gap-2 text-sm text-foreground">
                                 <input
                                   type="checkbox"
                                   checked={checked}
@@ -499,13 +539,13 @@ export default function ProjectsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           Status
                         </label>
                         <select
                           value={newProject.status}
-                          onChange={(e) => setNewProject({ ...newProject, status: e.target.value as any })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => setNewProject({ ...newProject, status: e.target.value as NewProject['status'] })}
+                          className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                         >
                           <option value="PLANNING">Planejamento</option>
                           <option value="IN_PROGRESS">Em Andamento</option>
@@ -516,7 +556,7 @@ export default function ProjectsPage() {
                       </div>
 
                       <div>
-                         <label className="block text-sm font-medium text-gray-700 mb-1">
+                         <label className="block text-sm font-medium text-foreground mb-1">
                            Orçamento (R$)
                          </label>
                          <input
@@ -527,7 +567,7 @@ export default function ProjectsPage() {
                              const numericValue = value ? Number(value) / 100 : 0
                              setNewProject({ ...newProject, budget: numericValue })
                            }}
-                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                            placeholder="R$ 0,00"
                          />
                        </div>
@@ -535,27 +575,27 @@ export default function ProjectsPage() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           Data de Início *
                         </label>
                         <input
                           type="date"
                           value={newProject.startDate}
                           onChange={(e) => setNewProject({ ...newProject, startDate: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                           required
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-foreground mb-1">
                           Data de Fim
                         </label>
                         <input
                           type="date"
                           value={newProject.endDate}
                           onChange={(e) => setNewProject({ ...newProject, endDate: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                         />
                       </div>
                     </div>
@@ -573,16 +613,17 @@ export default function ProjectsPage() {
                             status: 'PLANNING',
                             startDate: '',
                             endDate: '',
-                            budget: 0
+                            budget: 0,
+                            additionalClientIds: []
                           })
                         }}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                        className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
                       >
                         Cancelar
                       </button>
                       <button
                         type="submit"
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                        className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-md transition-colors"
                       >
                         {editingProject ? 'Atualizar Projeto' : 'Criar Projeto'}
                       </button>
@@ -596,7 +637,7 @@ export default function ProjectsPage() {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2">
             <StatsCard
               title="Total de Projetos"
               value={stats.totalProjects.toString()}
@@ -642,21 +683,21 @@ export default function ProjectsPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white shadow rounded-lg">
+        <div className="bg-secondary shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Search */}
               <div className="sm:col-span-2">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-gray-400" />
+                    <Search className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <input
                     type="text"
                     placeholder="Buscar por nome do projeto ou cliente..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    className="block w-full pl-10 pr-3 py-2 border border-input rounded-md leading-5 bg-card placeholder:text-muted-foreground focus:outline-none focus:placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-primary focus:border-primary text-foreground"
                   />
                 </div>
               </div>
@@ -666,7 +707,7 @@ export default function ProjectsPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-input focus:outline-none focus:ring-primary focus:border-primary rounded-md bg-card text-foreground"
                 >
                   <option value="all">Todos os status</option>
                   <option value="PLANNING">Planejamento</option>
@@ -682,7 +723,7 @@ export default function ProjectsPage() {
                 <select
                   value={clientFilter}
                   onChange={(e) => setClientFilter(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-input focus:outline-none focus:ring-primary focus:border-primary rounded-md bg-card text-foreground"
                 >
                   <option value="all">Todos os clientes</option>
                   {Array.from(new Set(projects.map(p => p.clientName))).sort().map((clientName) => (
@@ -697,27 +738,27 @@ export default function ProjectsPage() {
         </div>
 
         {/* Projects Grid */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-card shadow rounded-lg overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+            <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
               Projetos ({filteredProjects.length})
             </h3>
             
             {filteredProjects.length === 0 ? (
               <div className="text-center py-12">
-                <FolderOpen className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum projeto encontrado</h3>
-                <p className="mt-1 text-sm text-gray-500">
+                <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum projeto encontrado</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {searchTerm || statusFilter !== 'all' || clientFilter !== 'all' ? 'Tente ajustar os filtros' : 'Comece criando um novo projeto'}
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {/* Projeto Link System sempre primeiro */}
                 {linkSystemProject && (() => {
                   const StatusIcon = getStatusIcon(linkSystemProject.status)
                   return (
-                    <div key={linkSystemProject.id} className="bg-white border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative">
+                    <div key={linkSystemProject.id} className="bg-card border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative">
                       {/* Badge Fixo */}
                       <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
                         FIXO
@@ -726,14 +767,14 @@ export default function ProjectsPage() {
                         {/* Header */}
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
-                            <h4 className="text-lg font-medium text-gray-900 truncate">
+                            <h4 className="text-lg font-medium text-foreground truncate">
                               {linkSystemProject.name}
                             </h4>
-                            <p className="text-sm text-gray-500 mt-1">
+                            <p className="text-sm text-muted-foreground mt-1">
                               Cliente: {linkSystemProject.clientName}
                             </p>
                             {linkSystemProject.partners && linkSystemProject.partners.length > 0 && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-muted-foreground mt-1">
                                 Parceiros: {linkSystemProject.partners.join(', ')}
                               </p>
                             )}
@@ -743,24 +784,21 @@ export default function ProjectsPage() {
                               <StatusIcon className="w-3 h-3 mr-1" />
                               {getStatusLabel(linkSystemProject.status)}
                             </span>
-                            <button className="text-gray-400 hover:text-gray-600">
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
                           </div>
                         </div>
 
                         {/* Description */}
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                           {linkSystemProject.description}
                         </p>
 
                         {/* Progress */}
                         <div className="mb-4">
-                          <div className="flex justify-between text-sm text-gray-600 mb-1">
+                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
                             <span>Progresso</span>
                             <span>{linkSystemProject.progress}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-secondary rounded-full h-2">
                             <div 
                               className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${linkSystemProject.progress}%` }}
@@ -771,21 +809,21 @@ export default function ProjectsPage() {
                         {/* Stats */}
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
+                            <div className="text-lg font-semibold text-foreground">
                               {linkSystemProject.completedMilestones}/{linkSystemProject.milestonesCount}
                             </div>
-                            <div className="text-xs text-gray-500">Milestones</div>
+                            <div className="text-xs text-muted-foreground">Milestones</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
+                            <div className="text-lg font-semibold text-foreground">
                               {linkSystemProject.completedTasks}/{linkSystemProject.tasksCount}
                             </div>
-                            <div className="text-xs text-gray-500">Tarefas</div>
+                            <div className="text-xs text-muted-foreground">Tarefas</div>
                           </div>
                         </div>
 
                         {/* Meta info */}
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
                           <div className="flex items-center">
                             <Users className="h-4 w-4 mr-1" />
                             {linkSystemProject.teamCount} membros
@@ -797,23 +835,31 @@ export default function ProjectsPage() {
                         </div>
 
                         {/* Budget */}
-                        <div className="text-sm text-gray-600 mb-4">
+                        <div className="text-sm text-muted-foreground mb-4">
                           <strong>Orçamento:</strong> {formatCurrency(linkSystemProject.budget)}
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between pt-4 border-t border-muted">
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => router.push(`/projects/${linkSystemProject.id}`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               Ver Detalhes
                             </button>
                             <button 
+                              onClick={() => openOrCreateSprint(linkSystemProject.id)}
+                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
+                              title="Abrir Sprints"
+                            >
+        
+                              Sprints
+                            </button>
+                            <button 
                               onClick={() => router.push(`/projects/${linkSystemProject.id}/canvas`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-indigo-300 shadow-sm text-xs font-medium rounded text-indigo-700 bg-white hover:bg-indigo-50"
+                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
                               title="Abrir Canvas (Excalidraw)"
                             >
                               Canvas
@@ -824,7 +870,7 @@ export default function ProjectsPage() {
                             <div className="flex space-x-2">
                               <button 
                                 onClick={() => handleEditProject(linkSystemProject)}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="text-muted-foreground hover:text-foreground transition-colors"
                                 title="Editar projeto"
                               >
                                 <Edit className="h-4 w-4" />
@@ -832,7 +878,7 @@ export default function ProjectsPage() {
                               <button 
                                 onClick={() => handleDeleteProject(linkSystemProject.id)}
                                 disabled={deletingProjectId === linkSystemProject.id}
-                                className="text-red-400 hover:text-red-600 disabled:opacity-50"
+                                className="text-destructive/70 hover:text-destructive disabled:opacity-50 transition-colors"
                                 title="Excluir projeto"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -849,19 +895,19 @@ export default function ProjectsPage() {
                 {otherProjects.map((project) => {
                   const StatusIcon = getStatusIcon(project.status)
                   return (
-                    <div key={project.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div key={project.id} className="bg-card border border-muted rounded-lg shadow-sm hover:shadow-md transition-shadow">
                       <div className="p-6">
                         {/* Header */}
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1">
-                            <h4 className="text-lg font-medium text-gray-900 truncate">
+                            <h4 className="text-lg font-medium text-foreground truncate">
                               {project.name}
                             </h4>
-                            <p className="text-sm text-gray-500 mt-1">
+                            <p className="text-sm text-muted-foreground mt-1">
                               Cliente: {project.clientName}
                             </p>
                             {project.partners && project.partners.length > 0 && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-muted-foreground mt-1">
                                 Parceiros: {project.partners.join(', ')}
                               </p>
                             )}
@@ -871,24 +917,21 @@ export default function ProjectsPage() {
                               <StatusIcon className="w-3 h-3 mr-1" />
                               {getStatusLabel(project.status)}
                             </span>
-                            <button className="text-gray-400 hover:text-gray-600">
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
                           </div>
                         </div>
 
                         {/* Description */}
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                           {project.description}
                         </p>
 
                         {/* Progress */}
                         <div className="mb-4">
-                          <div className="flex justify-between text-sm text-gray-600 mb-1">
+                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
                             <span>Progresso</span>
                             <span>{project.progress}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-secondary rounded-full h-2">
                             <div 
                               className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${project.progress}%` }}
@@ -899,21 +942,21 @@ export default function ProjectsPage() {
                         {/* Stats */}
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
+                            <div className="text-lg font-semibold text-foreground">
                               {project.completedMilestones}/{project.milestonesCount}
                             </div>
-                            <div className="text-xs text-gray-500">Milestones</div>
+                            <div className="text-xs text-muted-foreground">Milestones</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
+                            <div className="text-lg font-semibold text-foreground">
                               {project.completedTasks}/{project.tasksCount}
                             </div>
-                            <div className="text-xs text-gray-500">Tarefas</div>
+                            <div className="text-xs text-muted-foreground">Tarefas</div>
                           </div>
                         </div>
 
                         {/* Meta info */}
-                        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
                           <div className="flex items-center">
                             <Users className="h-4 w-4 mr-1" />
                             {project.teamCount} membros
@@ -925,23 +968,30 @@ export default function ProjectsPage() {
                         </div>
 
                         {/* Budget */}
-                        <div className="text-sm text-gray-600 mb-4">
+                        <div className="text-sm text-muted-foreground mb-4">
                           <strong>Orçamento:</strong> {formatCurrency(project.budget)}
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between pt-4 border-t border-muted">
                           <div className="flex items-center gap-2">
                             <button 
                               onClick={() => router.push(`/projects/${project.id}`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               Ver Detalhes
                             </button>
                             <button 
+                              onClick={() => openOrCreateSprint(project.id)}
+                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
+                              title="Abrir Sprints"
+                            >
+                              Sprints
+                            </button>
+                            <button 
                               onClick={() => router.push(`/projects/${project.id}/canvas`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-indigo-300 shadow-sm text-xs font-medium rounded text-indigo-700 bg-white hover:bg-indigo-50"
+                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
                               title="Abrir Canvas (Excalidraw)"
                             >
                               Canvas
@@ -952,7 +1002,7 @@ export default function ProjectsPage() {
                             <div className="flex space-x-2">
                               <button 
                                 onClick={() => handleEditProject(project)}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="text-muted-foreground hover:text-foreground transition-colors"
                                 title="Editar projeto"
                               >
                                 <Edit className="h-4 w-4" />
@@ -960,7 +1010,7 @@ export default function ProjectsPage() {
                               <button 
                                 onClick={() => handleDeleteProject(project.id)}
                                 disabled={deletingProjectId === project.id}
-                                className="text-red-400 hover:text-red-600 disabled:opacity-50"
+                                className="text-destructive/70 hover:text-destructive disabled:opacity-50 transition-colors"
                                 title="Excluir projeto"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -979,6 +1029,5 @@ export default function ProjectsPage() {
       </div>
 
 
-    </DashboardLayout>
   )
 }

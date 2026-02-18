@@ -92,34 +92,34 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'TIMER_START':
-        return <Play className="w-4 h-4 text-green-600" />
+        return <Play className="w-4 h-4 text-green-600 dark:text-green-400" />
       case 'TIMER_PAUSE':
-        return <Pause className="w-4 h-4 text-yellow-600" />
+        return <Pause className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
       case 'TIMER_STOP':
-        return <Square className="w-4 h-4 text-red-600" />
+        return <Square className="w-4 h-4 text-red-600 dark:text-red-400" />
       case 'TASK_COMPLETE':
-        return <CheckCircle2 className="w-4 h-4 text-blue-600" />
+        return <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
       case 'TIMER_UPDATE':
-        return <Clock className="w-4 h-4 text-gray-400" />
+        return <Clock className="w-4 h-4 text-muted-foreground" />
       default:
-        return <Clock className="w-4 h-4 text-gray-400" />
+        return <Clock className="w-4 h-4 text-muted-foreground" />
     }
   }
 
   const getEventColor = (type: string) => {
     switch (type) {
       case 'TIMER_START':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300'
       case 'TIMER_PAUSE':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300'
       case 'TIMER_STOP':
-        return 'bg-red-100 text-red-800'
+        return 'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300'
       case 'TASK_COMPLETE':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300'
       case 'TIMER_UPDATE':
-        return 'bg-gray-100 text-gray-600'
+        return 'bg-card text-muted-foreground'
       default:
-        return 'bg-gray-100 text-gray-600'
+        return 'bg-card text-muted-foreground'
     }
   }
 
@@ -199,7 +199,7 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
       <Card>
         <CardContent className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Carregando histórico...</p>
+          <p className="mt-2 text-muted-foreground">Carregando histórico...</p>
         </CardContent>
       </Card>
     )
@@ -217,7 +217,7 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value as any)}
-              className="px-3 py-1 border rounded-md text-sm"
+              className="px-3 py-1 border rounded-md text-sm bg-background text-foreground"
             >
               <option value="all">Todos</option>
               <option value="start">Início</option>
@@ -240,14 +240,14 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
       <CardContent>
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {filteredEvents.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">
+            <p className="text-muted-foreground text-center py-4">
               Nenhum evento encontrado
             </p>
           ) : (
             filteredEvents.map((event) => (
               <div
                 key={event.id}
-                className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-3 p-3 bg-card/50 rounded-lg hover:bg-card transition-colors"
               >
                 {getEventIcon(event.type)}
                 <div className="flex-1">
@@ -257,20 +257,20 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
                       {getEventText(event)}
                     </Badge>
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-muted-foreground">
                     <div className="font-medium">{event.taskTitle}</div>
-                    <div className="text-gray-500">
+                    <div className="text-muted-foreground">
                       {event.projectName}
                       {event.sprintName && ` • ${event.sprintName}`}
                     </div>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-muted-foreground">
                     {format(new Date(event.timestamp), 'dd/MM HH:mm:ss', { locale: ptBR })}
                   </div>
                   {event.sessionId && (
-                    <div className="text-xs text-gray-400 font-mono">
+                    <div className="text-xs text-muted-foreground font-mono">
                       {event.sessionId.slice(-6)}
                     </div>
                   )}
@@ -282,7 +282,7 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
         
         {filteredEvents.length > 0 && (
           <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Mostrando {filteredEvents.length} de {events.length} eventos
             </p>
           </div>

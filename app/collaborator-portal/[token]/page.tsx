@@ -4,7 +4,9 @@ import { use, useEffect, useState } from 'react'
 import { WeeklySprintView } from '@/components/collaborator/WeeklySprintView'
 import { TaskListView } from '@/components/collaborator/TaskListView'
 import { ReportTaskModal } from '@/components/collaborator/ReportTaskModal'
+import { ContributionHeatmap } from '@/components/dashboard/contribution-heatmap'
 import { Button } from '@/components/ui/button'
+import NextLink from 'next/link'
 import { Target, Calendar, List, User } from 'lucide-react'
 
 interface PageProps {
@@ -36,20 +38,23 @@ export default function CollaboratorPortalPage({ params }: PageProps) {
   }, [token])
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-card py-8">
       <div className="container mx-auto px-4 space-y-6">
+
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
+        <div className="bg-card rounded-lg shadow-sm p-6">
+
+   
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Portal do Colaborador</h1>
+              <h1 className="text-3xl font-bold text-foreground">Portal do Colaborador</h1>
               {collaboratorName && (
                 <div className="flex items-center gap-2 mt-1 mb-1">
                   <User className="h-4 w-4 text-blue-500" />
                   <span className="font-medium text-blue-600">{collaboratorName}</span>
                 </div>
               )}
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Organize suas tarefas por sprint e dia da semana
               </p>
             </div>
@@ -74,19 +79,27 @@ export default function CollaboratorPortalPage({ params }: PageProps) {
                   <List className="h-4 w-4" />
                   Lista
                 </Button>
-                <Button
-                  onClick={() => window.location.href = `/collaborator-portal/${token}/sprints`}
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <Target className="h-4 w-4" />
-                  Sprints
-                </Button>
+                <NextLink href={`/collaborator-portal/${token}/tasks`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Período
+                  </Button>
+                </NextLink>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Produtividade Diária */}
+        <ContributionHeatmap 
+          token={token}
+          title="Minha Produtividade Diária"
+          showStats={true}
+        />
 
         {/* Content */}
         {viewMode === 'weekly' ? (
@@ -94,6 +107,8 @@ export default function CollaboratorPortalPage({ params }: PageProps) {
         ) : (
           <TaskListView token={token} />
         )}
+
+      
       </div>
     </div>
   )

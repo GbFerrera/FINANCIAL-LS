@@ -15,7 +15,6 @@ import {
   Plus,
   FileText
 } from "lucide-react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { StatsCard } from "@/components/ui/stats-card"
 import { ProjectsOverview } from "@/components/dashboard/projects-overview"
 import { FinancialChart } from "@/components/dashboard/financial-chart"
@@ -134,61 +133,52 @@ export default function DashboardPage() {
 
   if (status === "loading" || loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
     )
   }
 
   if (!dashboardData) {
     return (
-      <DashboardLayout>
-        <div className="text-center py-12">
-          <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">Erro ao carregar dados</h3>
-          <p className="mt-1 text-sm text-gray-500">Tente recarregar a página</p>
-          <button 
-            onClick={fetchDashboardData}
-            className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      </DashboardLayout>
+      <div className="text-center py-12">
+        <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
+        <h3 className="mt-2 text-sm font-medium text-foreground">Erro ao carregar dados</h3>
+        <p className="mt-1 text-sm text-muted-foreground">Tente recarregar a página</p>
+        <button 
+          onClick={fetchDashboardData}
+          className="mt-4 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90"
+        >
+          Tentar novamente
+        </button>
+      </div>
     )
   }
 
   const { stats, projects, financialData, activities } = dashboardData
-
   return (
-    <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="md:flex md:items-center md:justify-between">
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+            <h2 className="text-2xl font-bold leading-7 text-foreground sm:text-3xl sm:truncate">
               Dashboard
             </h2>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Bem-vindo de volta, {session?.user.name}! Aqui está um resumo dos seus projetos.
             </p>
           </div>
           <div className="mt-4 flex md:mt-0 md:ml-4">
-            <button className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+            <button className="inline-flex items-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium text-foreground bg-background hover:bg-accent hover:text-accent-foreground">
               <FileText className="-ml-1 mr-2 h-5 w-5" />
               Relatórios
             </button>
-            <button className="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+            <button className="ml-3 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90">
               <Plus className="-ml-1 mr-2 h-5 w-5" />
               Novo Projeto
             </button>
           </div>
         </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
           <StatsCard
             title="Projetos Ativos"
             value={stats.activeProjects}
@@ -230,34 +220,25 @@ export default function DashboardPage() {
             }}
           />
         </div>
-
-        {/* Main Content Grid */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Financial Chart */}
           <div className="lg:col-span-1">
             <FinancialChart data={financialData} />
           </div>
-          
-          {/* Recent Activity */}
           <div className="lg:col-span-1">
             <RecentActivity activities={activities} />
           </div>
         </div>
-
-        {/* Projects Overview */}
         <div className="">
           <ProjectsOverview projects={projects} />
         </div>
-
-        {/* Team Task Metrics */}
         {dashboardData?.teamTaskMetrics && dashboardData.teamTaskMetrics.length > 0 && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="bg-card rounded-lg shadow-sm border border-muted p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Métricas da Equipe - Hoje</h2>
-                <p className="text-gray-600 text-sm">Tarefas concluídas e pendentes por membro da equipe</p>
+                <h2 className="text-xl font-semibold ">Métricas da Equipe - Hoje</h2>
+                <p className="text-muted-foreground text-sm">Tarefas concluídas e pendentes por membro da equipe</p>
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-muted-foreground">
                 {new Date().toLocaleDateString('pt-BR', { 
                   weekday: 'long', 
                   year: 'numeric', 
@@ -266,58 +247,52 @@ export default function DashboardPage() {
                 })}
               </div>
             </div>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {dashboardData.teamTaskMetrics.map((member) => (
-                <div key={member.id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+                <div key={member.id} className="bg-card rounded-lg p-4 border border-muted">
                   <div className="flex items-center mb-4">
                     <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
                       <Users className="h-5 w-5 text-indigo-600" />
                     </div>
                     <div className="ml-3">
-                      <h3 className="font-medium text-gray-900">{member.name}</h3>
-                      <p className="text-sm text-gray-500">{member.role}</p>
+                      <h3 className="font-medium text-foreground">{member.name}</h3>
+                      <p className="text-sm text-muted-foreground">{member.role}</p>
                     </div>
                   </div>
-                  
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Concluídas hoje:</span>
+                      <span className="text-sm text-muted-foreground">Concluídas hoje:</span>
                       <span className="font-semibold text-green-600">{member.tasksCompletedToday}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Pendentes:</span>
+                      <span className="text-sm text-muted-foreground">Pendentes:</span>
                       <span className="font-semibold text-yellow-600">{member.tasksPending}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600">Vencendo hoje:</span>
+                      <span className="text-sm text-muted-foreground">Vencendo hoje:</span>
                       <span className="font-semibold text-red-600">{member.tasksDueTodayNotCompleted}</span>
                     </div>
                   </div>
-                  
-                  {/* Tarefas concluídas hoje */}
                   {member.completedTasks.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="mt-4 pt-4 border-t border-muted">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Concluídas hoje:</h4>
                       <div className="space-y-1">
                         {member.completedTasks.slice(0, 3).map((task) => (
-                          <div key={task.id} className="text-xs text-gray-600 bg-green-50 p-2 rounded">
+                          <div key={task.id} className="text-xs text-muted-foreground bg-green-50 p-2 rounded">
                             <div className="font-medium">{task.title}</div>
-                            <div className="text-gray-500">{task.projectName}</div>
+                            <div className="text-muted-foreground">{task.projectName}</div>
                           </div>
                         ))}
                         {member.completedTasks.length > 3 && (
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             +{member.completedTasks.length - 3} mais...
                           </div>
                         )}
                       </div>
                     </div>
                   )}
-                  
-                  {/* Tarefas pendentes */}
                   {member.pendingTasks.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="mt-4 pt-4 border-t border-muted">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Pendentes:</h4>
                       <div className="space-y-1">
                         {member.pendingTasks.slice(0, 3).map((task) => (
@@ -325,7 +300,7 @@ export default function DashboardPage() {
                             task.isOverdue ? 'text-red-700 bg-red-50' : 'text-yellow-700 bg-yellow-50'
                           }`}>
                             <div className="font-medium">{task.title}</div>
-                            <div className="text-gray-500">{task.projectName}</div>
+                            <div className="text-muted-foreground">{task.projectName}</div>
                             {task.dueDate && (
                               <div className="text-xs">
                                 Vence: {format(parseISO(task.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
@@ -334,7 +309,7 @@ export default function DashboardPage() {
                           </div>
                         ))}
                         {member.pendingTasks.length > 3 && (
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-muted-foreground">
                             +{member.pendingTasks.length - 3} mais...
                           </div>
                         )}
@@ -347,6 +322,5 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
-    </DashboardLayout>
   )
 }

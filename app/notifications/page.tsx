@@ -244,8 +244,8 @@ export default function NotificationsPage() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Notificações</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-foreground">Notificações</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Gerencie suas notificações e preferências
             </p>
           </div>
@@ -259,14 +259,14 @@ export default function NotificationsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-muted">
           <nav className="-mb-px flex space-x-8">
             <button
               onClick={() => setActiveTab('notifications')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'notifications'
                   ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               <div className="flex items-center">
@@ -284,7 +284,7 @@ export default function NotificationsPage() {
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'settings'
                   ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               <div className="flex items-center">
@@ -297,16 +297,16 @@ export default function NotificationsPage() {
 
         {/* Content */}
         {activeTab === 'notifications' ? (
-          <div className="bg-white shadow rounded-lg">
+          <div className="bg-card shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">
+                <h3 className="text-lg leading-6 font-medium text-foreground">
                   Suas Notificações
                 </h3>
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-card hover:bg-card"
                   >
                     <CheckCheck className="h-4 w-4 mr-1" />
                     Marcar todas como lidas
@@ -321,7 +321,7 @@ export default function NotificationsPage() {
                       key={notification.id}
                       className={`p-4 rounded-lg border transition-colors ${
                         notification.read
-                          ? 'bg-gray-50 border-gray-200'
+                          ? 'bg-card border-muted'
                           : 'bg-blue-50 border-blue-200'
                       }`}
                     >
@@ -331,13 +331,13 @@ export default function NotificationsPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
                               <h4 className={`text-sm font-medium ${
-                                notification.read ? 'text-gray-700' : 'text-gray-900'
+                                notification.read ? 'text-gray-700' : 'text-foreground'
                               }`}>
                                 {notification.title}
                               </h4>
                               <div className="flex items-center space-x-2">
                                 <span className={`text-xs ${
-                                  notification.read ? 'text-gray-400' : 'text-gray-500'
+                                  notification.read ? 'text-gray-400' : 'text-muted-foreground'
                                 }`}>
                                   <Clock className="h-3 w-3 inline mr-1" />
                                   {formatTime(notification.createdAt)}
@@ -345,7 +345,7 @@ export default function NotificationsPage() {
                               </div>
                             </div>
                             <p className={`mt-1 text-sm ${
-                              notification.read ? 'text-gray-500' : 'text-gray-700'
+                              notification.read ? 'text-muted-foreground' : 'text-gray-700'
                             }`}>
                               {notification.message}
                             </p>
@@ -363,7 +363,7 @@ export default function NotificationsPage() {
                           {!notification.read && (
                             <button
                               onClick={() => markAsRead(notification.id)}
-                              className="p-1 text-gray-400 hover:text-gray-600"
+                              className="p-1 text-gray-400 hover:text-muted-foreground"
                               title="Marcar como lida"
                             >
                               <Check className="h-4 w-4" />
@@ -384,8 +384,8 @@ export default function NotificationsPage() {
               ) : (
                 <div className="text-center py-12">
                   <Bell className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhuma notificação</h3>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma notificação</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Você está em dia! Não há notificações pendentes.
                   </p>
                 </div>
@@ -393,23 +393,23 @@ export default function NotificationsPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-white shadow rounded-lg">
+          <div className="bg-card shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-6">
+              <h3 className="text-lg leading-6 font-medium text-foreground mb-6">
                 Configurações de Notificação
               </h3>
               
               <div className="space-y-6">
                 {/* Canais de Notificação */}
                 <div>
-                  <h4 className="text-sm font-medium text-gray-900 mb-4">Canais de Notificação</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-4">Canais de Notificação</h4>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <Mail className="h-5 w-5 text-gray-400 mr-3" />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">Email</p>
-                          <p className="text-sm text-gray-500">Receber notificações por email</p>
+                          <p className="text-sm font-medium text-foreground">Email</p>
+                          <p className="text-sm text-muted-foreground">Receber notificações por email</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -419,7 +419,7 @@ export default function NotificationsPage() {
                           onChange={(e) => setSettings(prev => ({ ...prev, emailEnabled: e.target.checked }))}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                       </label>
                     </div>
                     
@@ -427,8 +427,8 @@ export default function NotificationsPage() {
                       <div className="flex items-center">
                         <MessageSquare className="h-5 w-5 text-gray-400 mr-3" />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">WhatsApp</p>
-                          <p className="text-sm text-gray-500">Receber notificações via WhatsApp</p>
+                          <p className="text-sm font-medium text-foreground">WhatsApp</p>
+                          <p className="text-sm text-muted-foreground">Receber notificações via WhatsApp</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -438,7 +438,7 @@ export default function NotificationsPage() {
                           onChange={(e) => setSettings(prev => ({ ...prev, whatsappEnabled: e.target.checked }))}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                       </label>
                     </div>
                     
@@ -461,8 +461,8 @@ export default function NotificationsPage() {
                       <div className="flex items-center">
                         <Bell className="h-5 w-5 text-gray-400 mr-3" />
                         <div>
-                          <p className="text-sm font-medium text-gray-900">Push Notifications</p>
-                          <p className="text-sm text-gray-500">Notificações no navegador</p>
+                          <p className="text-sm font-medium text-foreground">Push Notifications</p>
+                          <p className="text-sm text-muted-foreground">Notificações no navegador</p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -472,7 +472,7 @@ export default function NotificationsPage() {
                           onChange={(e) => setSettings(prev => ({ ...prev, pushEnabled: e.target.checked }))}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                       </label>
                     </div>
                   </div>
@@ -480,7 +480,7 @@ export default function NotificationsPage() {
                 
                 {/* Tipos de Notificação */}
                 <div>
-                  <h4 className="text-sm font-medium text-gray-900 mb-4">Tipos de Notificação</h4>
+                  <h4 className="text-sm font-medium text-foreground mb-4">Tipos de Notificação</h4>
                   <div className="space-y-4">
                     {[
                       { key: 'projectUpdates', label: 'Atualizações de Projetos', desc: 'Mudanças de status, novos marcos' },
@@ -492,8 +492,8 @@ export default function NotificationsPage() {
                     ].map((item) => (
                       <div key={item.key} className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{item.label}</p>
-                          <p className="text-sm text-gray-500">{item.desc}</p>
+                          <p className="text-sm font-medium text-foreground">{item.label}</p>
+                          <p className="text-sm text-muted-foreground">{item.desc}</p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
@@ -502,7 +502,7 @@ export default function NotificationsPage() {
                             onChange={(e) => setSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
                             className="sr-only peer"
                           />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                         </label>
                       </div>
                     ))}
@@ -510,7 +510,7 @@ export default function NotificationsPage() {
                 </div>
                 
                 {/* Save Button */}
-                <div className="pt-4 border-t border-gray-200">
+                <div className="pt-4 border-t border-muted">
                   <button
                     onClick={saveSettings}
                     disabled={saving}

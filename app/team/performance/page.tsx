@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { format, addDays, startOfDay, endOfDay, isToday, isTomorrow, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { StatsCard } from '@/components/ui/stats-card'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -158,28 +157,28 @@ export default function TeamPerformancePage() {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'completed': return 'bg-green-100 text-green-800'
-      case 'in_progress': return 'bg-blue-100 text-blue-800'
-      case 'todo': return 'bg-gray-100 text-gray-800'
-      case 'in_review': return 'bg-yellow-100 text-yellow-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'completed': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      case 'in_progress': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+      case 'todo': return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
+      case 'in_review': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
     }
   }
 
   const getPriorityColor = (priority: string) => {
     switch (priority.toLowerCase()) {
-      case 'urgent': return 'bg-red-100 text-red-800'
-      case 'high': return 'bg-orange-100 text-orange-800'
-      case 'medium': return 'bg-yellow-100 text-yellow-800'
-      case 'low': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'urgent': return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+      case 'high': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'
+      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
     }
   }
 
   const getPerformanceColor = (value: number, threshold: number = 80) => {
-    if (value >= threshold) return 'text-green-600'
-    if (value >= threshold * 0.7) return 'text-yellow-600'
-    return 'text-red-600'
+    if (value >= threshold) return 'text-green-600 dark:text-green-500'
+    if (value >= threshold * 0.7) return 'text-yellow-600 dark:text-yellow-500'
+    return 'text-red-600 dark:text-red-500'
   }
 
   const filteredMembers = selectedMember === 'all' 
@@ -188,35 +187,30 @@ export default function TeamPerformancePage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
         </div>
-      </DashboardLayout>
     )
   }
 
   if (!performanceData) {
     return (
-      <DashboardLayout>
         <div className="text-center py-12">
           <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Erro ao carregar dados</h3>
-          <p className="text-gray-600 mb-4">Não foi possível carregar os dados de performance.</p>
+          <h3 className="text-lg font-medium text-foreground mb-2">Erro ao carregar dados</h3>
+          <p className="text-muted-foreground mb-4">Não foi possível carregar os dados de performance.</p>
           <Button onClick={fetchPerformanceData}>Tentar novamente</Button>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Performance da Equipe</h1>
-            <p className="text-gray-600">
+            <h1 className="text-2xl font-bold text-foreground">Performance da Equipe</h1>
+            <p className="text-muted-foreground">
               Acompanhe o desempenho e produtividade dos colaboradores
             </p>
           </div>
@@ -298,28 +292,28 @@ export default function TeamPerformancePage() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {performanceData.milestonesSummary.total}
                 </div>
-                <div className="text-sm text-gray-600">Total</div>
+                <div className="text-sm text-muted-foreground">Total</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {performanceData.milestonesSummary.completed}
                 </div>
-                <div className="text-sm text-gray-600">Concluídos</div>
+                <div className="text-sm text-muted-foreground">Concluídos</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600">
+                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                   {performanceData.milestonesSummary.inProgress}
                 </div>
-                <div className="text-sm text-gray-600">Em Progresso</div>
+                <div className="text-sm text-muted-foreground">Em Progresso</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                   {performanceData.milestonesSummary.overdue}
                 </div>
-                <div className="text-sm text-gray-600">Atrasados</div>
+                <div className="text-sm text-muted-foreground">Atrasados</div>
               </div>
             </div>
           </CardContent>
@@ -327,7 +321,7 @@ export default function TeamPerformancePage() {
 
         {/* Team Member Filter */}
         <div className="flex items-center gap-4">
-          <Filter className="h-5 w-5 text-gray-400" />
+          <Filter className="h-5 w-5 text-muted-foreground" />
           <Select value={selectedMember} onValueChange={setSelectedMember}>
             <SelectTrigger className="w-64">
               <SelectValue placeholder="Filtrar por membro" />
@@ -357,13 +351,13 @@ export default function TeamPerformancePage() {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{member.name}</h3>
-                      <p className="text-sm text-gray-600">{member.role}</p>
+                      <h3 className="text-lg font-semibold text-foreground">{member.name}</h3>
+                      <p className="text-sm text-muted-foreground">{member.role}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-foreground">
                         Taxa de Conclusão
                       </div>
                       <div className={`text-lg font-bold ${getPerformanceColor(member.performance.completionRate)}`}>
@@ -371,7 +365,7 @@ export default function TeamPerformancePage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-foreground">
                         Eficiência
                       </div>
                       <div className={`text-lg font-bold ${getPerformanceColor(member.performance.efficiency)}`}>
@@ -394,7 +388,7 @@ export default function TeamPerformancePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Tarefas de Hoje */}
                       <div>
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                        <h4 className="font-medium text-foreground mb-3 flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
                           Hoje ({format(new Date(), 'dd/MM', { locale: ptBR })})
                         </h4>
@@ -402,7 +396,7 @@ export default function TeamPerformancePage() {
                           <div className="flex justify-between text-sm">
                             <span>Concluídas: {member.tasksToday.completed}</span>
                             <span>Pendentes: {member.tasksToday.pending}</span>
-                            <span className="text-red-600">Atrasadas: {member.tasksToday.overdue}</span>
+                            <span className="text-destructive">Atrasadas: {member.tasksToday.overdue}</span>
                           </div>
                           <Progress 
                             value={(member.tasksToday.completed / (member.tasksToday.completed + member.tasksToday.pending + member.tasksToday.overdue)) * 100} 
@@ -413,7 +407,7 @@ export default function TeamPerformancePage() {
 
                       {/* Tarefas de Amanhã */}
                       <div>
-                        <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                        <h4 className="font-medium text-foreground mb-3 flex items-center gap-2">
                           <Calendar className="h-4 w-4" />
                           Amanhã ({format(addDays(new Date(), 1), 'dd/MM', { locale: ptBR })})
                         </h4>
@@ -422,7 +416,7 @@ export default function TeamPerformancePage() {
                             <span>Agendadas: {member.tasksTomorrow.scheduled}</span>
                             <span>Pendentes: {member.tasksTomorrow.pending}</span>
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-muted-foreground">
                             {member.tasksTomorrow.scheduled + member.tasksTomorrow.pending} tarefas programadas
                           </div>
                         </div>
@@ -431,13 +425,13 @@ export default function TeamPerformancePage() {
 
                     {/* Lista de Tarefas Atuais */}
                     <div>
-                      <h4 className="font-medium text-gray-900 mb-3">Tarefas Atuais</h4>
+                      <h4 className="font-medium text-foreground mb-3">Tarefas Atuais</h4>
                       <div className="space-y-2 max-h-64 overflow-y-auto">
                         {member.currentTasks.map((task) => (
-                          <div key={task.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div key={task.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <h5 className="text-sm font-medium text-gray-900 truncate">
+                                <h5 className="text-sm font-medium text-foreground truncate">
                                   {task.title}
                                 </h5>
                                 {task.isOverdue && (
@@ -446,7 +440,7 @@ export default function TeamPerformancePage() {
                                   </Badge>
                                 )}
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-600">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 <span>{task.projectName}</span>
                                 {task.milestone && (
                                   <>
@@ -473,7 +467,7 @@ export default function TeamPerformancePage() {
                           </div>
                         ))}
                         {member.currentTasks.length === 0 && (
-                          <div className="text-center py-8 text-gray-500">
+                          <div className="text-center py-8 text-muted-foreground">
                             Nenhuma tarefa atual
                           </div>
                         )}
@@ -484,18 +478,18 @@ export default function TeamPerformancePage() {
                   <TabsContent value="milestones" className="space-y-4">
                     <div className="space-y-3">
                       {member.milestones.map((milestone) => (
-                        <div key={milestone.id} className="p-4 bg-gray-50 rounded-lg">
+                        <div key={milestone.id} className="p-4 bg-muted/50 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
-                            <h5 className="font-medium text-gray-900">{milestone.name}</h5>
+                            <h5 className="font-medium text-foreground">{milestone.name}</h5>
                             <Badge className={getStatusColor(milestone.status)}>
                               {milestone.status}
                             </Badge>
                           </div>
-                          <div className="text-sm text-gray-600 mb-2">
+                          <div className="text-sm text-muted-foreground mb-2">
                             {milestone.projectName}
                           </div>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm text-gray-600">
+                            <span className="text-sm text-muted-foreground">
                               {milestone.tasksCompleted}/{milestone.totalTasks} tarefas
                             </span>
                             <span className="text-sm font-medium">
@@ -504,14 +498,14 @@ export default function TeamPerformancePage() {
                           </div>
                           <Progress value={milestone.progress} className="h-2" />
                           {milestone.dueDate && (
-                            <div className="text-xs text-gray-500 mt-2">
+                            <div className="text-xs text-muted-foreground mt-2">
                               Prazo: {format(parseISO(milestone.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
                             </div>
                           )}
                         </div>
                       ))}
                       {member.milestones.length === 0 && (
-                        <div className="text-center py-8 text-gray-500">
+                        <div className="text-center py-8 text-muted-foreground">
                           Nenhum milestone atribuído
                         </div>
                       )}
@@ -523,7 +517,7 @@ export default function TeamPerformancePage() {
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-2">
-                            <Award className="h-4 w-4 text-blue-600" />
+                            <Award className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             <span className="text-sm font-medium">Taxa de Conclusão</span>
                           </div>
                           <div className={`text-2xl font-bold ${getPerformanceColor(member.performance.completionRate)}`}>
@@ -534,7 +528,7 @@ export default function TeamPerformancePage() {
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-2">
-                            <Zap className="h-4 w-4 text-yellow-600" />
+                            <Zap className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
                             <span className="text-sm font-medium">Eficiência</span>
                           </div>
                           <div className={`text-2xl font-bold ${getPerformanceColor(member.performance.efficiency)}`}>
@@ -545,10 +539,10 @@ export default function TeamPerformancePage() {
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-2">
-                            <Timer className="h-4 w-4 text-green-600" />
+                            <Timer className="h-4 w-4 text-green-600 dark:text-green-400" />
                             <span className="text-sm font-medium">Tempo Médio/Tarefa</span>
                           </div>
-                          <div className="text-2xl font-bold text-gray-900">
+                          <div className="text-2xl font-bold text-foreground">
                             {member.performance.averageTimePerTask.toFixed(1)}h
                           </div>
                         </CardContent>
@@ -556,7 +550,7 @@ export default function TeamPerformancePage() {
                       <Card>
                         <CardContent className="p-4">
                           <div className="flex items-center gap-2 mb-2">
-                            <CheckCircle className="h-4 w-4 text-purple-600" />
+                            <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                             <span className="text-sm font-medium">Entrega no Prazo</span>
                           </div>
                           <div className={`text-2xl font-bold ${getPerformanceColor(member.performance.onTimeDelivery)}`}>
@@ -569,29 +563,29 @@ export default function TeamPerformancePage() {
 
                   <TabsContent value="time" className="space-y-4">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-4 bg-blue-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {member.timeTracking.hoursToday.toFixed(1)}h
                         </div>
-                        <div className="text-sm text-gray-600">Hoje</div>
+                        <div className="text-sm text-muted-foreground">Hoje</div>
                       </div>
-                      <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">
+                      <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                           {member.timeTracking.hoursThisWeek.toFixed(1)}h
                         </div>
-                        <div className="text-sm text-gray-600">Esta Semana</div>
+                        <div className="text-sm text-muted-foreground">Esta Semana</div>
                       </div>
-                      <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">
+                      <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                           {member.timeTracking.hoursThisMonth.toFixed(1)}h
                         </div>
-                        <div className="text-sm text-gray-600">Este Mês</div>
+                        <div className="text-sm text-muted-foreground">Este Mês</div>
                       </div>
-                      <div className="text-center p-4 bg-orange-50 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">
+                      <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                           {member.timeTracking.averageHoursPerDay.toFixed(1)}h
                         </div>
-                        <div className="text-sm text-gray-600">Média/Dia</div>
+                        <div className="text-sm text-muted-foreground">Média/Dia</div>
                       </div>
                     </div>
                   </TabsContent>
@@ -603,12 +597,11 @@ export default function TeamPerformancePage() {
 
         {filteredMembers.length === 0 && (
           <div className="text-center py-12">
-            <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum membro encontrado</h3>
-            <p className="text-gray-600">Não há membros da equipe para exibir.</p>
+            <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-foreground mb-2">Nenhum membro encontrado</h3>
+            <p className="text-muted-foreground">Não há membros da equipe para exibir.</p>
           </div>
         )}
       </div>
-    </DashboardLayout>
   )
 }

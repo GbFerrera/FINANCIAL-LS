@@ -19,6 +19,7 @@ import {
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ContributionHeatmap } from '@/components/dashboard/contribution-heatmap'
+import { TaskChecklist } from './TaskChecklist'
 
 // Função para formatar data sem problemas de fuso horário
 const formatDateSafe = (dateString: string) => {
@@ -48,7 +49,7 @@ interface Task {
   id: string
   title: string
   description?: string
-  status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED'
+  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   dueDate?: string
   startDate?: string
@@ -123,7 +124,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
         Object.keys(tasksByDay).forEach(dayKey => {
           tasksByDay[dayKey].sort((a, b) => {
             // Primeiro por status (IN_PROGRESS primeiro)
-            const statusOrder = { 'IN_PROGRESS': 0, 'TODO': 1, 'COMPLETED': 2 }
+            const statusOrder = { 'IN_PROGRESS': 0, 'IN_REVIEW': 1, 'TODO': 2, 'COMPLETED': 3 }
             const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 3) - 
                               (statusOrder[b.status as keyof typeof statusOrder] || 3)
             if (statusDiff !== 0) return statusDiff
@@ -173,7 +174,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
       case 'HIGH': return 'bg-orange-500'
       case 'MEDIUM': return 'bg-yellow-500'
       case 'LOW': return 'bg-green-500'
-      default: return 'bg-gray-500'
+      default: return 'bg-card0'
     }
   }
 
@@ -181,8 +182,9 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
     switch (status) {
       case 'COMPLETED': return 'text-green-600 bg-green-100'
       case 'IN_PROGRESS': return 'text-blue-600 bg-blue-100'
-      case 'TODO': return 'text-gray-600 bg-gray-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'IN_REVIEW': return 'text-yellow-600 bg-yellow-100'
+      case 'TODO': return 'text-muted-foreground bg-gray-100'
+      default: return 'text-muted-foreground bg-gray-100'
     }
   }
 
@@ -190,6 +192,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
     switch (status) {
       case 'COMPLETED': return <CheckCircle2 className="w-3 h-3" />
       case 'IN_PROGRESS': return <Clock className="w-3 h-3" />
+      case 'IN_REVIEW': return <Clock className="w-3 h-3" />
       case 'TODO': return <AlertCircle className="w-3 h-3" />
       default: return <AlertCircle className="w-3 h-3" />
     }
@@ -212,8 +215,8 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
       {/* Header com navegação da semana */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Planejamento Semanal</h2>
-          <p className="text-gray-600">
+          <h2 className="text-2xl font-bold text-foreground">Planejamento Semanal</h2>
+          <p className="text-muted-foreground">
             {format(weekStart, 'dd/MM', { locale: ptBR })} - {format(weekEnd, 'dd/MM/yyyy', { locale: ptBR })}
           </p>
         </div>
@@ -286,7 +289,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                     <span className={isCurrentDay ? 'text-blue-700' : 'text-gray-700'}>
                       {format(day, 'EEEE', { locale: ptBR })}
                     </span>
-                    <span className={`text-xs ${isCurrentDay ? 'text-blue-600' : 'text-gray-500'}`}>
+                    <span className={`text-xs ${isCurrentDay ? 'text-blue-600' : 'text-muted-foreground'}`}>
                       {format(day, 'dd/MM')}
                     </span>
                     {isCurrentDay && (
@@ -304,20 +307,20 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                     </p>
                   ) : (
                     dayTasks.map(task => (
-                      <div key={task.id} className="border rounded-lg p-2 hover:bg-gray-50 transition-colors">
+                      <div key={task.id} className="border rounded-lg p-2 hover:bg-card transition-colors">
                         <div className="space-y-1">
                           {/* Task title with priority indicator */}
                           <div className="flex items-start gap-2">
                             <div className={`w-2 h-2 rounded-full mt-1.5 ${getPriorityColor(task.priority)}`} />
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
+                              <h4 className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
                                 {task.title}
                               </h4>
                             </div>
                           </div>
 
                           {/* Project and time info */}
-                          <div className="flex items-center justify-between text-xs text-gray-500 ml-4">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground ml-4">
                             <span className="truncate">{task.project.name}</span>
                             
                             {task.startTime && (
@@ -355,6 +358,9 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                               </span>
                             </div>
                           )}
+                          <div className="ml-5 mt-2">
+                            <TaskChecklist token={token} taskId={task.id} />
+                          </div>
                         </div>
                       </div>
                     ))
@@ -398,7 +404,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                   ) : (
                     <div className="grid gap-3">
                       {dayTasks.map(task => (
-                        <div key={task.id} className="border rounded-lg p-3 hover:bg-gray-50 transition-colors">
+                        <div key={task.id} className="border rounded-lg p-3 hover:bg-card transition-colors">
                           <div className="flex items-start gap-3">
                             {/* Priority indicator */}
                             <div className={`w-3 h-3 rounded-full mt-1 ${getPriorityColor(task.priority)}`} />
@@ -406,7 +412,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                             {/* Task content */}
                             <div className="flex-1 space-y-2">
                               <div className="flex items-start justify-between">
-                                <h4 className="text-sm font-medium text-gray-900 line-clamp-2">
+                                <h4 className="text-sm font-medium text-foreground line-clamp-2">
                                   {task.title}
                                 </h4>
                                 
@@ -418,7 +424,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                                 )}
                               </div>
                               
-                              <div className="flex items-center gap-4 text-xs text-gray-500">
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                 <span>{task.project.name}</span>
                                 
                                 {task.sprint && (
@@ -446,6 +452,9 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                                 </Badge>
                               </div>
                             </div>
+                          </div>
+                          <div className="mt-3 ml-6">
+                            <TaskChecklist token={token} taskId={task.id} />
                           </div>
                         </div>
                       ))}
@@ -475,20 +484,20 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
               return (
                 <>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{totalTasks}</div>
-                    <div className="text-sm text-gray-600">Total</div>
+                    <div className="text-2xl font-bold text-foreground">{totalTasks}</div>
+                    <div className="text-sm text-muted-foreground">Total</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-green-600">{completedTasks}</div>
-                    <div className="text-sm text-gray-600">Concluídas</div>
+                    <div className="text-sm text-muted-foreground">Concluídas</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-blue-600">{inProgressTasks}</div>
-                    <div className="text-sm text-gray-600">Em Progresso</div>
+                    <div className="text-sm text-muted-foreground">Em Progresso</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-600">{todoTasks}</div>
-                    <div className="text-sm text-gray-600">A Fazer</div>
+                    <div className="text-2xl font-bold text-muted-foreground">{todoTasks}</div>
+                    <div className="text-sm text-muted-foreground">A Fazer</div>
                   </div>
                 </>
               )
@@ -497,12 +506,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
         </CardContent>
       </Card>
 
-      {/* Heatmap de Produtividade */}
-      <ContributionHeatmap 
-        token={token}
-        title="Minha Produtividade Diária"
-        showStats={true}
-      />
+      {/* Heatmap de Produtividade removido daqui pois foi movido para o layout pai */}
     </div>
   )
 }

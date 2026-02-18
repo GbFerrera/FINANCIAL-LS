@@ -38,7 +38,7 @@ interface FileUploadProps {
 }
 
 export const FileUpload = forwardRef<
-  { handleUpload: () => Promise<FileInfo[]> },
+  { handleUpload: (taskIdOverride?: string) => Promise<FileInfo[]> },
   FileUploadProps
 >(({ 
   taskId, 
@@ -199,7 +199,7 @@ export const FileUpload = forwardRef<
   }
 
   // Função para fazer upload dos arquivos (será chamada externamente)
-  const uploadFiles = async (): Promise<FileInfo[]> => {
+  const uploadFiles = async (overrideTaskId?: string): Promise<FileInfo[]> => {
     const filesToUpload = files.filter(f => f.file) // Apenas arquivos com preview
     if (filesToUpload.length === 0) return files
 
@@ -217,8 +217,9 @@ export const FileUpload = forwardRef<
 
         const formData = new FormData()
         formData.append('file', file)
-        if (taskId) {
-          formData.append('taskId', taskId)
+        const finalTaskId = overrideTaskId || taskId
+        if (finalTaskId) {
+          formData.append('taskId', finalTaskId)
         }
 
         const response = await fetch('/api/upload', {
@@ -257,8 +258,8 @@ export const FileUpload = forwardRef<
   }
 
   // Função pública para fazer upload (será chamada externamente)
-  const handleUpload = async () => {
-    return await uploadFiles()
+  const handleUpload = async (taskIdOverride?: string) => {
+    return await uploadFiles(taskIdOverride)
   }
 
   // Expor função através de ref
@@ -272,7 +273,7 @@ export const FileUpload = forwardRef<
     } else if (fileType === 'application/pdf') {
       return <FileText className="w-4 h-4 text-red-600" />
     }
-    return <File className="w-4 h-4 text-gray-600" />
+    return <File className="w-4 h-4 text-muted-foreground" />
   }
 
   const formatFileSize = (bytes: number) => {
@@ -320,7 +321,7 @@ export const FileUpload = forwardRef<
             >
               {uploading ? 'Enviando...' : 'Adicionar Arquivos'}
             </Button>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-muted-foreground">
               {files.length}/{maxFiles}
             </span>
           </div>
@@ -335,7 +336,7 @@ export const FileUpload = forwardRef<
         {uploading && (
           <div className="mt-2">
             <Progress value={uploadProgress} className="w-full h-1" />
-            <p className="text-xs text-gray-600 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {Math.round(uploadProgress)}%
             </p>
           </div>
@@ -349,20 +350,20 @@ export const FileUpload = forwardRef<
             Anexos ({files.length})
           </h4>
           
-          <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-100 rounded p-1">
+          <div className="space-y-1 max-h-32 overflow-y-auto border border-muted rounded p-1">
             {files.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center justify-between p-2 bg-gray-50 rounded border text-xs"
+                className="flex items-center justify-between p-2 bg-card rounded border text-xs"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {getFileIcon(file.fileType)}
                   
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
+                    <p className="font-medium text-foreground truncate">
                       {file.originalName}
                     </p>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{getFileTypeLabel(file.fileType)}</span>
                       <span>•</span>
                       <span>{formatFileSize(file.fileSize)}</span>

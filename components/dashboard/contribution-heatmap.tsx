@@ -492,7 +492,7 @@ export function ContributionHeatmap({
         </CardHeader>
         <CardContent>
           <div className="animate-pulse">
-            <div className="h-32 bg-gray-200 rounded"></div>
+            <div className="h-32 bg-card rounded"></div>
           </div>
         </CardContent>
       </Card>
@@ -530,58 +530,58 @@ export function ContributionHeatmap({
           </div>
 
           {/* Legenda */}
-          <div className="flex items-center justify-between text-sm text-gray-600">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>Menos</span>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-gray-100 rounded-sm border"></div>
-              <div className="w-3 h-3 bg-green-200 rounded-sm"></div>
-              <div className="w-3 h-3 bg-green-300 rounded-sm"></div>
-              <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
-              <div className="w-3 h-3 bg-green-700 rounded-sm"></div>
+              <div className="w-3 h-3 bg-card rounded-sm border border-border"></div>
+              <div className="w-3 h-3 bg-green-200 dark:bg-green-900/40 rounded-sm"></div>
+              <div className="w-3 h-3 bg-green-300 dark:bg-green-800/60 rounded-sm"></div>
+              <div className="w-3 h-3 bg-green-500 dark:bg-green-600 rounded-sm"></div>
+              <div className="w-3 h-3 bg-green-700 dark:bg-green-400 rounded-sm"></div>
             </div>
             <span>Mais</span>
           </div>
 
           {/* Estatísticas */}
           {showStats && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-4 border-t border-border">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {stats.totalContributions}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Total no ano
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {formatTime(stats.totalHours)}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Tempo gasto
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-indigo-600">
+                <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                   {stats.currentStreak}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Sequência atual
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                   {stats.longestStreak}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Maior sequência
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
+                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                   {stats.averagePerDay}
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-muted-foreground">
                   Média por dia
                 </div>
               </div>

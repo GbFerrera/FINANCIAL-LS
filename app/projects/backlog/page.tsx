@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { 
   Calendar, 
   Search,
@@ -177,22 +176,19 @@ export default function BacklogPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Backlog Geral</h1>
-          <p className="text-gray-600">Todas as tarefas não atribuídas a sprints</p>
+          <h1 className="text-2xl font-bold text-foreground">Backlog Geral</h1>
+          <p className="text-muted-foreground">Todas as tarefas não atribuídas a sprints</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -218,7 +214,7 @@ export default function BacklogPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total de Tarefas</p>
+                <p className="text-sm text-muted-foreground">Total de Tarefas</p>
                 <p className="text-2xl font-bold text-blue-600">{stats.totalTasks}</p>
               </div>
               <Calendar className="w-8 h-8 text-blue-500" />
@@ -230,7 +226,7 @@ export default function BacklogPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Story Points</p>
+                <p className="text-sm text-muted-foreground">Story Points</p>
                 <p className="text-2xl font-bold text-purple-600">{stats.totalStoryPoints}</p>
               </div>
               <Target className="w-8 h-8 text-purple-500" />
@@ -242,7 +238,7 @@ export default function BacklogPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Alta Prioridade</p>
+                <p className="text-sm text-muted-foreground">Alta Prioridade</p>
                 <p className="text-2xl font-bold text-red-600">
                   {(stats.tasksByPriority.HIGH || 0) + (stats.tasksByPriority.URGENT || 0)}
                 </p>
@@ -256,7 +252,7 @@ export default function BacklogPage() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Projetos</p>
+                <p className="text-sm text-muted-foreground">Projetos</p>
                 <p className="text-2xl font-bold text-green-600">
                   {Object.keys(stats.tasksByProject).length}
                 </p>
@@ -292,7 +288,7 @@ export default function BacklogPage() {
                 </option>
               ))}
             </select>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-muted-foreground">
               {filteredTasks.length} de {tasks.length} tarefas
             </span>
           </div>
@@ -311,42 +307,42 @@ export default function BacklogPage() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-card border-b">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Tarefa
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Projeto
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Prioridade
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       SP
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Responsável
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Ações
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y divide-gray-200">
                   {filteredTasks.map(task => (
-                    <tr key={task.id} className="hover:bg-gray-50">
+                    <tr key={task.id} className="hover:bg-card">
                       <td className="px-4 py-4">
                         <div>
-                          <div className="text-sm font-medium text-gray-900">{task.title}</div>
+                          <div className="text-sm font-medium text-foreground">{task.title}</div>
                           {task.description && (
-                            <div className="text-sm text-gray-500 line-clamp-1">{task.description}</div>
+                            <div className="text-sm text-muted-foreground line-clamp-1">{task.description}</div>
                           )}
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="text-sm text-gray-900">{task.project.name}</div>
-                        <div className="text-sm text-gray-500">{task.project.client.name}</div>
+                        <div className="text-sm text-foreground">{task.project.name}</div>
+                        <div className="text-sm text-muted-foreground">{task.project.client.name}</div>
                       </td>
                       <td className="px-4 py-4">
                         <Badge 
@@ -357,7 +353,7 @@ export default function BacklogPage() {
                            task.priority === 'HIGH' ? 'Alta' : 'Urgente'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-900">
+                      <td className="px-4 py-4 text-sm text-foreground">
                         {task.storyPoints || '-'}
                       </td>
                       <td className="px-4 py-4">
@@ -366,10 +362,10 @@ export default function BacklogPage() {
                             <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center text-xs">
                               {task.assignee.name.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-sm text-gray-900">{task.assignee.name}</span>
+                            <span className="text-sm text-foreground">{task.assignee.name}</span>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-500">Não atribuído</span>
+                          <span className="text-sm text-muted-foreground">Não atribuído</span>
                         )}
                       </td>
                       <td className="px-4 py-4">
@@ -397,10 +393,10 @@ export default function BacklogPage() {
         <Card>
           <CardContent className="p-8 text-center">
             <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-foreground mb-2">
               {Object.keys(filters).length > 0 ? 'Nenhuma tarefa encontrada' : 'Backlog vazio'}
             </h3>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               {Object.keys(filters).length > 0 
                 ? 'Tente ajustar os filtros de busca' 
                 : 'Todas as tarefas foram atribuídas a sprints ou não há tarefas criadas'
@@ -410,6 +406,5 @@ export default function BacklogPage() {
         </Card>
       )}
       </div>
-    </DashboardLayout>
   )
 }

@@ -17,7 +17,6 @@ import {
   Calendar,
   Users
 } from "lucide-react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import toast from "react-hot-toast"
 
 interface Client {
@@ -173,22 +172,19 @@ export default function ClientsAdminPage() {
 
   if (status === "loading" || loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gerenciar Clientes</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-2xl font-bold text-foreground">Gerenciar Clientes</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Gerencie clientes e seus portais de acesso
             </p>
           </div>
@@ -207,7 +203,7 @@ export default function ClientsAdminPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="bg-card overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -215,10 +211,10 @@ export default function ClientsAdminPage() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
+                    <dt className="text-sm font-medium text-muted-foreground truncate">
                       Total de Clientes
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">
+                    <dd className="text-lg font-medium text-foreground">
                       {clients.length}
                     </dd>
                   </dl>
@@ -227,7 +223,7 @@ export default function ClientsAdminPage() {
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="bg-card overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -235,10 +231,10 @@ export default function ClientsAdminPage() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
+                    <dt className="text-sm font-medium text-muted-foreground truncate">
                       Com Projetos Ativos
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">
+                    <dd className="text-lg font-medium text-foreground">
                       {clients.filter(c => c.projectsCount > 0).length}
                     </dd>
                   </dl>
@@ -247,7 +243,7 @@ export default function ClientsAdminPage() {
             </div>
           </div>
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="bg-card overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -255,10 +251,10 @@ export default function ClientsAdminPage() {
                 </div>
                 <div className="ml-5 w-0 flex-1">
                   <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">
+                    <dt className="text-sm font-medium text-muted-foreground truncate">
                       Portais Ativos
                     </dt>
-                    <dd className="text-lg font-medium text-gray-900">
+                    <dd className="text-lg font-medium text-foreground">
                       {clients.length}
                     </dd>
                   </dl>
@@ -269,54 +265,54 @@ export default function ClientsAdminPage() {
         </div>
 
         {/* Clients Table */}
-        <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <div className="bg-card shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+            <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
               Lista de Clientes
             </h3>
             
             {clients.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-card">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Cliente
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Contato
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Projetos
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Criado em
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Portal
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Ações
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-card divide-y divide-gray-200">
                     {clients.map((client) => (
-                      <tr key={client.id} className="hover:bg-gray-50">
+                      <tr key={client.id} className="hover:bg-card">
                         <td className="px-6 py-4">
                           <div>
-                            <div className="text-sm font-medium text-gray-900">
+                            <div className="text-sm font-medium text-foreground">
                               {client.name}
                             </div>
                             {client.company && (
-                              <div className="text-sm text-gray-500">
+                              <div className="text-sm text-muted-foreground">
                                 {client.company}
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">
+                          <div className="text-sm text-foreground">
                             <div className="flex items-center">
                               <Mail className="h-4 w-4 mr-1 text-gray-400" />
                               {client.email}
@@ -334,7 +330,7 @@ export default function ClientsAdminPage() {
                             {client.projectsCount} projeto{client.projectsCount !== 1 ? 's' : ''}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                           <div className="flex items-center">
                             <Calendar className="h-4 w-4 mr-1" />
                             {formatDate(client.createdAt)}
@@ -344,14 +340,14 @@ export default function ClientsAdminPage() {
                           <div className="flex space-x-2">
                             <button
                               onClick={() => copyPortalLink(client.accessToken)}
-                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-card hover:bg-card"
                               title="Copiar link do portal"
                             >
                               <Copy className="h-3 w-3" />
                             </button>
                             <button
                               onClick={() => openPortalLink(client.accessToken)}
-                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+                              className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-card hover:bg-card"
                               title="Abrir portal"
                             >
                               <ExternalLink className="h-3 w-3" />
@@ -384,8 +380,8 @@ export default function ClientsAdminPage() {
             ) : (
               <div className="text-center py-12">
                 <Users className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum cliente</h3>
-                <p className="mt-1 text-sm text-gray-500">
+                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum cliente</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Comece criando seu primeiro cliente.
                 </p>
               </div>
@@ -396,9 +392,9 @@ export default function ClientsAdminPage() {
         {/* Add/Edit Modal */}
         {showAddModal && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-card">
               <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                <h3 className="text-lg font-medium text-foreground mb-4">
                   {editingClient ? 'Editar Cliente' : 'Novo Cliente'}
                 </h3>
                 
@@ -461,7 +457,7 @@ export default function ClientsAdminPage() {
                         setEditingClient(null)
                         setFormData({ name: '', email: '', phone: '', company: '' })
                       }}
-                      className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-card"
                     >
                       Cancelar
                     </button>
@@ -479,6 +475,5 @@ export default function ClientsAdminPage() {
           </div>
         )}
       </div>
-    </DashboardLayout>
   )
 }

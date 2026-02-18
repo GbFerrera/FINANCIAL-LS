@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useLayoutEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
+import NextLink from "next/link"
 import {
   BarChart3,
   Building2,
@@ -23,28 +24,38 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
-  Activity
+  Activity,
+  Link as LinkIcon,
+  GitBranch,
+  BookUser,
+  User,
+  ChartNoAxesColumnIncreasing,
+  HatGlasses,
+  ChartNetwork,
+  ChartNoAxesCombined,
+  FolderGit2,
+  Wallet
 } from "lucide-react"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
+import { ModeToggle } from "@/components/mode-toggle"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "Dashboard", href: "/dashboard", icon: ChartNoAxesCombined },
   { 
     name: "Projetos", 
     href: "/projects", 
     icon: FolderOpen,
     submenu: [
-      { name: "Todos os Projetos", href: "/projects", icon: FolderOpen },
-      { name: "Gestão Scrum", href: "/projects/scrum", icon: Kanban },
-      { name: "Sprints", href: "/projects/sprints", icon: Target },
-      { name: "Backlog", href: "/projects/backlog", icon: Calendar }
+      { name: "Todos os Projetos", href: "/projects", icon: FolderGit2 },
+      { name: "Sprints", href: "/projects/sprints", icon: GitBranch },
     ]
   },
-  { name: "Clientes", href: "/clients", icon: Building2 },
-  { name: "Financeiro", href: "/financial", icon: DollarSign },
+  { name: "Clientes", href: "/clients", icon: User },
+  { name: "Financeiro", href: "/financial", icon: Wallet },
   { 
     name: "Equipe", 
     href: "/team", 
@@ -52,27 +63,30 @@ const navigation = [
     submenu: [
       { name: "Membros", href: "/team", icon: Users },
       { name: "Agenda", href: "/team/agenda", icon: Calendar },
-      { name: "Chat", href: "/team/chat", icon: Activity },
-      { name: "Performance", href: "/team/performance", icon: BarChart3 }
+      { name: "Performance", href: "/team/performance", icon: ChartNoAxesColumnIncreasing }
     ]
   },
-  { name: "Supervisor", href: "/supervisor/dashboard", icon: Activity },
-  { name: "Relatórios", href: "/reports", icon: BarChart3 },
+  { name: "Supervisor", href: "/supervisor/dashboard", icon: HatGlasses },
+  { name: "Relatórios", href: "/reports", icon: ChartNetwork },
   { name: "Configurações", href: "/settings", icon: Settings },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
+  const pathname = usePathname() || ""
+  const isFullBleed = pathname.startsWith("/projects/") && pathname.includes("/canvas")
 
-  // Carregar estado da sidebar do localStorage
-  useEffect(() => {
+  // Carregar estado da sidebar do localStorage sem flicker
+  useLayoutEffect(() => {
     const savedCollapsed = localStorage.getItem('sidebarCollapsed')
     if (savedCollapsed !== null) {
       setSidebarCollapsed(JSON.parse(savedCollapsed))
     }
+    setHydrated(true)
   }, [])
 
   // Salvar estado da sidebar no localStorage
@@ -93,11 +107,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-100">
+    <TooltipProvider>
+      <div className="h-screen flex overflow-hidden bg-background">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 flex z-40 md:hidden ${sidebarOpen ? '' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
+        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-sidebar text-sidebar-foreground">
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
               className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
@@ -111,119 +126,68 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Desktop sidebar */}
-      <div className={`hidden md:flex md:flex-shrink-0 transition-all duration-300 ${
+      <div className={`hidden md:flex md:flex-shrink-0 ${hydrated ? 'transition-all duration-300' : ''} ${
         sidebarCollapsed ? 'w-16' : 'w-64'
       }`}>
-        <div className={`flex flex-col transition-all duration-300 ${
+        <div className={`flex flex-col ${hydrated ? 'transition-all duration-300' : ''} ${
           sidebarCollapsed ? 'w-16' : 'w-64'
-        }`}>
-          <SidebarContent collapsed={sidebarCollapsed} />
+        } bg-sidebar text-sidebar-foreground border-r border-sidebar-border`}>
+          <SidebarContent collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapsed} />
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        {/* Top bar */}
-        <div className="relative z-10 flex-shrink-0 flex h-16 bg-white shadow">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* Mobile Header */}
+        <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3 bg-sidebar text-sidebar-foreground border-b border-sidebar-border">
           <button
-            className="px-4 border-r border-gray-200 text-gray-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 md:hidden"
+            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sidebar-ring"
             onClick={() => setSidebarOpen(true)}
           >
+            <span className="sr-only">Open sidebar</span>
             <Menu className="h-6 w-6" />
           </button>
-          
-          {/* Desktop sidebar toggle */}
-          <button
-            className="hidden md:flex items-center justify-center px-4 border-r border-gray-200 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
-            onClick={toggleSidebarCollapsed}
-          >
-            {sidebarCollapsed ? <ChevronRight className="h-6 w-6" /> : <ChevronLeft className="h-6 w-6" />}
-          </button>
-          
-          <div className="flex-1 px-4 flex justify-between">
-            <div className="flex-1 flex">
-              <div className="w-full flex md:ml-0">
-                <div className="relative w-full text-gray-400 focus-within:text-gray-600">
-                  <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5" />
-                  </div>
-                  <input
-                    className="block w-full h-full pl-8 pr-3 py-2 border-transparent text-gray-900 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-0 focus:border-transparent"
-                    placeholder="Buscar projetos, tarefas..."
-                    type="search"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="ml-4 flex items-center md:ml-6">
-              {/* Notifications */}
-              <button className="bg-white p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                <Bell className="h-6 w-6" />
-              </button>
-
-              {/* Profile dropdown */}
-              <div className="ml-3 relative">
-                <div className="flex items-center space-x-3">
-                  <div className="flex-shrink-0">
-                    <div className="h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center">
-                      <span className="text-sm font-medium text-white">
-                        {session?.user.name?.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="hidden md:block">
-                    <div className="text-sm font-medium text-gray-900">{session?.user.name}</div>
-                    <div className="text-xs text-gray-500">{session?.user.role}</div>
-                  </div>
-                  <button
-                    onClick={handleSignOut}
-                    className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    <LogOut className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Page content */}
-        <main className="flex-1 relative overflow-y-auto focus:outline-none">
-          <div className="py-6">
-            <div className="mx-auto px-4 sm:px-6 md:px-8">
+        <main className={`flex-1 relative ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'} focus:outline-none`}>
+          <div className={isFullBleed ? '' : 'py-6'}>
+            <div className={isFullBleed ? '' : 'mx-auto px-4 sm:px-6 md:px-8'}>
               {children}
             </div>
           </div>
         </main>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
 
-function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { collapsed?: boolean; onNavigate?: () => void; onToggleCollapse?: () => void }) {
+  const { data: session } = useSession()
   const router = useRouter()
-  const [currentPath, setCurrentPath] = useState('')
+  const pathname = usePathname()
+  const [currentPath, setCurrentPath] = useState(pathname || '')
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
-  // Use useEffect to set the current path only on the client side
+  const handleSignOut = async () => {
+    await signOut({ redirect: false })
+    router.push("/auth/signin")
+  }
+
+  // Atualizar caminho atual e expansão com base no pathname
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setCurrentPath(window.location.pathname)
-      
-      // Auto-expand menu if current path matches submenu item
-      navigation.forEach(item => {
-        if (item.submenu) {
-          const hasActiveSubmenu = item.submenu.some(subItem => 
-            window.location.pathname.startsWith(subItem.href)
-          )
-          if (hasActiveSubmenu && !expandedMenus.includes(item.name)) {
-            setExpandedMenus(prev => [...prev, item.name])
-          }
+    setCurrentPath(pathname || '')
+    navigation.forEach(item => {
+      if (item.submenu) {
+        const hasActiveSubmenu = item.submenu.some(subItem => 
+          (pathname || '').startsWith(subItem.href)
+        )
+        if (hasActiveSubmenu && !expandedMenus.includes(item.name)) {
+          setExpandedMenus(prev => [...prev, item.name])
         }
-      })
-    }
-  }, [])
+      }
+    })
+  }, [pathname, expandedMenus])
 
   const handleNavigation = (href: string) => {
     router.push(href)
@@ -243,17 +207,35 @@ function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean
   }
 
   return (
-    <div className="flex flex-col h-full pt-5 pb-4 overflow-y-auto bg-white border-r border-gray-200">
-      <div className="flex items-center flex-shrink-0 px-4">
+    <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+      <div className={`flex ${collapsed ? 'flex-col items-center' : 'items-center justify-between'} flex-shrink-0 px-4 pt-5 pb-4`}>
         <div className="flex items-center">
-          <Building2 className="h-8 w-8 text-indigo-600" />
-          {!collapsed && (
-            <span className="ml-2 text-xl font-bold text-gray-900">Link System</span>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <NextLink href="/dashboard" aria-label="Dashboard" className="flex items-center">
+                <LinkIcon className="h-8 w-8 text-sidebar-primary" />
+                {!collapsed && (
+                  <div className="grid ml-2">
+                    <span className="text-2xl font-bold text-foreground">Link System</span>   
+                    <span className="text-sm text-muted-foreground">Software House</span>     
+                  </div>
+                )}
+              </NextLink>
+            </TooltipTrigger>
+            <TooltipContent side="right">Dashboard</TooltipContent>
+          </Tooltip>
         </div>
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className={`${collapsed ? 'mt-2 flex' : 'hidden md:flex'} p-1 rounded-md text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent`}
+          >
+            {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          </button>
+        )}
       </div>
-      
-      <div className="mt-5 flex-1 flex flex-col">
+
+      <div className="flex-1 flex flex-col overflow-y-auto">
         <nav className="flex-1 px-2 space-y-1">
           {navigation.map((item) => {
             const isActive = currentPath === item.href
@@ -266,41 +248,69 @@ function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean
             return (
               <div key={item.name}>
                 {/* Menu principal */}
-                <button
-                  onClick={() => {
-                    if (hasSubmenu && !collapsed) {
-                      toggleSubmenu(item.name)
-                    } else {
-                      handleNavigation(item.href)
-                    }
-                  }}
-                  className={`${
-                    isActive || hasActiveSubmenu
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700'
-                      : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'pl-2 pr-2'} py-2 border-l-4 text-sm font-medium transition-colors`}
-                  {...(collapsed ? { title: item.name } : {})}
-                >
-                  <item.icon
+                {collapsed ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <NextLink
+                        href={item.href}
+                        className={`${
+                          isActive
+                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                            : hasActiveSubmenu
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                        } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'px-3'} py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                        aria-label={item.name}
+                      >
+                        <item.icon
+                          className={`${
+                            isActive ? 'text-sidebar-primary-foreground' : hasActiveSubmenu ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
+                          } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-5 w-5`}
+                        />
+                      </NextLink>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {item.name}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (hasSubmenu && !collapsed) {
+                        toggleSubmenu(item.name)
+                      } else {
+                        handleNavigation(item.href)
+                      }
+                    }}
                     className={`${
-                      isActive || hasActiveSubmenu ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'
-                    } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-6 w-6`}
-                  />
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 text-left">{item.name}</span>
-                      {hasSubmenu && (
-                        <div className="ml-2">
-                          {isExpanded ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </button>
+                      isActive
+                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                        : hasActiveSubmenu
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                    } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'px-3'} py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                  >
+                    <item.icon
+                      className={`${
+                        isActive ? 'text-sidebar-primary-foreground' : hasActiveSubmenu ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
+                      } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-5 w-5`}
+                    />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">{item.name}</span>
+                        {hasSubmenu && (
+                          <div className="ml-2">
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </button>
+                )}
 
                 {/* Submenu */}
                 {hasSubmenu && !collapsed && isExpanded && (
@@ -310,22 +320,29 @@ function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean
                         (subItem.href !== '/projects' && currentPath.startsWith(subItem.href))
                       
                       return (
-                        <button
-                          key={subItem.name}
-                          onClick={() => handleNavigation(subItem.href)}
-                          className={`${
-                            isSubActive
-                              ? 'bg-indigo-100 text-indigo-700 border-indigo-300'
-                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 border-transparent'
-                          } group w-full flex items-center pl-2 pr-2 py-2 border-l-4 text-sm transition-colors`}
-                        >
-                          <subItem.icon
-                            className={`${
-                              isSubActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'
-                            } mr-3 flex-shrink-0 h-5 w-5`}
-                          />
-                          {subItem.name}
-                        </button>
+                        <Tooltip key={subItem.name}>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => handleNavigation(subItem.href)}
+                              className={`${
+                                isSubActive
+                                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium'
+                                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                              } group w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200`}
+                              aria-label={subItem.name}
+                            >
+                              <subItem.icon
+                                className={`${
+                                  isSubActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
+                                } mr-3 flex-shrink-0 h-5 w-5`}
+                              />
+                              {subItem.name}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right">
+                            {subItem.name}
+                          </TooltipContent>
+                        </Tooltip>
                       )
                     })}
                   </div>
@@ -334,6 +351,36 @@ function SidebarContent({ collapsed = false, onNavigate }: { collapsed?: boolean
             )
           })}
         </nav>
+      </div>
+      <div className="px-2 py-2 border-t border-muted">
+        <div className={collapsed ? 'flex justify-center' : 'flex justify-end'}>
+          <ModeToggle />
+        </div>
+      </div>
+      <div className="border-t border-muted p-4">
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          {!collapsed && (
+            <div className="flex items-center min-w-0">
+              <div className="h-8 w-8 rounded-full bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground text-sm font-medium flex-shrink-0">
+                {session?.user.name?.charAt(0).toUpperCase()}
+              </div>
+              <div className="ml-3 truncate">
+                <p className="text-sm font-medium text-foreground truncate">{session?.user.name}</p>
+                <button onClick={handleSignOut} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  Sair
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <button 
+            onClick={handleSignOut}
+            className={`p-2 rounded-md text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent ${collapsed ? '' : 'ml-auto'}`}
+            title="Sair"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
   )

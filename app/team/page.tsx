@@ -5,7 +5,6 @@ import { ptBR } from "date-fns/locale"
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { 
   Users, 
   UserPlus, 
@@ -93,6 +92,8 @@ export default function TeamPage() {
   const [selectedDepartment, setSelectedDepartment] = useState('all')
   const [selectedRole, setSelectedRole] = useState('all')
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
+  const [isEditMemberOpen, setIsEditMemberOpen] = useState(false)
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null)
   const [newMember, setNewMember] = useState({
     name: '',
     email: '',
@@ -100,6 +101,12 @@ export default function TeamPage() {
     role: '',
     department: '',
     location: '',
+    password: ''
+  })
+  const [editMemberData, setEditMemberData] = useState({
+    name: '',
+    email: '',
+    role: '',
     password: ''
   })
 
@@ -132,6 +139,52 @@ export default function TeamPage() {
       toast.error('Erro ao carregar membros da equipe')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openEditMember = (member: TeamMember) => {
+    setEditingMember(member)
+    setEditMemberData({
+      name: member.name || '',
+      email: member.email || '',
+      role: member.role || '',
+      password: ''
+    })
+    setIsEditMemberOpen(true)
+  }
+
+  const handleEditMember = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingMember) return
+    try {
+      const response = await fetch(`/api/team/${editingMember.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: editMemberData.name,
+          email: editMemberData.email,
+          role: editMemberData.role,
+          password: editMemberData.password ? editMemberData.password : undefined
+        })
+      })
+
+      if (response.ok) {
+        const updated = await response.json()
+        setMembers(prev =>
+          prev.map(m => (m.id === updated.id ? { ...m, ...updated } : m))
+        )
+        toast.success('Membro atualizado com sucesso')
+        setIsEditMemberOpen(false)
+        setEditingMember(null)
+      } else {
+        const err = await response.json()
+        toast.error(err.error || 'Erro ao atualizar membro')
+      }
+    } catch (error) {
+      console.error('Erro ao editar membro:', error)
+      toast.error('Erro ao editar membro')
     }
   }
 
@@ -225,10 +278,10 @@ export default function TeamPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online': return 'bg-green-500'
-      case 'away': return 'bg-yellow-500'
-      case 'offline': return 'bg-gray-400'
-      default: return 'bg-gray-400'
+      case 'online': return 'bg-green-500 dark:bg-green-600'
+      case 'away': return 'bg-yellow-500 dark:bg-yellow-600'
+      case 'offline': return 'bg-muted-foreground'
+      default: return 'bg-muted-foreground'
     }
   }
 
@@ -246,43 +299,34 @@ export default function TeamPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
-      </DashboardLayout>
     )
   }
 
   return (
-    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Equipe</h1>
-            <p className="text-gray-600">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Equipe</h1>
+            <p className="text-muted-foreground">
               Gerencie os membros da sua equipe e suas permissões
             </p>
           </div>
           <div className="flex items-center space-x-2">
             <button 
               onClick={() => router.push('/team/performance')} 
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
             >
               <BarChart3 className="h-4 w-4 mr-2" />
               Performance
             </button>
-            <button 
-              onClick={() => router.push('/team/chat')} 
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Chat da Equipe
-            </button>
+        
             <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
               <DialogTrigger asChild>
-                <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors">
                   <UserPlus className="h-4 w-4 mr-2" />
                   Adicionar Membro
                 </button>
@@ -313,7 +357,7 @@ export default function TeamPage() {
                     type="text"
                     value={newMember.name}
                     onChange={(e) => setNewMember({...newMember, name: e.target.value})}
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     required
                   />
                 </div>
@@ -326,7 +370,7 @@ export default function TeamPage() {
                     type="email"
                     value={newMember.email}
                     onChange={(e) => setNewMember({...newMember, email: e.target.value})}
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     required
                   />
                 </div>
@@ -339,7 +383,7 @@ export default function TeamPage() {
                     type="password"
                     value={newMember.password}
                     onChange={(e) => setNewMember({...newMember, password: e.target.value})}
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     required
                     minLength={6}
                     placeholder="Mínimo 6 caracteres"
@@ -354,7 +398,7 @@ export default function TeamPage() {
                     type="tel"
                     value={newMember.phone}
                     onChange={(e) => setNewMember({...newMember, phone: e.target.value})}
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -365,7 +409,7 @@ export default function TeamPage() {
                     id="role"
                     value={newMember.role}
                     onChange={(e) => setNewMember({...newMember, role: e.target.value})}
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     required
                   >
                     <option value="">Selecione o cargo</option>
@@ -382,7 +426,7 @@ export default function TeamPage() {
                     id="department"
                     value={newMember.department}
                     onChange={(e) => setNewMember({...newMember, department: e.target.value})}
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     required
                   >
                     <option value="">Selecione o departamento</option>
@@ -404,7 +448,7 @@ export default function TeamPage() {
                     value={newMember.location}
                     onChange={(e) => setNewMember({...newMember, location: e.target.value})}
                     placeholder="Ex: São Paulo, SP"
-                    className="col-span-3 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   />
                 </div>
               </div>
@@ -412,13 +456,13 @@ export default function TeamPage() {
                 <button
                   type="button"
                   onClick={() => setIsAddMemberOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
                 >
                   Adicionar Membro
                 </button>
@@ -433,7 +477,7 @@ export default function TeamPage() {
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     placeholder="Buscar membros..."
                     value={searchTerm}
@@ -443,7 +487,7 @@ export default function TeamPage() {
                 </div>
               </div>
               <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[250px]">
                   <SelectValue placeholder="Departamento" />
                 </SelectTrigger>
                 <SelectContent>
@@ -454,7 +498,7 @@ export default function TeamPage() {
                 </SelectContent>
               </Select>
               <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger className="w-[150px]">
+                <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Cargo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -467,6 +511,95 @@ export default function TeamPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={isEditMemberOpen} onOpenChange={setIsEditMemberOpen}>
+          <DialogTrigger asChild>
+            <div style={{display: 'none'}} />
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Editar Membro</DialogTitle>
+              <DialogDescription>
+                Atualize as informações do membro da equipe.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEditMember} className="space-y-4">
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="edit-name" className="text-right text-sm font-medium">
+                    Nome
+                  </label>
+                  <input
+                    id="edit-name"
+                    type="text"
+                    value={editMemberData.name}
+                    onChange={(e) => setEditMemberData({...editMemberData, name: e.target.value})}
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="edit-email" className="text-right text-sm font-medium">
+                    Email
+                  </label>
+                  <input
+                    id="edit-email"
+                    type="email"
+                    value={editMemberData.email}
+                    onChange={(e) => setEditMemberData({...editMemberData, email: e.target.value})}
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="edit-role" className="text-right text-sm font-medium">
+                    Cargo
+                  </label>
+                  <select
+                    id="edit-role"
+                    value={editMemberData.role}
+                    onChange={(e) => setEditMemberData({...editMemberData, role: e.target.value})}
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    required
+                  >
+                    <option value="ADMIN">Administrador</option>
+                    <option value="TEAM">Membro da Equipe</option>
+                    <option value="CLIENT">Cliente</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="edit-password" className="text-right text-sm font-medium">
+                    Nova Senha
+                  </label>
+                  <input
+                    id="edit-password"
+                    type="password"
+                    value={editMemberData.password}
+                    onChange={(e) => setEditMemberData({...editMemberData, password: e.target.value})}
+                    placeholder="Deixe em branco para manter"
+                    className="col-span-3 px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                    minLength={6}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <button
+                  type="button"
+                  onClick={() => setIsEditMemberOpen(false)}
+                  className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
+                >
+                  Salvar Alterações
+                </button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Team Stats */}
         <div className="grid gap-4 md:grid-cols-4">
@@ -482,7 +615,7 @@ export default function TeamPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Online Agora</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -526,7 +659,7 @@ export default function TeamPage() {
                           {member.name ? member.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                         </AvatarFallback>
                       </Avatar>
-                      <div className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white ${getStatusColor(member.status)}`}></div>
+                      <div className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-background ${getStatusColor(member.status)}`}></div>
                     </div>
                     <div>
                       <CardTitle className="text-lg">{member.name}</CardTitle>
@@ -546,11 +679,11 @@ export default function TeamPage() {
                           Gerar Token
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditMember(member)}>
                         <Edit className="h-4 w-4 mr-2" />
                         Editar
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">
+                      <DropdownMenuItem className="text-destructive focus:text-destructive">
                         <Trash2 className="h-4 w-4 mr-2" />
                         Remover
                       </DropdownMenuItem>
@@ -612,10 +745,7 @@ export default function TeamPage() {
                 )}
 
                 <div className="flex space-x-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1">
-                    <MessageCircle className="h-4 w-4 mr-1" />
-                    Chat
-                  </Button>
+                
                   <Button size="sm" variant="outline" className="flex-1">
                     <Mail className="h-4 w-4 mr-1" />
                     Email
@@ -656,6 +786,5 @@ export default function TeamPage() {
           </Card>
         )}
       </div>
-    </DashboardLayout>
   )
 }

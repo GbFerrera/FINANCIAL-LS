@@ -203,7 +203,7 @@ export default function FilesPage() {
     } else if (file.mimeType?.includes('zip') || file.mimeType?.includes('rar')) {
       return <Archive className="h-8 w-8 text-yellow-600" />
     } else {
-      return <File className="h-8 w-8 text-gray-500" />
+      return <File className="h-8 w-8 text-muted-foreground" />
     }
   }
 
@@ -233,14 +233,14 @@ export default function FilesPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Arquivos</h1>
-            <p className="text-gray-600">Organize, compartilhe e controle versões dos seus arquivos</p>
+            <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Arquivos</h1>
+            <p className="text-muted-foreground">Organize, compartilhe e controle versões dos seus arquivos</p>
           </div>
           
           <div className="flex space-x-2">
             <button
               onClick={() => setShowCreateFolder(true)}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-card hover:bg-card"
             >
               <FolderPlus className="h-4 w-4 mr-2" />
               Nova Pasta
@@ -296,7 +296,7 @@ export default function FilesPage() {
             <button
               onClick={() => setViewMode('grid')}
               className={`px-3 py-2 text-sm font-medium ${
-                viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:text-gray-700'
               }`}
             >
               Grade
@@ -304,7 +304,7 @@ export default function FilesPage() {
             <button
               onClick={() => setViewMode('list')}
               className={`px-3 py-2 text-sm font-medium border-l border-gray-300 ${
-                viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-muted-foreground hover:text-gray-700'
               }`}
             >
               Lista
@@ -318,7 +318,7 @@ export default function FilesPage() {
             {filteredFiles.map((file) => (
               <div
                 key={file.id}
-                className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                className="bg-card rounded-lg border border-muted p-4 hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => {
                   setSelectedFile(file)
                   setShowFileDetails(true)
@@ -326,16 +326,16 @@ export default function FilesPage() {
               >
                 <div className="flex flex-col items-center text-center">
                   {getFileIcon(file)}
-                  <h3 className="mt-2 text-sm font-medium text-gray-900 truncate w-full" title={file.name}>
+                  <h3 className="mt-2 text-sm font-medium text-foreground truncate w-full" title={file.name}>
                     {file.name}
                   </h3>
                   {file.size && (
-                    <p className="text-xs text-gray-500 mt-1">{formatFileSize(file.size)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{formatFileSize(file.size)}</p>
                   )}
                   <div className="flex items-center mt-2 space-x-1">
                     {file.shared && <Share className="h-3 w-3 text-blue-500" />}
                     {file.versions && file.versions.length > 1 && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-1 rounded">
+                      <span className="text-xs bg-gray-100 text-muted-foreground px-1 rounded">
                         v{file.versions.length}
                       </span>
                     )}
@@ -345,16 +345,16 @@ export default function FilesPage() {
             ))}
           </div>
         ) : (
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
+          <div className="bg-card shadow overflow-hidden sm:rounded-md">
             <ul className="divide-y divide-gray-200">
               {filteredFiles.map((file) => (
                 <li key={file.id}>
-                  <div className="px-4 py-4 flex items-center justify-between hover:bg-gray-50">
+                  <div className="px-4 py-4 flex items-center justify-between hover:bg-card">
                     <div className="flex items-center">
                       {getFileIcon(file)}
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                        <div className="flex items-center text-sm text-gray-500 space-x-4">
+                        <p className="text-sm font-medium text-foreground">{file.name}</p>
+                        <div className="flex items-center text-sm text-muted-foreground space-x-4">
                           <span className="flex items-center">
                             <User className="h-3 w-3 mr-1" />
                             {file.uploadedBy}
@@ -378,7 +378,7 @@ export default function FilesPage() {
                     <div className="flex items-center space-x-2">
                       {file.shared && <Share className="h-4 w-4 text-blue-500" />}
                       {file.versions && file.versions.length > 1 && (
-                        <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">
+                        <span className="bg-gray-100 text-muted-foreground px-2 py-1 rounded text-xs">
                           {file.versions.length} versões
                         </span>
                       )}
@@ -389,7 +389,7 @@ export default function FilesPage() {
                           setSelectedFile(file)
                           setShowFileDetails(true)
                         }}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="p-1 text-gray-400 hover:text-muted-foreground"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
@@ -399,7 +399,7 @@ export default function FilesPage() {
                           href={file.url}
                           download
                           onClick={(e) => e.stopPropagation()}
-                          className="p-1 text-gray-400 hover:text-gray-600"
+                          className="p-1 text-gray-400 hover:text-muted-foreground"
                         >
                           <Download className="h-4 w-4" />
                         </a>
@@ -425,8 +425,8 @@ export default function FilesPage() {
         {filteredFiles.length === 0 && (
           <div className="text-center py-12">
             <File className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">Nenhum arquivo encontrado</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum arquivo encontrado</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               {searchTerm ? 'Tente ajustar sua busca' : 'Comece fazendo upload de alguns arquivos'}
             </p>
           </div>
@@ -435,9 +435,9 @@ export default function FilesPage() {
         {/* Modal de Criar Pasta */}
         {showCreateFolder && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-card">
               <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Criar Nova Pasta</h3>
+                <h3 className="text-lg font-medium text-foreground mb-4">Criar Nova Pasta</h3>
                 
                 <input
                   type="text"
@@ -474,14 +474,14 @@ export default function FilesPage() {
         {/* Modal de Detalhes do Arquivo */}
         {showFileDetails && selectedFile && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+            <div className="relative top-10 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-card">
               <div className="mt-3">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center">
                     {getFileIcon(selectedFile)}
                     <div className="ml-3">
-                      <h3 className="text-lg font-medium text-gray-900">{selectedFile.name}</h3>
-                      <p className="text-sm text-gray-500">
+                      <h3 className="text-lg font-medium text-foreground">{selectedFile.name}</h3>
+                      <p className="text-sm text-muted-foreground">
                         {selectedFile.size && formatFileSize(selectedFile.size)} • 
                         Enviado por {selectedFile.uploadedBy} em {parseISO(selectedFile.uploadedAt).toLocaleDateString('pt-BR')}
                       </p>
@@ -490,7 +490,7 @@ export default function FilesPage() {
                   
                   <button
                     onClick={() => setShowFileDetails(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-muted-foreground"
                   >
                     ×
                   </button>
@@ -500,46 +500,46 @@ export default function FilesPage() {
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Tipo</label>
-                    <p className="text-sm text-gray-900">{selectedFile.mimeType || 'Pasta'}</p>
+                    <p className="text-sm text-foreground">{selectedFile.mimeType || 'Pasta'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Última modificação</label>
-                    <p className="text-sm text-gray-900">
+                    <p className="text-sm text-foreground">
                       {new Date(selectedFile.lastModified).toLocaleString('pt-BR')}
                     </p>
                   </div>
                   {selectedFile.projectName && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Projeto</label>
-                      <p className="text-sm text-gray-900">{selectedFile.projectName}</p>
+                      <p className="text-sm text-foreground">{selectedFile.projectName}</p>
                     </div>
                   )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Compartilhado</label>
-                    <p className="text-sm text-gray-900">{selectedFile.shared ? 'Sim' : 'Não'}</p>
+                    <p className="text-sm text-foreground">{selectedFile.shared ? 'Sim' : 'Não'}</p>
                   </div>
                 </div>
                 
                 {/* Histórico de Versões */}
                 {selectedFile.versions && selectedFile.versions.length > 0 && (
                   <div>
-                    <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center">
+                    <h4 className="text-md font-medium text-foreground mb-3 flex items-center">
                       <Clock className="h-4 w-4 mr-2" />
                       Histórico de Versões
                     </h4>
                     
                     <div className="space-y-3">
                       {selectedFile.versions.map((version) => (
-                        <div key={version.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                        <div key={version.id} className="flex items-center justify-between p-3 bg-card rounded-md">
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
+                            <p className="text-sm font-medium text-foreground">
                               Versão {version.version}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                               {version.uploadedBy} • {new Date(version.uploadedAt).toLocaleString('pt-BR')} • {formatFileSize(version.size)}
                             </p>
                             {version.comment && (
-                              <p className="text-xs text-gray-600 mt-1">{version.comment}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{version.comment}</p>
                             )}
                           </div>
                           
@@ -564,7 +564,7 @@ export default function FilesPage() {
                     <a
                       href={selectedFile.url}
                       download
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-card hover:bg-card"
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Baixar
