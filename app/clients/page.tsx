@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { StatsCard } from '@/components/ui/stats-card'
 import {
@@ -34,6 +34,8 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { parseISO } from 'date-fns'
+import { FileUpload } from '@/components/ui/file-upload'
+import { Button } from '@/components/ui/button'
 
 interface Client {
   id: string
@@ -65,12 +67,23 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [isViewClientOpen, setIsViewClientOpen] = useState(false)
   const [isEditClientOpen, setIsEditClientOpen] = useState(false)
+  const [editClient, setEditClient] = useState<NewClient>({
+    name: '',
+    email: '',
+    phone: '',
+    company: ''
+  })
   const [newClient, setNewClient] = useState<NewClient>({
     name: '',
     email: '',
     phone: '',
     company: ''
   })
+  const [clientFsAttachments, setClientFsAttachments] = useState<Array<{ filename: string; url: string; size: number; uploadedAt: string }>>([])
+  const [paymentAttachments, setPaymentAttachments] = useState<Array<{ id?: string; filename: string; originalName?: string; size: number; url: string; date?: string }>>([])
+  const [attachmentsTab, setAttachmentsTab] = useState<'contratos' | 'pagamentos'>('pagamentos')
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const fileUploadRef = useRef<{ handleUpload: (idOverride?: string) => Promise<any> }>(null)
 
   // Load clients from API
   useEffect(() => {
@@ -122,6 +135,45 @@ export default function ClientsPage() {
 
     setFilteredClients(filtered)
   }, [clients, searchTerm])
+
+  useEffect(() => {
+    const loadAttachments = async () => {
+      if (!selectedClient || !isViewClientOpen) return
+      try {
+        const [fsRes, finRes] = await Promise.all([
+          fetch(`/api/clients/${selectedClient.id}/attachments`),
+          fetch(`/api/financial?clientId=${selectedClient.id}&limit=100`)
+        ])
+        if (fsRes.ok) {
+          const fsData = await fsRes.json()
+          setClientFsAttachments(fsData.attachments || [])
+        } else {
+          setClientFsAttachments([])
+        }
+        if (finRes.ok) {
+          const finData = await finRes.json()
+          const flattened = (finData.entries || []).flatMap((entry: any) => {
+            const atts = (entry.attachments || []).map((a: any) => ({
+              id: a.id,
+              filename: a.filename || a.originalName,
+              originalName: a.originalName,
+              size: a.size,
+              url: a.url,
+              date: entry.date
+            }))
+            return atts
+          })
+          setPaymentAttachments(flattened)
+        } else {
+          setPaymentAttachments([])
+        }
+      } catch (e) {
+        setClientFsAttachments([])
+        setPaymentAttachments([])
+      }
+    }
+    loadAttachments()
+  }, [selectedClient, isViewClientOpen])
 
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -205,6 +257,56 @@ export default function ClientsPage() {
     const link = generateClientLink(client)
     navigator.clipboard.writeText(link)
     toast.success('Link copiado para a área de transferência!')
+  }
+  
+  const handleEditClient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedClient) return
+    try {
+      const response = await fetch(`/api/clients/${selectedClient.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editClient.name,
+          email: editClient.email,
+          phone: editClient.phone,
+          company: editClient.company,
+        })
+      })
+      if (response.ok) {
+        const updatedClient = await response.json()
+        setClients(prev => prev.map(c => c.id === updatedClient.id ? {
+          ...c,
+          name: updatedClient.name,
+          email: updatedClient.email,
+          phone: updatedClient.phone || '',
+          company: updatedClient.company || ''
+        } : c))
+        setFilteredClients(prev => prev.map(c => c.id === updatedClient.id ? {
+          ...c,
+          name: updatedClient.name,
+          email: updatedClient.email,
+          phone: updatedClient.phone || '',
+          company: updatedClient.company || ''
+        } : c))
+        setSelectedClient(prev => prev ? {
+          ...prev,
+          name: updatedClient.name,
+          email: updatedClient.email,
+          phone: updatedClient.phone || '',
+          company: updatedClient.company || ''
+        } : prev)
+        setIsEditClientOpen(false)
+        toast.success('Cliente atualizado com sucesso!')
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || 'Erro ao atualizar cliente')
+      }
+    } catch (error) {
+      toast.error('Erro ao atualizar cliente')
+    }
   }
 
 
@@ -462,6 +564,12 @@ export default function ClientsPage() {
                         <button
                           onClick={() => {
                             setSelectedClient(client)
+                            setEditClient({
+                              name: client.name,
+                              email: client.email,
+                              phone: client.phone,
+                              company: client.company
+                            })
                             setIsEditClientOpen(true)
                           }}
                           className="text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400 transition-colors"
@@ -498,12 +606,12 @@ export default function ClientsPage() {
 
         {/* View Client Modal */}
         <Dialog open={isViewClientOpen} onOpenChange={setIsViewClientOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[720px]">
             <DialogHeader>
               <DialogTitle>Detalhes do Cliente</DialogTitle>
             </DialogHeader>
             {selectedClient && (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-muted-foreground">Nome</label>
@@ -570,6 +678,112 @@ export default function ClientsPage() {
                     <p className="mt-1 text-sm text-foreground">{parseISO(selectedClient.lastAccess).toLocaleDateString('pt-BR')}</p>
                   </div>
                 )}
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-muted-foreground">Anexos</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAttachmentsTab('pagamentos')}
+                        className={`px-3 py-1 text-xs rounded border ${attachmentsTab === 'pagamentos' ? 'bg-primary text-primary-foreground border-transparent' : 'bg-muted text-muted-foreground border-input'}`}
+                      >
+                        Pagamentos ({paymentAttachments.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAttachmentsTab('contratos')}
+                        className={`px-3 py-1 text-xs rounded border ${attachmentsTab === 'contratos' ? 'bg-primary text-primary-foreground border-transparent' : 'bg-muted text-muted-foreground border-input'}`}
+                      >
+                        Contratos ({clientFsAttachments.length})
+                      </button>
+                    </div>
+                  </div>
+
+                  {attachmentsTab === 'pagamentos' ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-border rounded-md p-2 bg-card">
+                      {paymentAttachments.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhum anexo de pagamentos encontrado</p>
+                      ) : (
+                        paymentAttachments.map((att, idx) => (
+                          <div key={`${att.id || att.filename}-${idx}`} className="flex items-center justify-between px-2 py-2 hover:bg-muted/50 rounded">
+                            <div className="flex items-center gap-3">
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <div className="text-sm text-foreground">{att.originalName || att.filename}</div>
+                                <div className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB {att.date ? `• ${new Date(att.date).toLocaleDateString('pt-BR')}` : ''}</div>
+                              </div>
+                            </div>
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs px-2 py-1 rounded border border-input hover:bg-accent hover:text-accent-foreground"
+                            >
+                              Abrir
+                            </a>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedClient && (
+                        <>
+                          <FileUpload
+                            ref={fileUploadRef}
+                            clientId={selectedClient.id}
+                            existingFiles={clientFsAttachments.map((att) => {
+                              const ext = att.filename.split('.').pop()?.toLowerCase()
+                              let type = 'application/octet-stream'
+                              if (ext === 'pdf') {
+                                type = 'application/pdf'
+                              } else if (ext && ['jpg','jpeg','png','gif','webp'].includes(ext)) {
+                                type = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`
+                              }
+                              return {
+                                id: `${att.filename}-${att.uploadedAt}`,
+                                originalName: att.filename,
+                                fileName: att.filename,
+                                filePath: `clients/${selectedClient.id}/${att.filename}`,
+                                fileSize: att.size,
+                                fileType: type,
+                                uploadedAt: att.uploadedAt
+                              }
+                            })}
+                            maxFiles={5}
+                          />
+                          <div className="flex items-center justify-end">
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={async () => {
+                                if (!selectedClient) return
+                                setUploadingAttachment(true)
+                                try {
+                                  await fileUploadRef.current?.handleUpload(selectedClient.id)
+                                  const refresh = await fetch(`/api/clients/${selectedClient.id}/attachments`)
+                                  if (refresh.ok) {
+                                    const data = await refresh.json()
+                                    setClientFsAttachments(data.attachments || [])
+                                  }
+                                  toast.success('Contrato(s) anexado(s) com sucesso')
+                                } catch {
+                                  toast.error('Erro ao enviar arquivo(s)')
+                                } finally {
+                                  setUploadingAttachment(false)
+                                }
+                              }}
+                              className="min-w-[140px]"
+                            >
+                              {uploadingAttachment ? 'Enviando...' : 'Enviar anexos'}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             <DialogFooter>
@@ -580,6 +794,82 @@ export default function ClientsPage() {
                 Fechar
               </button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        
+        <Dialog open={isEditClientOpen} onOpenChange={setIsEditClientOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Editar Cliente</DialogTitle>
+              <DialogDescription>
+                Atualize as informações do cliente.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedClient && (
+              <form onSubmit={handleEditClient} className="space-y-4">
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
+                      <input
+                        type="text"
+                        value={editClient.name}
+                        onChange={(e) => setEditClient({ ...editClient, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={editClient.email}
+                        onChange={(e) => setEditClient({ ...editClient, email: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
+                      <input
+                        type="tel"
+                        value={editClient.phone}
+                        onChange={(e) => setEditClient({ ...editClient, phone: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Empresa</label>
+                      <input
+                        type="text"
+                        value={editClient.company}
+                        onChange={(e) => setEditClient({ ...editClient, company: e.target.value })}
+                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditClientOpen(false)}
+                    className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
+                  >
+                    Salvar Alterações
+                  </button>
+                </DialogFooter>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
       </div>

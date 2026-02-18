@@ -850,6 +850,14 @@ export default function ProjectsPage() {
                               Ver Detalhes
                             </button>
                             <button 
+                              onClick={() => router.push(`/projects/notes?projectId=${linkSystemProject.id}`)}
+                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
+                              title="Abrir anotações do projeto"
+                            >
+                              <FolderOpen className="h-3 w-3 mr-1" />
+                              Arquivos
+                            </button>
+                            <button 
                               onClick={() => openOrCreateSprint(linkSystemProject.id)}
                               className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
                               title="Abrir Sprints"
@@ -981,6 +989,14 @@ export default function ProjectsPage() {
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               Ver Detalhes
+                            </button>
+                            <button 
+                              onClick={() => router.push(`/projects/notes?projectId=${project.id}`)}
+                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
+                              title="Abrir anotações do projeto"
+                            >
+                              <FolderOpen className="h-3 w-3 mr-1" />
+                              Arquivos
                             </button>
                             <button 
                               onClick={() => openOrCreateSprint(project.id)}

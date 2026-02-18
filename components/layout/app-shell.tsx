@@ -6,7 +6,7 @@
  export function AppShell({ children }: { children: React.ReactNode }) {
    const pathname = usePathname() || ""
  
-   const excludedPrefixes = ["/auth", "/collaborator-portal"]
+   const excludedPrefixes = ["/auth", "/collaborator-portal", "/client-portal"]
    const isExcluded = excludedPrefixes.some(prefix => pathname.startsWith(prefix))
  
    if (isExcluded) {

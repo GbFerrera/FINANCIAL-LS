@@ -89,8 +89,8 @@ export async function GET() {
       )
 
       const partners = (project.clients || [])
-        .filter((pc: any) => pc.client && pc.client.id !== project.client.id)
-        .map((pc: any) => pc.client.name)
+        .filter((pc: { client: { id: string; name: string } }) => pc.client && pc.client.id !== project.client.id)
+        .map((pc: { client: { id: string; name: string } }) => pc.client.name)
 
       return {
         id: project.id,

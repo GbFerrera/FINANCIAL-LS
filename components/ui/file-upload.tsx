@@ -30,25 +30,38 @@ interface FileInfo {
 
 interface FileUploadProps {
   taskId?: string
+  noteId?: string
+  clientId?: string
+  userId?: string
   existingFiles?: FileInfo[]
   onFilesChange?: (files: FileInfo[]) => void
   onUploadFiles?: (files: FileInfo[]) => Promise<FileInfo[]>
   maxFiles?: number
   disabled?: boolean
+  className?: string
 }
 
 export const FileUpload = forwardRef<
-  { handleUpload: (taskIdOverride?: string) => Promise<FileInfo[]> },
+  { 
+    handleUpload: (taskIdOverride?: string) => Promise<FileInfo[]>
+    openFileDialog: () => void
+    clearFiles: () => void
+  },
   FileUploadProps
 >(({ 
   taskId, 
+  noteId,
+  clientId,
+  userId,
   existingFiles = [], 
   onFilesChange, 
   onUploadFiles,
   maxFiles = 5,
-  disabled = false 
+  disabled = false,
+  className
 }, ref) => {
   const [files, setFiles] = useState<FileInfo[]>(existingFiles)
+  const filesRef = useRef<FileInfo[]>(existingFiles)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -59,7 +72,7 @@ export const FileUpload = forwardRef<
     if (fileList.length === 0) return
 
     // Verificar limite de arquivos
-    if (files.length + fileList.length > maxFiles) {
+    if (filesRef.current.length + fileList.length > maxFiles) {
       toast.error(`Máximo ${maxFiles} arquivos permitidos`)
       return
     }
@@ -106,8 +119,9 @@ export const FileUpload = forwardRef<
     })
 
     // Atualizar lista com previews
-    const newFiles = [...files, ...previewFiles]
+    const newFiles = [...filesRef.current, ...previewFiles]
     setFiles(newFiles)
+    filesRef.current = newFiles
     onFilesChange?.(newFiles)
 
     if (source === 'paste' && previewFiles.length > 0) {
@@ -185,23 +199,24 @@ export const FileUpload = forwardRef<
 
     document.addEventListener('paste', handleGlobalPaste)
     return () => document.removeEventListener('paste', handleGlobalPaste)
-  }, [disabled, uploading, files.length, maxFiles])
+  }, [disabled, uploading, maxFiles]) // Removed files.length dependency as we use filesRef
 
   const removeFile = (fileId: string) => {
-    const fileToRemove = files.find(f => f.id === fileId)
+    const fileToRemove = filesRef.current.find(f => f.id === fileId)
     if (fileToRemove?.filePath.startsWith('blob:')) {
       // Liberar URL temporária se for preview
       URL.revokeObjectURL(fileToRemove.filePath)
     }
-    const newFiles = files.filter(f => f.id !== fileId)
+    const newFiles = filesRef.current.filter(f => f.id !== fileId)
     setFiles(newFiles)
+    filesRef.current = newFiles
     onFilesChange?.(newFiles)
   }
 
   // Função para fazer upload dos arquivos (será chamada externamente)
   const uploadFiles = async (overrideTaskId?: string): Promise<FileInfo[]> => {
-    const filesToUpload = files.filter(f => f.file) // Apenas arquivos com preview
-    if (filesToUpload.length === 0) return files
+    const filesToUpload = filesRef.current.filter(f => f.file) // Apenas arquivos com preview
+    if (filesToUpload.length === 0) return filesRef.current
 
     setUploading(true)
     setUploadProgress(0)
@@ -217,9 +232,17 @@ export const FileUpload = forwardRef<
 
         const formData = new FormData()
         formData.append('file', file)
-        const finalTaskId = overrideTaskId || taskId
-        if (finalTaskId) {
-          formData.append('taskId', finalTaskId)
+        const finalId = overrideTaskId || taskId || noteId || clientId || userId
+        if (finalId) {
+          let key: 'taskId' | 'noteId' | 'clientId' | 'userId' = 'taskId'
+          if (userId) {
+            key = 'userId'
+          } else if (clientId) {
+            key = 'clientId'
+          } else if (noteId && !taskId) {
+            key = 'noteId'
+          }
+          formData.append(key, finalId)
         }
 
         const response = await fetch('/api/upload', {
@@ -240,11 +263,12 @@ export const FileUpload = forwardRef<
 
       // Manter arquivos já enviados + novos enviados
       const finalFiles = [
-        ...files.filter(f => !f.file), // Arquivos já enviados
+        ...filesRef.current.filter(f => !f.file), // Arquivos já enviados
         ...uploadedFiles // Novos arquivos enviados
       ]
 
       setFiles(finalFiles)
+      filesRef.current = finalFiles
       onFilesChange?.(finalFiles)
       return finalFiles
 
@@ -264,14 +288,20 @@ export const FileUpload = forwardRef<
 
   // Expor função através de ref
   useImperativeHandle(ref, () => ({
-    handleUpload
+    handleUpload,
+    openFileDialog: () => fileInputRef.current?.click(),
+    clearFiles: () => {
+      setFiles([])
+      filesRef.current = []
+      onFilesChange?.([])
+    }
   }))
 
   const getFileIcon = (fileType: string) => {
     if (fileType.startsWith('image/')) {
-      return <Image className="w-4 h-4 text-blue-600" />
+      return <Image className="w-4 h-4 text-primary" />
     } else if (fileType === 'application/pdf') {
-      return <FileText className="w-4 h-4 text-red-600" />
+      return <FileText className="w-4 h-4 text-destructive" />
     }
     return <File className="w-4 h-4 text-muted-foreground" />
   }
@@ -293,12 +323,11 @@ export const FileUpload = forwardRef<
   return (
     <div 
       ref={containerRef}
-      className="space-y-3" 
+      className={`space-y-3 ${className || ''}`}
       tabIndex={0}
       onPaste={handlePaste}
     >
-      {/* Área de Upload Compacta */}
-      <div className=" border border-dashed border-gray-300 rounded-md p-3 text-center hover:border-gray-400 transition-colors">
+      <div className="border border-dashed border-input rounded-md p-3 text-center hover:border-primary/40 transition-colors bg-background">
         <input
           ref={fileInputRef}
           type="file"
@@ -311,7 +340,7 @@ export const FileUpload = forwardRef<
         
         <div className="space-y-2">
           <div className="flex items-center justify-center gap-3">
-            <Upload className="w-4 h-4 text-gray-400" />
+            <Upload className="w-4 h-4 text-muted-foreground" />
             <Button
               type="button"
               variant="outline"
@@ -325,14 +354,13 @@ export const FileUpload = forwardRef<
               {files.length}/{maxFiles}
             </span>
           </div>
-          <p className="text-xs text-gray-400 text-center">
-            ou pressione <kbd className="px-1 py-0.5 bg-gray-100 border rounded text-xs">
+          <p className="text-xs text-muted-foreground text-center">
+            ou pressione <kbd className="px-1 py-0.5 bg-muted border border-input rounded text-xs">
               {typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac') ? 'Cmd+V' : 'Ctrl+V'}
             </kbd> para colar screenshot
           </p>
         </div>
 
-        {/* Barra de Progresso */}
         {uploading && (
           <div className="mt-2">
             <Progress value={uploadProgress} className="w-full h-1" />
@@ -343,18 +371,17 @@ export const FileUpload = forwardRef<
         )}
       </div>
 
-      {/* Lista de Arquivos */}
       {files.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-700">
+          <h4 className="text-sm font-medium text-foreground">
             Anexos ({files.length})
           </h4>
           
-          <div className="space-y-1 max-h-32 overflow-y-auto border border-muted rounded p-1">
+          <div className="space-y-1 max-h-32 overflow-y-auto border border-border rounded p-1 bg-card">
             {files.map((file) => (
               <div
                 key={file.id}
-                className="flex items-center justify-between p-2 bg-card rounded border text-xs"
+                className="flex items-center justify-between p-2 bg-card rounded border border-input text-xs"
               >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   {getFileIcon(file.fileType)}
@@ -372,7 +399,6 @@ export const FileUpload = forwardRef<
                 </div>
 
                 <div className="flex items-center gap-1">
-                  {/* Botão Visualizar (para imagens) */}
                   {file.fileType.startsWith('image/') && (
                     <Button
                       type="button"
@@ -393,7 +419,6 @@ export const FileUpload = forwardRef<
                     </Button>
                   )}
 
-                  {/* Botão Download */}
                   <Button
                     type="button"
                     variant="ghost"
@@ -417,7 +442,6 @@ export const FileUpload = forwardRef<
                     <Download className="w-4 h-4" />
                   </Button>
 
-                  {/* Botão Remover */}
                   <Button
                     type="button"
                     variant="ghost"
@@ -435,11 +459,10 @@ export const FileUpload = forwardRef<
         </div>
       )}
 
-      {/* Aviso sobre limite */}
       {files.length >= maxFiles && (
-        <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <AlertCircle className="w-4 h-4 text-amber-600" />
-          <p className="text-sm text-amber-800">
+        <div className="flex items-center gap-2 p-3 bg-muted/20 border border-border rounded-lg">
+          <AlertCircle className="w-4 h-4 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
             Limite máximo de {maxFiles} arquivos atingido
           </p>
         </div>

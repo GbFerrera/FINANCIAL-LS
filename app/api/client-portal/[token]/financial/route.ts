@@ -90,6 +90,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
               }
             }
           }
+          ,
+          attachments: true
         },
         orderBy: { date: 'desc' },
         skip,
@@ -116,6 +118,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
         amount: pp.amount
       })) || [],
       createdAt: entry.createdAt.toISOString(),
+      attachments: (entry.attachments || []).map(a => ({
+        id: a.id,
+        filename: a.filename,
+        originalName: a.originalName,
+        size: a.size,
+        url: a.url
+      })),
     }))
 
     // Stats calculadas como no financeiro ADM

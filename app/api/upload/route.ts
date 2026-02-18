@@ -54,6 +54,9 @@ export async function POST(request: NextRequest) {
     
     const file = formData.get('file') as File
     const taskId = formData.get('taskId') as string
+    const noteId = formData.get('noteId') as string
+    const clientId = formData.get('clientId') as string
+    const userId = formData.get('userId') as string
 
     if (!file) {
       console.log('ERROR: Nenhum arquivo enviado')
@@ -92,6 +95,27 @@ export async function POST(request: NextRequest) {
     if (taskId) {
       uploadPath = path.join(UPLOAD_DIR, 'tasks', taskId)
       relativePath = `tasks/${taskId}/${uniqueFileName}`
+      
+      if (!existsSync(uploadPath)) {
+        await mkdir(uploadPath, { recursive: true })
+      }
+    } else if (noteId) {
+      uploadPath = path.join(UPLOAD_DIR, 'notes', noteId)
+      relativePath = `notes/${noteId}/${uniqueFileName}`
+      
+      if (!existsSync(uploadPath)) {
+        await mkdir(uploadPath, { recursive: true })
+      }
+    } else if (clientId) {
+      uploadPath = path.join(UPLOAD_DIR, 'clients', clientId)
+      relativePath = `clients/${clientId}/${uniqueFileName}`
+      
+      if (!existsSync(uploadPath)) {
+        await mkdir(uploadPath, { recursive: true })
+      }
+    } else if (userId) {
+      uploadPath = path.join(UPLOAD_DIR, 'users', userId)
+      relativePath = `users/${userId}/${uniqueFileName}`
       
       if (!existsSync(uploadPath)) {
         await mkdir(uploadPath, { recursive: true })

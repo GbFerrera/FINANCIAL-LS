@@ -34,10 +34,12 @@ import {
   ChartNetwork,
   ChartNoAxesCombined,
   FolderGit2,
-  Wallet
+  Wallet,
+  FilePen
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { ModeToggle } from "@/components/mode-toggle"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -51,6 +53,7 @@ const navigation = [
     icon: FolderOpen,
     submenu: [
       { name: "Todos os Projetos", href: "/projects", icon: FolderGit2 },
+      { name: "Anotações", href: "/projects/notes", icon: FilePen },
       { name: "Sprints", href: "/projects/sprints", icon: GitBranch },
     ]
   },
@@ -168,6 +171,8 @@ function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { c
   const pathname = usePathname()
   const [currentPath, setCurrentPath] = useState(pathname || '')
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
+  const userInfo = session?.user as unknown as { name?: string; avatar?: string; image?: string }
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userInfo?.avatar ?? userInfo?.image)
 
   const handleSignOut = async () => {
     await signOut({ redirect: false })
@@ -188,6 +193,21 @@ function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { c
       }
     })
   }, [pathname, expandedMenus])
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/profile')
+        if (res.ok) {
+          const u = await res.json()
+          setAvatarUrl(u.avatar || userInfo?.image || userInfo?.avatar)
+        }
+      } catch {}
+    }
+    if (!avatarUrl) {
+      load()
+    }
+  }, [session, avatarUrl])
 
   const handleNavigation = (href: string) => {
     router.push(href)
@@ -361,14 +381,33 @@ function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { c
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
           {!collapsed && (
             <div className="flex items-center min-w-0">
-              <div className="h-8 w-8 rounded-full bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground text-sm font-medium flex-shrink-0">
-                {session?.user.name?.charAt(0).toUpperCase()}
-              </div>
-              <div className="ml-3 truncate">
-                <p className="text-sm font-medium text-foreground truncate">{session?.user.name}</p>
-                <button onClick={handleSignOut} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                  Sair
+              {avatarUrl ? (
+                <Avatar
+                  className="h-8 w-8 border flex-shrink-0 cursor-pointer hover:opacity-90"
+                  onClick={() => handleNavigation('/profile')}
+                >
+                  <AvatarImage src={avatarUrl} alt={session?.user?.name || ""} className="object-cover" />
+                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
+                    {session?.user?.name?.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <div
+                  className="h-8 w-8 rounded-full bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground text-sm font-medium flex-shrink-0 cursor-pointer hover:opacity-90"
+                  onClick={() => handleNavigation('/profile')}
+                >
+                  {session?.user?.name?.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="ml-3 truncate grid">
+                <button
+                  onClick={() => handleNavigation('/profile')}
+                  className="text-sm font-medium text-foreground truncate text-left hover:underline hover:cursor-pointer"
+                  title="Abrir meu perfil"
+                >
+                  {session?.user?.name}
                 </button>
+                <span className="text-xs text-muted-foreground">({session?.user?.role})</span>
               </div>
             </div>
           )}

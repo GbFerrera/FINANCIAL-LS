@@ -268,6 +268,28 @@ export async function GET(
       }
     })
 
+    // Mapear anexos a partir das entradas financeiras vinculadas a pagamentos
+    const paymentIds = payments.map(p => p.id)
+    const paymentEntries = await prisma.financialEntry.findMany({
+      where: { paymentId: { in: paymentIds } },
+      select: {
+        paymentId: true,
+        attachments: true
+      }
+    })
+    const attachmentsByPaymentId = Object.fromEntries(
+      paymentEntries.map(pe => [
+        pe.paymentId,
+        (pe.attachments || []).map(a => ({
+          id: a.id,
+          filename: a.filename,
+          originalName: a.originalName,
+          size: a.size,
+          url: a.url
+        }))
+      ])
+    )
+
     // Get financial entries that represent single-project payments (paymentId is null and projectId is not null)
     const singleProjectPayments = await prisma.financialEntry.findMany({
       where: {
@@ -285,7 +307,8 @@ export async function GET(
             name: true,
             budget: true
           }
-        }
+        },
+        attachments: true
       },
       orderBy: {
         date: 'desc'
@@ -316,7 +339,8 @@ export async function GET(
         remainingAmount,
         projectPayments,
         createdAt: payment.createdAt.toISOString(),
-        isFromFinancialEntry: false
+        isFromFinancialEntry: false,
+        attachments: attachmentsByPaymentId[payment.id] || []
       }
     })
 
@@ -340,7 +364,14 @@ export async function GET(
         remainingAmount: 0,
         projectPayments,
         createdAt: entry.createdAt.toISOString(),
-        isFromFinancialEntry: true
+        isFromFinancialEntry: true,
+        attachments: (entry.attachments || []).map(a => ({
+          id: a.id,
+          filename: a.filename,
+          originalName: a.originalName,
+          size: a.size,
+          url: a.url
+        }))
       }
     })
 

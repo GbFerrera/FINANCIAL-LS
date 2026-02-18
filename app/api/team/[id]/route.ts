@@ -6,6 +6,45 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { UserRole } from '@prisma/client'
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatar: true,
+        createdAt: true,
+        updatedAt: true,
+        skillsMastered: true,
+        skillsReinforcement: true,
+        skillsInterests: true,
+      }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
+    return NextResponse.json(user)
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    )
+  }
+}
+
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),

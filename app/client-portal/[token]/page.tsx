@@ -21,9 +21,11 @@ import {
   TrendingUp,
   TrendingDown,
   Calculator,
+  BanknoteArrowDown,
   Bell,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Paperclip
 } from "lucide-react"
 import toast from "react-hot-toast"
 
@@ -117,6 +119,13 @@ interface PaymentData {
     amountPaid: number
   }>
   createdAt: string
+  attachments?: Array<{
+    id: string
+    filename: string
+    originalName: string
+    size: number
+    url: string
+  }>
 }
 
 interface ProjectPaymentSummary {
@@ -147,6 +156,13 @@ interface ClientFinancialEntry {
   createdAt?: string
 }
 
+interface ClientAttachment {
+  filename: string
+  url: string
+  size: number
+  uploadedAt: string
+}
+
 export default function ClientPortalPage() {
   const routerParams = useParams() as { token?: string }
   const tokenParam = routerParams?.token ?? ""
@@ -157,7 +173,7 @@ export default function ClientPortalPage() {
   const [projectPaymentSummaries, setProjectPaymentSummaries] = useState<ProjectPaymentSummary[]>([])
   const [financialEntries, setFinancialEntries] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'files' | 'messages' | 'financial'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'projects' | 'files' | 'messages' | 'financial' | 'payments' | 'contracts'>('overview')
   const [newComment, setNewComment] = useState('')
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [sendingComment, setSendingComment] = useState(false)
@@ -171,6 +187,7 @@ export default function ClientPortalPage() {
   const [finStats, setFinStats] = useState<any | null>(null)
   const [finPage, setFinPage] = useState<number>(1)
   const [finLimit, setFinLimit] = useState<number>(10)
+  const [clientAttachments, setClientAttachments] = useState<ClientAttachment[]>([])
 
   // Calculate payment summaries from projects and financial entries
   const calculatePaymentSummaries = (projects: ProjectData[], payments: PaymentData[]) => {
@@ -325,6 +342,22 @@ export default function ClientPortalPage() {
     }
     loadFinancial()
   }, [tokenParam, activeTab, finPage, finLimit, selectedProjectId])
+  
+  useEffect(() => {
+    const loadContracts = async () => {
+      if (!tokenParam || activeTab !== 'contracts') return
+      try {
+        const res = await fetch(`/api/client-portal/${tokenParam}/contracts`)
+        if (!res.ok) throw new Error('Falha ao carregar contratos do cliente')
+        const json = await res.json()
+        setClientAttachments(json.attachments || [])
+      } catch (err) {
+        console.error('[client-portal] erro ao buscar contratos', err)
+        setClientAttachments([])
+      }
+    }
+    loadContracts()
+  }, [tokenParam, activeTab])
 
   const sendComment = async () => {
     if (!newComment.trim() || !selectedProject) return
@@ -360,17 +393,17 @@ export default function ClientPortalPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PLANNING':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-accent/20 text-accent-foreground dark:bg-accent/30'
       case 'IN_PROGRESS':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-primary/20 text-primary dark:bg-primary/30'
       case 'ON_HOLD':
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground dark:bg-muted/30'
       case 'COMPLETED':
-        return 'bg-green-100 text-green-800'
+        return 'bg-chart-5/20 text-chart-5 dark:bg-chart-5/30'
       case 'CANCELLED':
-        return 'bg-red-100 text-red-800'
+        return 'bg-destructive/20 text-destructive dark:bg-destructive/30'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-muted text-muted-foreground'
     }
   }
 
@@ -400,7 +433,7 @@ export default function ClientPortalPage() {
 
   // Helpers para ícone/cores das movimentações financeiras na tabela
   const getTypeColor = (type: string) => {
-    return type === 'INCOME' ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
+    return type === 'INCOME' ? 'text-chart-5 bg-secondary' : 'text-destructive bg-destructive/10'
   }
 
   const getTypeIcon = (type: string) => {
@@ -452,7 +485,7 @@ export default function ClientPortalPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-card flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -461,7 +494,7 @@ export default function ClientPortalPage() {
     return (
       <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
+          <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
           <h3 className="mt-2 text-lg font-medium text-foreground">Link inválido</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Este link não é válido ou pode ter expirado.
@@ -484,7 +517,7 @@ export default function ClientPortalPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center">
-              <Building2 className="h-8 w-8 text-indigo-600 mr-3" />
+              <User className="h-10 w-10 text-primary mr-3" />
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Portal do Cliente</h1>
                 <p className="text-sm text-muted-foreground">Bem-vindo, {client.name}</p>
@@ -512,6 +545,8 @@ export default function ClientPortalPage() {
                 { id: 'overview', name: 'Visão Geral', icon: BarChart3 },
                 { id: 'projects', name: 'Projetos', icon: FileText },
                 { id: 'financial', name: 'Financeiro', icon: DollarSign },
+                { id: 'payments', name: 'Pagamentos', icon: BanknoteArrowDown },
+                { id: 'contracts', name: 'Contratos', icon: FileText },
               ].map((tab) => {
                 const Icon = tab.icon
                 return (
@@ -519,14 +554,14 @@ export default function ClientPortalPage() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`${activeTab === tab.id
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                     } sm:whitespace-nowrap whitespace-normal py-4 px-2 border-b-2 font-medium text-sm flex items-center relative`}
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {tab.name}
                     {tab.id === 'messages' && hasNewMessages && (
-                      <Bell className="h-3 w-3 ml-1 text-red-500 animate-pulse" />
+                      <Bell className="h-3 w-3 ml-1 text-destructive animate-pulse" />
                     )}
                   </button>
                 )
@@ -542,7 +577,7 @@ export default function ClientPortalPage() {
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
-                      <FileText className="h-8 w-8 text-blue-600" />
+                      <FileText className="h-8 w-8 text-chart-1" />
                       <div className="ml-3">
                         <p className="text-sm font-medium text-muted-foreground">Total de Projetos</p>
                         <p className="text-2xl font-semibold text-foreground">{totalProjects}</p>
@@ -552,7 +587,7 @@ export default function ClientPortalPage() {
                   
                   <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
-                      <CheckCircle className="h-8 w-8 text-green-600" />
+                      <CheckCircle className="h-8 w-8 text-chart-5" />
                       <div className="ml-3">
                         <p className="text-sm font-medium text-muted-foreground">Concluídos</p>
                         <p className="text-2xl font-semibold text-foreground">{completedProjects}</p>
@@ -562,7 +597,7 @@ export default function ClientPortalPage() {
                   
                   <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
-                      <Clock className="h-8 w-8 text-yellow-600" />
+                      <Clock className="h-8 w-8 text-chart-2" />
                       <div className="ml-3">
                         <p className="text-sm font-medium text-muted-foreground">Em Andamento</p>
                         <p className="text-2xl font-semibold text-foreground">{inProgressProjects}</p>
@@ -572,7 +607,7 @@ export default function ClientPortalPage() {
                   
                   <div className="bg-card rounded-lg p-4">
                     <div className="flex items-center">
-                      <DollarSign className="h-8 w-8 text-purple-600" />
+                      <DollarSign className="h-8 w-8 text-chart-4" />
                       <div className="ml-3">
                         <p className="text-sm font-medium text-muted-foreground">Investimento Total</p>
                         <p className="text-lg font-semibold text-foreground">{formatCurrency(totalBudget)}</p>
@@ -614,9 +649,9 @@ export default function ClientPortalPage() {
                           <div className="text-right">
                             <div className="text-2xl font-bold text-foreground">{project.progress}%</div>
                             <div className="text-sm text-muted-foreground">Progresso</div>
-                            <div className="mt-2 w-20 bg-gray-200 rounded-full h-2">
+                            <div className="mt-2 w-20 bg-muted rounded-full h-2">
                               <div 
-                                className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                                className="bg-primary h-2 rounded-full transition-all duration-300"
                                 style={{ width: `${project.progress}%` }}
                               />
                             </div>
@@ -663,7 +698,7 @@ export default function ClientPortalPage() {
                           <div className="space-y-2">
                             {project.milestones.map((milestone) => (
                               <div key={milestone.id} className="flex items-center justify-between p-2 bg-card rounded">
-                                <span className="text-sm text-gray-700">{milestone.title}</span>
+                                <span className="text-sm text-foreground">{milestone.title}</span>
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(milestone.status)}`}>
                                   {milestone.status === 'COMPLETED' ? 'Concluído' :
                                    milestone.status === 'IN_PROGRESS' ? 'Em Andamento' : 'Pendente'}
@@ -680,7 +715,7 @@ export default function ClientPortalPage() {
                             {project.tasks.slice(0, 5).map((task) => (
                               <div key={task.id} className="flex items-center justify-between p-2 bg-card rounded">
                                 <div className="flex flex-col">
-                                  <span className="text-sm text-gray-700">{task.title}</span>
+                                  <span className="text-sm text-foregound">{task.title}</span>
                                   {task.estimatedHours && (
                                      <span className="text-xs text-muted-foreground">
                                        {formatEstimatedTime(task.estimatedHours)}
@@ -714,11 +749,11 @@ export default function ClientPortalPage() {
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
                       <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-sm font-medium text-gray-700">Projeto:</span>
+                        <span className="text-sm font-medium text-foreground">Projeto:</span>
                         <select 
                           value={selectedProjectId || ''} 
                           onChange={(e) => setSelectedProjectId(e.target.value || null)}
-                          className="w-full sm:w-[220px] md:w-[260px] px-4 py-2 bg-card border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          className="w-full sm:w-[220px] md:w-[260px] px-4 py-2 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200"
                         >
                           <option value="">Todos os projetos</option>
                           {projects.map(project => (
@@ -727,11 +762,11 @@ export default function ClientPortalPage() {
                         </select>
                       </div>
                       <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-sm font-medium text-gray-700">Status:</span>
+                        <span className="text-sm font-medium text-foreground">Status:</span>
                         <select
                           value={statusFilter}
                           onChange={(e) => setStatusFilter(e.target.value as any)}
-                          className="w-full sm:w-[200px] px-4 py-2 bg-card border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          className="w-full sm:w-[200px] px-4 py-2 bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200"
                         >
                           <option value="all">Todos</option>
                           <option value="IN_PROGRESS">Em andamento</option>
@@ -795,14 +830,14 @@ export default function ClientPortalPage() {
                         const inProgressRemaining = inProgress.reduce((sum, s) => sum + s.remainingBudget, 0)
                         return (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                              <p className="text-sm font-semibold text-blue-700 uppercase tracking-wide">Em Andamento - Retorno Financeiro</p>
-                              <p className="text-3xl font-bold text-blue-900 mt-2">{formatCurrency(inProgressPaid)}</p>
+                            <div className="bg-accent rounded-xl p-6 border border-accent">
+                              <p className="text-sm font-semibold text-accent-foreground uppercase tracking-wide">Em Andamento - Retorno Financeiro</p>
+                              <p className="text-3xl font-bold text-foreground mt-2">{formatCurrency(inProgressPaid)}</p>
                               <p className="text-sm text-muted-foreground mt-1">Somatório dos valores pagos em projetos em andamento</p>
                             </div>
-                            <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
-                              <p className="text-sm font-semibold text-yellow-700 uppercase tracking-wide">Em Andamento - Restante a repassar</p>
-                              <p className="text-3xl font-bold text-yellow-900 mt-2">{formatCurrency(inProgressRemaining)}</p>
+                            <div className="bg-secondary rounded-xl p-6 border border-secondary">
+                              <p className="text-sm font-semibold text-secondary-foreground uppercase tracking-wide">Em Andamento - Restante a repassar</p>
+                              <p className="text-3xl font-bold text-foreground mt-2">{formatCurrency(inProgressRemaining)}</p>
                               <p className="text-sm text-muted-foreground mt-1">Saldo ainda não repassado frente ao orçamento</p>
                             </div>
                           </div>
@@ -821,14 +856,14 @@ export default function ClientPortalPage() {
                         const concludedRemaining = concluded.reduce((sum, s) => sum + s.remainingBudget, 0)
                         return (
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-                              <p className="text-sm font-semibold text-green-700 uppercase tracking-wide">Concluídos - Retorno Financeiro</p>
-                              <p className="text-3xl font-bold text-green-900 mt-2">{formatCurrency(concludedPaid)}</p>
+                            <div className="bg-secondary rounded-xl p-6 border border-secondary">
+                              <p className="text-sm font-semibold text-secondary-foreground uppercase tracking-wide">Concluídos - Retorno Financeiro</p>
+                              <p className="text-3xl font-bold text-foreground mt-2">{formatCurrency(concludedPaid)}</p>
                               <p className="text-sm text-muted-foreground mt-1">Somatório dos valores pagos em projetos concluídos</p>
                             </div>
-                            <div className="bg-orange-50 rounded-xl p-6 border border-orange-200">
-                              <p className="text-sm font-semibold text-orange-700 uppercase tracking-wide">Concluídos - Restante a repassar</p>
-                              <p className="text-3xl font-bold text-orange-900 mt-2">{formatCurrency(concludedRemaining)}</p>
+                            <div className="bg-accent rounded-xl p-6 border border-accent">
+                              <p className="text-sm font-semibold text-accent-foreground uppercase tracking-wide">Concluídos - Restante a repassar</p>
+                              <p className="text-3xl font-bold text-foreground mt-2">{formatCurrency(concludedRemaining)}</p>
                               <p className="text-sm text-muted-foreground mt-1">Saldo ainda não repassado frente ao orçamento</p>
                             </div>
                           </div>
@@ -845,16 +880,16 @@ export default function ClientPortalPage() {
                             {allFinancials.length} {allFinancials.length === 1 ? 'movimentação encontrada' : 'movimentações encontradas'}
                           </p>
                           <div className="mt-2 flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-700">Total investido:</span>
-                            <span className="text-sm font-bold text-green-600">{formatCurrency(totalIncome)}</span>
+                            <span className="text-sm font-medium text-foreground">Total investido:</span>
+                            <span className="text-sm font-bold text-chart-5">{formatCurrency(totalIncome)}</span>
                           </div>
                         </div>
                         
-                        <div className="block md:hidden divide-y divide-gray-100">
+                        <div className="block md:hidden divide-y divide-border">
                           {allFinancials.length === 0 ? (
                             <div className="px-6 py-12 text-center">
-                              <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                                <DollarSign className="h-8 w-8 text-gray-400" />
+                              <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                                <DollarSign className="h-8 w-8 text-muted-foreground" />
                               </div>
                               <h4 className="text-lg font-medium text-foreground mb-2">Nenhuma movimentação encontrada</h4>
                               <p className="text-muted-foreground">Não há registros financeiros para o período selecionado.</p>
@@ -876,27 +911,27 @@ export default function ClientPortalPage() {
                                       <div className="flex items-center gap-3 min-w-0">
                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                                           entry.type === 'INCOME' 
-                                            ? 'bg-green-100 border-2 border-green-200' 
-                                            : 'bg-red-100 border-2 border-red-200'
+                                            ? 'bg-secondary border-2 border-secondary' 
+                                            : 'bg-destructive/10 border-2 border-destructive/30'
                                         }`}>
                                           {entry.type === 'INCOME' ? (
-                                            <TrendingUp className="h-5 w-5 text-green-600" />
+                                            <TrendingUp className="h-5 w-5 text-chart-5" />
                                           ) : (
-                                            <TrendingDown className="h-5 w-5 text-red-600" />
+                                            <TrendingDown className="h-5 w-5 text-destructive" />
                                           )}
                                         </div>
                                         <div className="flex-1">
                                           {/* Título principal: valor + tipo */}
                                           <div className="flex items-center gap-2">
                                             <p className={`text-xl font-bold ${
-                                              entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                                              entry.type === 'INCOME' ? 'text-chart-5' : 'text-destructive'
                                             }`}>
                                               {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(entry.amount)}
                                             </p>
                                             <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                                               entry.type === 'INCOME' 
-                                                ? 'bg-green-100 text-green-700' 
-                                                : 'bg-red-100 text-red-700'
+                                                ? 'bg-secondary text-secondary-foreground' 
+                                                : 'bg-destructive/10 text-destructive'
                                             }`}>
                                               {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
                                             </span>
@@ -924,19 +959,19 @@ export default function ClientPortalPage() {
                                   {/* Distribuições expandidas */}
                                   {hasDistributions && isExpanded && (
                                     <div className="px-4 pb-3 bg-card">
-                                      <div className="border-l-2 border-purple-200 pl-4">
-                                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-xs font-medium mb-2">
+                                      <div className="border-l-2 border-accent pl-4">
+                                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-accent text-accent-foreground text-xs font-medium mb-2">
                                           Distribuído entre {entry.projectDistributions?.length ?? 0} projeto{(entry.projectDistributions?.length ?? 0) > 1 ? 's' : ''}
                                         </div>
                                         <div className="space-y-2">
                                           {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
                                             <div key={index} className="flex items-center justify-between py-2 px-3 bg-card rounded-md border border-muted">
                                               <div className="flex items-center space-x-2">
-                                                <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                                                <div className="w-2 h-2 bg-accent rounded-full"></div>
                                                 <span className="text-sm font-medium text-foreground">{dist.projectName}</span>
                                               </div>
                                               <span className={`text-sm font-semibold ${
-                                                entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'
+                                                entry.type === 'INCOME' ? 'text-chart-5' : 'text-destructive'
                                               }`}>
                                                 {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(dist.amount)}
                                               </span>
@@ -948,11 +983,11 @@ export default function ClientPortalPage() {
                                   )}
                                   {!hasDistributions && !!entry.projectName && isExpanded && (
                                     <div className="px-4 pb-3 bg-card">
-                                      <div className="border-l-2 border-blue-200 pl-4">
-                                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium mb-2">Projeto</div>
+                                      <div className="border-l-2 border-primary/20 pl-4">
+                                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium mb-2">Projeto</div>
                                         <div className="flex items-center justify-between py-2 px-3 bg-card rounded-md border border-muted">
                                           <span className="text-sm font-medium text-foreground">{entry.projectName}</span>
-                                          <span className={`text-sm font-semibold ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>{entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}</span>
+                                          <span className={`text-sm font-semibold ${entry.type === 'INCOME' ? 'text-chart-5' : 'text-destructive'}`}>{entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -964,15 +999,15 @@ export default function ClientPortalPage() {
                         </div>
                         {allFinancials.length === 0 ? (
                           <div className="px-6 py-12 text-center">
-                            <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                              <DollarSign className="h-8 w-8 text-gray-400" />
+                            <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                              <DollarSign className="h-8 w-8 text-muted-foreground" />
                             </div>
                             <h4 className="text-lg font-medium text-foreground mb-2">Nenhuma movimentação encontrada</h4>
                             <p className="text-muted-foreground">Não há registros financeiros para o período selecionado.</p>
                           </div>
                         ) : (
                           <div className="hidden md:block overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
+                            <table className="min-w-full divide-y divide-border">
                               <thead className="bg-card">
                                 <tr>
                                   <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tipo</th>
@@ -983,7 +1018,7 @@ export default function ClientPortalPage() {
                                   <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Projeto</th>
                                 </tr>
                               </thead>
-                              <tbody className="bg-card divide-y divide-gray-200">
+                              <tbody className="bg-card divide-y divide-border">
                                 {allFinancials.map((entry: ClientFinancialEntry) => {
                                   const TypeIconEl = getTypeIcon(entry.type)
                                   const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
@@ -1000,15 +1035,15 @@ export default function ClientPortalPage() {
                                       </td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{entry.category}</td>
                                       <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600' : 'text-red-600'}`}>
+                                        <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-chart-5' : 'text-destructive'}`}>
                                           {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}
                                         </div>
                                         {hasDistributions && (
                                           <div className="mt-2 space-y-1">
                                             {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
-                                              <div key={index} className="text-xs bg-purple-50 px-2 py-1 rounded border border-purple-200">
-                                                <span className="font-medium text-purple-700">{dist.projectName}:</span>
-                                                <span className="text-purple-600 ml-1">{formatCurrency(dist.amount)}</span>
+                                              <div key={index} className="text-xs bg-accent px-2 py-1 rounded border border-accent">
+                                                <span className="font-medium text-accent-foreground">{dist.projectName}:</span>
+                                                <span className="text-accent-foreground ml-1">{formatCurrency(dist.amount)}</span>
                                               </div>
                                             ))}
                                           </div>
@@ -1019,8 +1054,8 @@ export default function ClientPortalPage() {
                                         {hasDistributions ? (
                                           <div className="space-y-1">
                                             {(entry.projectDistributions ?? []).map((dist: ProjectDistribution, index: number) => (
-                                              <div key={index} className="text-xs bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                                                <span className="text-blue-700 font-medium">{dist.projectName}</span>
+                                              <div key={index} className="text-xs bg-primary/10 px-2 py-1 rounded border border-primary/20">
+                                                <span className="text-primary font-medium">{dist.projectName}</span>
                                               </div>
                                             ))}
                                           </div>
@@ -1050,7 +1085,7 @@ export default function ClientPortalPage() {
                             </p>
                           </div>
                           
-                          <div className="divide-y divide-gray-100">
+                          <div className="divide-y divide-border">
                             {projectPaymentSummaries
                               .filter((summary) => {
                                 if (statusFilter === 'all') return true
@@ -1083,21 +1118,21 @@ export default function ClientPortalPage() {
                                     )
                                   })()}
                                   <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                      <div className="bg-blue-50 p-3 rounded-lg">
-                                        <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
-                                        <p className="text-lg font-bold text-blue-900 mt-1">
+                                      <div className="bg-primary/10 p-3 rounded-lg">
+                                        <p className="text-xs font-medium text-primary uppercase tracking-wide">Orçamento Total</p>
+                                        <p className="text-lg font-bold text-foreground mt-1">
                                           {formatCurrency(summary.budget)}
                                         </p>
                                       </div>
-                                      <div className="bg-green-50 p-3 rounded-lg">
-                                        <p className="text-xs font-medium text-green-700 uppercase tracking-wide">Valor Pago</p>
-                                        <p className="text-lg font-bold text-green-900 mt-1">
+                                      <div className="bg-secondary p-3 rounded-lg">
+                                        <p className="text-xs font-medium text-secondary-foreground uppercase tracking-wide">Valor Pago</p>
+                                        <p className="text-lg font-bold text-foreground mt-1">
                                           {formatCurrency(summary.totalPaid)}
                                         </p>
                                       </div>
-                                      <div className="bg-orange-50 p-3 rounded-lg">
-                                        <p className="text-xs font-medium text-orange-700 uppercase tracking-wide">Restante</p>
-                                        <p className="text-lg font-bold text-orange-900 mt-1">
+                                      <div className="bg-accent p-3 rounded-lg">
+                                        <p className="text-xs font-medium text-accent-foreground uppercase tracking-wide">Restante</p>
+                                        <p className="text-lg font-bold text-foreground mt-1">
                                           {formatCurrency(summary.remainingBudget)}
                                         </p>
                                       </div>
@@ -1112,14 +1147,14 @@ export default function ClientPortalPage() {
                                       <div className="relative w-16 h-16">
                                         <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
                                           <path
-                                            className="text-gray-200"
+                                            className="text-muted-foreground"
                                             stroke="currentColor"
                                             strokeWidth="3"
                                             fill="none"
                                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                                           />
                                           <path
-                                            className={`${summary.paymentPercentage >= 100 ? 'text-green-500' : summary.paymentPercentage >= 50 ? 'text-blue-500' : 'text-orange-500'}`}
+                                            className={`${summary.paymentPercentage >= 100 ? 'text-chart-5' : summary.paymentPercentage >= 50 ? 'text-chart-1' : 'text-destructive'}`}
                                             stroke="currentColor"
                                             strokeWidth="3"
                                             strokeLinecap="round"
@@ -1138,25 +1173,25 @@ export default function ClientPortalPage() {
                             {/* Total Summary */}
                             <div className="mt-6 pt-6 border-t border-muted">
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                  <p className="text-sm font-medium text-blue-700 uppercase tracking-wide">Orçamento Total</p>
-                                  <p className="text-xl font-bold text-blue-900 mt-1">
+                                <div className="bg-primary/10 p-4 rounded-lg">
+                                  <p className="text-sm font-medium text-primary uppercase tracking-wide">Orçamento Total</p>
+                                  <p className="text-xl font-bold text-foreground mt-1">
                                     {formatCurrency(projectPaymentSummaries
                                       .filter((s) => statusFilter === 'all' ? true : (projects.find(p => p.id === s.projectId)?.status === statusFilter))
                                       .reduce((sum, p) => sum + p.budget, 0))}
                                   </p>
                                 </div>
-                                <div className="bg-green-50 p-4 rounded-lg">
-                                  <p className="text-sm font-medium text-green-700 uppercase tracking-wide">Valor Pago</p>
-                                  <p className="text-xl font-bold text-green-900 mt-1">
+                                <div className="bg-secondary p-4 rounded-lg">
+                                  <p className="text-sm font-medium text-secondary-foreground uppercase tracking-wide">Valor Pago</p>
+                                  <p className="text-xl font-bold text-foreground mt-1">
                                     {formatCurrency(projectPaymentSummaries
                                       .filter((s) => statusFilter === 'all' ? true : (projects.find(p => p.id === s.projectId)?.status === statusFilter))
                                       .reduce((sum, p) => sum + p.totalPaid, 0))}
                                   </p>
                                 </div>
-                                <div className="bg-orange-50 p-4 rounded-lg">
-                                  <p className="text-sm font-medium text-orange-700 uppercase tracking-wide">Restante</p>
-                                  <p className="text-xl font-bold text-orange-900 mt-1">
+                                <div className="bg-accent p-4 rounded-lg">
+                                  <p className="text-sm font-medium text-accent-foreground uppercase tracking-wide">Restante</p>
+                                  <p className="text-xl font-bold text-foreground mt-1">
                                     {formatCurrency(projectPaymentSummaries
                                       .filter((s) => statusFilter === 'all' ? true : (projects.find(p => p.id === s.projectId)?.status === statusFilter))
                                       .reduce((sum, p) => sum + p.remainingBudget, 0))}
@@ -1175,6 +1210,84 @@ export default function ClientPortalPage() {
               </div>
             )}
 
+            {activeTab === 'payments' && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground">Pagamentos</h3>
+                {payments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <DollarSign className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <h4 className="mt-2 text-sm font-medium text-foreground">Nenhum pagamento</h4>
+                    <p className="mt-1 text-sm text-muted-foreground">Não há pagamentos registrados.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {payments.map((payment) => (
+                      <div key={payment.id} className="border border-muted rounded-lg p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="h-5 w-5 text-chart-5" />
+                              <span className="text-lg font-semibold text-foreground">{formatCurrency(payment.amount)}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">{payment.description}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(payment.paymentDate)}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm text-muted-foreground">Distribuído</div>
+                            <div className="text-xl font-bold text-foreground">{formatCurrency(payment.totalDistributed)}</div>
+                            <div className="text-xs text-muted-foreground mt-1">Restante {formatCurrency(payment.remainingAmount)}</div>
+                          </div>
+                        </div>
+                        {payment.projectPayments && payment.projectPayments.length > 0 && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                            {payment.projectPayments.map((pp) => (
+                              <div key={`${payment.id}-${pp.projectId}`} className="bg-secondary p-3 rounded border border-secondary">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-secondary-foreground">{pp.projectName}</span>
+                                  <span className="text-sm font-bold text-foreground">{formatCurrency(pp.amountPaid)}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {payment.attachments && payment.attachments.length > 0 && (
+                          <div className="mt-2">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Paperclip className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium text-foreground">Anexos</span>
+                            </div>
+                            <div className="space-y-2">
+                              {payment.attachments.map((att) => (
+                                <div key={att.id} className="flex items-center justify-between p-2 bg-card border border-muted rounded">
+                                  <div className="flex items-center gap-3">
+                                    <FileText className="h-5 w-5 text-muted-foreground" />
+                                    <div>
+                                      <p className="text-sm font-medium text-foreground">{att.originalName || att.filename}</p>
+                                      <p className="text-xs text-muted-foreground">{formatFileSize(att.size)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3 py-1.5 border border-border text-xs rounded">
+                                      <Eye className="h-3 w-3 mr-1" />
+                                      Visualizar
+                                    </a>
+                                    <a href={att.url} download className="inline-flex items-center px-3 py-1.5 border border-border text-xs rounded">
+                                      <Download className="h-3 w-3 mr-1" />
+                                      Download
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Files Tab */}
             {activeTab === 'files' && (
               <div className="space-y-6">
@@ -1183,7 +1296,7 @@ export default function ClientPortalPage() {
                   <select
                     value={selectedProject || ''}
                     onChange={(e) => setSelectedProject(e.target.value)}
-                    className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                    className="block w-48 pl-3 pr-10 py-2 text-base border-border focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
                   >
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
@@ -1205,7 +1318,7 @@ export default function ClientPortalPage() {
                           {selectedProjectData.files.map((file) => (
                             <div key={file.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
                               <div className="flex items-center space-x-3">
-                                <FileText className="h-8 w-8 text-gray-400" />
+                                <FileText className="h-8 w-8 text-muted-foreground" />
                                 <div>
                                   <p className="text-sm font-medium text-foreground">{file.originalName}</p>
                                   <p className="text-xs text-muted-foreground">
@@ -1215,11 +1328,11 @@ export default function ClientPortalPage() {
                               </div>
                               
                               <div className="flex space-x-2">
-                                <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-card hover:bg-card">
+                                <button className="inline-flex items-center px-3 py-1.5 border border-border shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-card">
                                   <Eye className="h-3 w-3 mr-1" />
                                   Visualizar
                                 </button>
-                                <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-card hover:bg-card">
+                                <button className="inline-flex items-center px-3 py-1.5 border border-border shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-card">
                                   <Download className="h-3 w-3 mr-1" />
                                   Download
                                 </button>
@@ -1229,13 +1342,56 @@ export default function ClientPortalPage() {
                         </div>
                       ) : (
                         <div className="text-center py-12">
-                          <FileText className="mx-auto h-12 w-12 text-gray-400" />
+                          <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
                           <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum arquivo</h3>
                           <p className="mt-1 text-sm text-muted-foreground">
                             Ainda não há arquivos disponíveis para este projeto.
                           </p>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'contracts' && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-foreground">Contratos</h3>
+                {clientAttachments.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+                    <h4 className="mt-2 text-sm font-medium text-foreground">Nenhum contrato</h4>
+                    <p className="mt-1 text-sm text-muted-foreground">Não há anexos cadastrados para este cliente.</p>
+                  </div>
+                ) : (
+                  <div className="bg-card border border-muted rounded-lg overflow-hidden">
+                    <div className="px-4 py-5 sm:p-6">
+                      <div className="space-y-3">
+                        {clientAttachments.map((file) => (
+                          <div key={file.url} className="flex items-center justify-between p-3 border border-muted rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <FileText className="h-8 w-8 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm font-medium text-foreground">{file.filename}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatFileSize(file.size)} • {formatDate(file.uploadedAt)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <a href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3 py-1.5 border border-border shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-card">
+                                <Eye className="h-3 w-3 mr-1" />
+                                Visualizar
+                              </a>
+                              <a href={file.url} download className="inline-flex items-center px-3 py-1.5 border border-border shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-card">
+                                <Download className="h-3 w-3 mr-1" />
+                                Download
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1251,7 +1407,7 @@ export default function ClientPortalPage() {
                     {selectedProject && (
                       <div className="flex items-center space-x-2">
                         <div className={`w-2 h-2 rounded-full ${
-                          isConnected ? 'bg-green-500' : 'bg-red-500'
+                          isConnected ? 'bg-primary' : 'bg-destructive'
                         }`}></div>
                         <span className="text-sm text-muted-foreground">
                           {isConnected ? 'Tempo real ativo' : 'Desconectado'}
@@ -1262,7 +1418,7 @@ export default function ClientPortalPage() {
                   <select
                     value={selectedProject || ''}
                     onChange={(e) => setSelectedProject(e.target.value)}
-                    className="block w-48 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                    className="block w-48 pl-3 pr-10 py-2 text-base border-border focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md"
                   >
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>
@@ -1287,13 +1443,13 @@ export default function ClientPortalPage() {
                               <div key={comment.id} className={`flex ${comment.type === 'CLIENT_REQUEST' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                                   comment.type === 'CLIENT_REQUEST' 
-                                    ? 'bg-indigo-600 text-white' 
-                                    : 'bg-gray-100 text-foreground'
+                                    ? 'bg-primary text-primary-foreground' 
+                                    : 'bg-muted text-foreground'
                                 }`}>
                                   <p className="text-sm">{comment.content}</p>
                                   <p className={`text-xs mt-1 ${
                                     comment.type === 'CLIENT_REQUEST' 
-                                      ? 'text-indigo-200' 
+                                      ? 'text-primary-foreground/70' 
                                       : 'text-muted-foreground'
                                   }`}>
                                     {comment.authorName || 'Você'} • {formatDate(comment.createdAt)}
@@ -1303,7 +1459,7 @@ export default function ClientPortalPage() {
                             ))
                           ) : (
                             <div className="text-center py-8">
-                              <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
+                              <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground" />
                               <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma mensagem</h3>
                               <p className="mt-1 text-sm text-muted-foreground">
                                 Inicie uma conversa enviando uma mensagem.
@@ -1323,13 +1479,13 @@ export default function ClientPortalPage() {
                             onChange={(e) => setNewComment(e.target.value)}
                             placeholder="Digite sua mensagem..."
                             rows={3}
-                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            className="block w-full border-border rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm"
                           />
                         </div>
                         <button
                           onClick={sendComment}
                           disabled={!newComment.trim() || sendingComment}
-                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {sendingComment ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />

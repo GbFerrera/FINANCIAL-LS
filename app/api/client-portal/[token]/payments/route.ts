@@ -150,6 +150,28 @@ export async function GET(
       }
     })
 
+    // Buscar anexos vinculados às entradas financeiras associadas a cada pagamento
+    const paymentIds = payments.map(p => p.id)
+    const paymentEntries = await prisma.financialEntry.findMany({
+      where: { paymentId: { in: paymentIds } },
+      select: {
+        paymentId: true,
+        attachments: true
+      }
+    })
+    const attachmentsByPaymentId = Object.fromEntries(
+      paymentEntries.map(pe => [
+        pe.paymentId,
+        (pe.attachments || []).map(a => ({
+          id: a.id,
+          filename: a.filename,
+          originalName: a.originalName,
+          size: a.size,
+          url: a.url
+        }))
+      ])
+    )
+
     return NextResponse.json({
       payments: payments.map(payment => ({
         id: payment.id,
@@ -165,7 +187,8 @@ export async function GET(
           amount: pp.amount
         })),
         // Manter compatibilidade com código existente
-        projectName: payment.paymentProjects[0]?.project?.name || null
+        projectName: payment.paymentProjects[0]?.project?.name || null,
+        attachments: attachmentsByPaymentId[payment.id] || []
       }))
     })
   } catch (error) {

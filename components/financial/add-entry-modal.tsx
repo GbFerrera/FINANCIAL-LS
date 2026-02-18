@@ -542,7 +542,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-2xl h-[90vh] flex flex-col">
+      <DialogContent className="max-w-3xl md:max-w-3xl h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>{editingEntry ? 'Editar Entrada Financeira' : 'Nova Entrada Financeira'}</DialogTitle>
           <DialogDescription>
@@ -564,7 +564,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 onClick={() => setFormData(prev => ({ ...prev, type: 'INCOME' }))}
                 className={`p-3 h-auto flex-col ${
                   formData.type === 'INCOME'
-                    ? 'border-green-500 bg-green-50 text-green-700 hover:bg-green-100'
+                    ? 'border-green-200 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-800/40'
                     : ''
                 }`}
               >
@@ -577,7 +577,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 onClick={() => setFormData(prev => ({ ...prev, type: 'EXPENSE' }))}
                 className={`p-3 h-auto flex-col ${
                   formData.type === 'EXPENSE'
-                    ? 'border-red-500 bg-red-50 text-red-700 hover:bg-red-100'
+                    ? 'border-red-200 bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/40 dark:hover:bg-red-800/40'
                     : ''
                 }`}
               >
@@ -589,7 +589,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Category */}
-            <div>
+            <div className="flex-1">
               <Label className="text-sm font-medium">
                 Categoria *
               </Label>
@@ -599,10 +599,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                   value={formData.category}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                 >
-                  <SelectTrigger className="pl-10">
+                  <SelectTrigger className="pl-10 w-full max-w-[560px]">
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="w-full max-w-[560px]">
                     {availableCategories.map(category => (
                       <SelectItem key={category} value={category}>
                         {category}
@@ -681,8 +681,8 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
               <Textarea
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                rows={3}
-                className="pl-10"
+                rows={12}
+                className="pl-10 h-[150px]"
                 placeholder="Descreva a entrada financeira..."
                 required
               />
@@ -1068,11 +1068,11 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
 
               {attachments.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Novos anexos:</p>
+                  <p className="text-sm font-medium text-foreground">Novos anexos:</p>
                   {attachments.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                    <div key={index} className="flex items-center justify-between p-2 bg-card rounded border border-border">
                       <div className="flex items-center space-x-2">
-                        <FileText className="h-4 w-4 text-blue-500" />
+                        <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{file.name}</span>
                         <span className="text-xs text-muted-foreground">({formatFileSize(file.size)})</span>
                       </div>
@@ -1081,7 +1081,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                         variant="ghost"
                         size="sm"
                         onClick={() => removeAttachment(index)}
-                        className="text-red-500 hover:text-red-700"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                       >
                         <X className="h-4 w-4" />
                       </Button>

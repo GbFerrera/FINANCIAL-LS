@@ -79,7 +79,7 @@ export async function GET(
     }
 
     // Retornar o arquivo com headers apropriados
-    return new Response(fileBuffer, {
+    return new Response(fileBuffer as any, {
       headers: {
         'Content-Type': contentType,
         'Content-Length': fileBuffer.length.toString(),
