@@ -11,9 +11,14 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/financial_ls?schema=public
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=supersecret_change_me_in_production
+      - SEED_DB=false
       # Add other env vars here if needed
     volumes:
       - ./uploads:/app/uploads
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             if [ \"$SEED_DB\" = \"true\" ]; then npm run db:seed; fi &&
+             npm start"
     depends_on:
       - db
     networks:
