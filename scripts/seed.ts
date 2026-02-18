@@ -8,6 +8,7 @@ async function main() {
 
   const email = process.env.SEED_ADMIN_EMAIL
   const password = process.env.SEED_ADMIN_PASSWORD
+  const name = process.env.SEED_ADMIN_NAME || 'Administrador'
 
   if (!email || !password) {
     throw new Error('SEED_ADMIN_EMAIL e SEED_ADMIN_PASSWORD devem estar definidos')
@@ -19,7 +20,7 @@ async function main() {
     where: { email },
     update: {},
     create: {
-      name: 'Administrador',
+      name,
       email,
       password: adminPasswordHash,
       role: UserRole.ADMIN,
@@ -28,7 +29,7 @@ async function main() {
 
   console.log('✅ Seed concluído com sucesso!')
   console.log('\n📋 Usuário admin criado/garantido:')
-  console.log(`👤 ${admin.email}`)
+  console.log(`👤 ${admin.name} <${admin.email}>`)
 }
 
 main()
