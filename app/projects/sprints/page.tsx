@@ -229,7 +229,7 @@ function SprintsPageContent() {
         </div>
         <Button
           onClick={() => setShowCreateSprint(true)}
-          className="bg-[#161f46] hover:bg-[#0f1634]"
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
         >
           <Plus className="w-4 h-4 mr-2" />
           Nova Sprint
