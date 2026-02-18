@@ -6,7 +6,7 @@ services:
     container_name: financial_app
     restart: always
     ports:
-      - "3000:3000"
+      - "3003:3003"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/financial_ls?schema=public
       - NEXTAUTH_URL=http://localhost:3000
