@@ -12,6 +12,8 @@ services:
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=supersecret_change_me_in_production
       - SEED_DB=false
+      - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
+      - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
       # Add other env vars here if needed
     volumes:
       - ./uploads:/app/uploads
