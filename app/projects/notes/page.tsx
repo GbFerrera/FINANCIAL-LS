@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { Suspense, useEffect, useRef, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, Plus, FilePen, Trash2, Save } from "lucide-react"
@@ -28,7 +28,7 @@ type Note = {
   access: { user: { id: string; name: string; email: string } }[]
 }
 
-export default function ProjectNotesPage() {
+function ProjectNotesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -546,5 +546,17 @@ export default function ProjectNotesPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function NotesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <ProjectNotesPage />
+    </Suspense>
   )
 }
