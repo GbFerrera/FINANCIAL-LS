@@ -121,7 +121,7 @@ interface PageProps {
           </div>
           
           <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-2 bg-card p-2 rounded-lg border border-muted w-full md:w-auto">
+            <div className="flex items-center gap-2 bg-card p-2 rounded-lg border border-border w-full md:w-auto">
               <Calendar className="h-4 w-4 text-muted-foreground ml-2" />
               <div className="flex items-center gap-2">
                 <Input
@@ -130,7 +130,7 @@ interface PageProps {
                   onChange={(e) => setStartDate(e.target.value)}
                   className="h-9 w-36 border-0 bg-transparent focus-visible:ring-0 px-2 text-sm"
                 />
-                <span className="text-gray-400 text-sm">até</span>
+                <span className="text-muted-foreground text-sm">até</span>
                 <Input
                   type="date"
                   value={endDate}
@@ -139,7 +139,7 @@ interface PageProps {
                 />
               </div>
             </div>
-            <Button onClick={fetchTasks} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+            <Button onClick={fetchTasks} className="w-full md:w-auto">
               <Filter className="h-4 w-4 mr-2" />
               Filtrar
             </Button>
@@ -166,14 +166,14 @@ interface PageProps {
             title="Pendentes"
             value={counts.pending}
             icon={Target}
-            color="blue" // changed from gray/default to blue
+            color="blue"
             description="A fazer"
           />
           <StatsCard
             title="Em Análise"
             value={counts.inReview}
             icon={Clock}
-            color="purple" // changed from blue to purple
+            color="purple"
             description="Aguardando revisão"
           />
         </div>
@@ -184,8 +184,8 @@ interface PageProps {
              title="Concluídas no período" 
              tasks={grouped.COMPLETED} 
              icon={CheckCircle2} 
-             iconColor="text-green-600"
-             badgeColor="bg-green-100 text-green-700"
+             iconColor="text-green-700 dark:text-green-300"
+             badgeColor="bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/40"
              type="completed"
              loading={loading}
            />
@@ -199,8 +199,8 @@ interface PageProps {
                return due <= endDateTime && t.status !== 'COMPLETED'
              })} 
              icon={AlertCircle} 
-             iconColor="text-red-600"
-             badgeColor="bg-red-100 text-red-700"
+             iconColor="text-red-700 dark:text-red-300"
+             badgeColor="bg-red-100 text-red-800 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/40"
              type="overdue"
              loading={loading}
            />
@@ -209,8 +209,8 @@ interface PageProps {
              title="Em Análise" 
              tasks={grouped.IN_REVIEW} 
              icon={Clock} 
-             iconColor="text-purple-600"
-             badgeColor="bg-purple-100 text-purple-700"
+             iconColor="text-purple-700 dark:text-purple-300"
+             badgeColor="bg-purple-100 text-purple-800 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-900/40"
              type="in_review"
              loading={loading}
            />
@@ -219,8 +219,8 @@ interface PageProps {
              title="Pendentes" 
              tasks={grouped.TODO} 
              icon={Target} 
-             iconColor="text-blue-600"
-             badgeColor="bg-blue-100 text-blue-700"
+             iconColor="text-blue-700 dark:text-blue-300"
+             badgeColor="bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-900/40"
              type="pending"
              loading={loading}
            />
@@ -261,13 +261,13 @@ function TaskList({
       <CardContent className="p-0 flex-1 min-h-[300px] max-h-[500px] overflow-y-auto custom-scrollbar">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border"></div>
             <p className="text-sm">Carregando tarefas...</p>
           </div>
         ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400 gap-2">
+          <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground gap-2">
             <div className="p-3 bg-card rounded-full">
-              <Search className="h-6 w-6 text-gray-300" />
+              <Search className="h-6 w-6 text-muted-foreground" />
             </div>
             <p className="text-sm font-medium">Nenhuma tarefa encontrada</p>
           </div>
@@ -281,10 +281,10 @@ function TaskList({
                       <span className="font-medium text-foreground line-clamp-1">{t.title}</span>
                       {t.priority && (
                         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-5 
-                          ${t.priority === 'URGENT' ? 'text-red-700 bg-red-50 border-red-200' : 
-                            t.priority === 'HIGH' ? 'text-orange-700 bg-orange-50 border-orange-200' : 
-                            t.priority === 'MEDIUM' ? 'text-blue-700 bg-blue-50 border-blue-200' : 
-                            'text-muted-foreground bg-card border-muted'}`}>
+                          ${t.priority === 'URGENT' ? 'text-red-800 bg-red-100 border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-900/40' : 
+                            t.priority === 'HIGH' ? 'text-orange-800 bg-orange-100 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-900/40' : 
+                            t.priority === 'MEDIUM' ? 'text-blue-800 bg-blue-100 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-900/40' : 
+                            'text-muted-foreground bg-card border-border'}`}>
                           {t.priority === 'URGENT' ? 'Urgente' : 
                            t.priority === 'HIGH' ? 'Alta' : 
                            t.priority === 'MEDIUM' ? 'Média' : 'Baixa'}
@@ -301,25 +301,25 @@ function TaskList({
 
                     <div className="flex items-center gap-3 pt-1">
                       {type === 'completed' && t.completedAt && (
-                        <div className="text-xs text-green-600 flex items-center gap-1">
+                        <div className="text-xs text-green-700 dark:text-green-300 flex items-center gap-1">
                           <CheckCircle2 className="h-3 w-3" />
                           Concluída em {new Date(t.completedAt).toLocaleDateString()}
                         </div>
                       )}
                       {type === 'overdue' && t.dueDate && (
-                        <div className="text-xs text-red-600 flex items-center gap-1 font-medium">
+                        <div className="text-xs text-red-700 dark:text-red-300 flex items-center gap-1 font-medium">
                           <AlertCircle className="h-3 w-3" />
                           Venceu em {new Date(t.dueDate).toLocaleDateString()}
                         </div>
                       )}
                       {type === 'pending' && t.startDate && (
-                        <div className="text-xs text-blue-600 flex items-center gap-1">
+                        <div className="text-xs text-blue-700 dark:text-blue-300 flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           Início: {new Date(t.startDate).toLocaleDateString()}
                         </div>
                       )}
                       {type === 'in_review' && (
-                        <div className="text-xs text-purple-600 flex items-center gap-1">
+                        <div className="text-xs text-purple-700 dark:text-purple-300 flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           Aguardando revisão
                         </div>

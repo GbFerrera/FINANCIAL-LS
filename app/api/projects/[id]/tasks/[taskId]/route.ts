@@ -14,8 +14,8 @@ interface RouteParams {
 const taskUpdateSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório').optional(),
   description: z.string().optional(),
-  status: z.enum(['TODO', 'IN_PROGRESS', 'COMPLETED']).optional(),
-  priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+  status: z.enum(['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED']).optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
   dueDate: z.string().optional(),
   assigneeId: z.string().optional(),
   estimatedHours: z.number().optional(),

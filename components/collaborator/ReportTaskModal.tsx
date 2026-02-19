@@ -140,39 +140,27 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button 
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+          className="flex items-center gap-2 bg-primary text-primary-foreground"
           size="sm"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-4 h-4" />  
           Reportar Tarefa
         </Button>
       </DialogTrigger>
       
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-blue-600" />
+            <AlertTriangle className="w-5 h-5 text-foreground" />
             Reportar Nova Tarefa
           </DialogTitle>
         </DialogHeader>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium">Como funciona:</p>
-              <ul className="mt-1 space-y-1 text-xs">
-                <li>• Descreva a tarefa que precisa ser feita</li>
-                <li>• Escolha a sprint ou deixe no backlog geral</li>
-                <li>• O administrador definirá responsável e prazos</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+      
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               Título da Tarefa *
             </label>
             <Input
@@ -188,14 +176,14 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               Descrição (Opcional)
             </label>
             <Textarea
               placeholder="Descreva mais detalhes sobre o que precisa ser feito..."
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full min-h-[80px]"
+              className="w-full min-h-[200px]"
               maxLength={500}
             />
             <p className="text-xs text-muted-foreground mt-1">
@@ -204,7 +192,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               Prioridade Sugerida
             </label>
             <Select 
@@ -237,7 +225,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
           </div>
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               Sprint de Destino
             </label>
             <Select 
@@ -271,7 +259,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
 
           {projects.length > 1 && (
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
+              <label className="text-sm font-medium text-foreground mb-2 block">
                 Projeto (Opcional)
               </label>
               <Select 
@@ -294,7 +282,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
           )}
 
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-2 block">
+            <label className="text-sm font-medium text-foreground mb-2 block">
               Anexos (Opcional)
             </label>
             <FileUpload
@@ -320,7 +308,7 @@ export function ReportTaskModal({ collaboratorToken, projects = [] }: ReportTask
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
+              className="flex-1 bg-primary text-primary-foreground"
               disabled={isLoading || !formData.title.trim()}
             >
               {isLoading ? 'Reportando...' : 'Reportar Tarefa'}

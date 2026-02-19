@@ -19,7 +19,7 @@ import {
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay, isToday } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ContributionHeatmap } from '@/components/dashboard/contribution-heatmap'
-import { TaskChecklist } from './TaskChecklist'
+import { TaskDetailsModal } from './TaskDetailsModal'
 
 // Função para formatar data sem problemas de fuso horário
 const formatDateSafe = (dateString: string) => {
@@ -78,6 +78,8 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
   const [loading, setLoading] = useState(true)
   const [collaborator, setCollaborator] = useState<any>(null)
   const [viewType, setViewType] = useState<'columns' | 'list'>('columns')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const weekStart = startOfWeek(currentWeek, { locale: ptBR })
   const weekEnd = endOfWeek(currentWeek, { locale: ptBR })
@@ -205,7 +207,7 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border"></div>
       </div>
     )
   }
@@ -282,18 +284,18 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
             return (
               <Card 
                 key={dayKey} 
-                className={`${isCurrentDay ? 'ring-2 ring-blue-500 bg-blue-50' : ''} min-h-[300px]`}
+                className={`${isCurrentDay ? 'ring-2 ring-ring bg-accent/20' : ''} min-h-[300px]`}
               >
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium flex items-center justify-between">
-                    <span className={isCurrentDay ? 'text-blue-700' : 'text-gray-700'}>
+                    <span className={isCurrentDay ? 'text-foreground' : 'text-muted-foreground'}>
                       {format(day, 'EEEE', { locale: ptBR })}
                     </span>
-                    <span className={`text-xs ${isCurrentDay ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                    <span className={`text-xs ${isCurrentDay ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
                       {format(day, 'dd/MM')}
                     </span>
                     {isCurrentDay && (
-                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                      <Badge variant="secondary" className="text-xs">
                         Hoje
                       </Badge>
                     )}
@@ -302,67 +304,23 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                 
                 <CardContent className="space-y-3">
                   {dayTasks.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-4">
+                    <p className="text-xs text-muted-foreground text-center py-4">
                       Nenhuma tarefa
                     </p>
                   ) : (
                     dayTasks.map(task => (
-                      <div key={task.id} className="border rounded-lg p-2 hover:bg-card transition-colors">
-                        <div className="space-y-1">
-                          {/* Task title with priority indicator */}
-                          <div className="flex items-start gap-2">
-                            <div className={`w-2 h-2 rounded-full mt-1.5 ${getPriorityColor(task.priority)}`} />
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-foreground line-clamp-2 leading-tight">
-                                {task.title}
-                              </h4>
-                            </div>
-                          </div>
-
-                          {/* Project and time info */}
-                          <div className="flex items-center justify-between text-xs text-muted-foreground ml-4">
-                            <span className="truncate">{task.project.name}</span>
-                            
-                            {task.startTime && (
-                              <span className="flex items-center gap-1 font-mono">
-                                <Clock className="w-3 h-3" />
-                                {task.startTime}
-                              </span>
-                            )}
-                            
-                            {!task.startTime && task.estimatedMinutes && (
-                              <span className="flex items-center gap-1">
-                                <Timer className="w-3 h-3" />
-                                {Math.floor(task.estimatedMinutes / 60)}h {task.estimatedMinutes % 60}min
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Status badge */}
-                          <div className="ml-4">
-                            <Badge variant="outline" className={`${getStatusColor(task.status)} text-xs px-2 py-0.5`}>
-                              {getStatusIcon(task.status)}
-                              <span className="ml-1">
-                                {task.status === 'TODO' ? 'A Fazer' :
-                                 task.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Concluída'}
-                              </span>
-                            </Badge>
-                          </div>
-
-                          {/* Sprint info (if exists) */}
-                          {task.sprint && (
-                            <div className="flex items-center gap-1 ml-4">
-                              <Target className="w-3 h-3 text-blue-500" />
-                              <span className="text-xs text-blue-600 font-medium truncate">
-                                {task.sprint.name}
-                              </span>
-                            </div>
-                          )}
-                          <div className="ml-5 mt-2">
-                            <TaskChecklist token={token} taskId={task.id} />
-                          </div>
-                        </div>
-                      </div>
+                      <button
+                        key={task.id}
+                        onClick={() => {
+                          setSelectedTask(task)
+                          setDetailsOpen(true)
+                        }}
+                        className="w-full text-left border rounded-lg p-2 hover:bg-accent/40 transition-colors focus-visible:ring-ring focus-visible:outline-none"
+                      >
+                        <h4 className="text-sm font-medium text-foreground line-clamp-1">
+                          {task.title}
+                        </h4>
+                      </button>
                     ))
                   )}
                 </CardContent>
@@ -379,14 +337,14 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
             const isCurrentDay = isToday(day)
 
             return (
-              <Card key={dayKey} className={isCurrentDay ? 'ring-2 ring-blue-500 bg-blue-50' : ''}>
+              <Card key={dayKey} className={isCurrentDay ? 'ring-2 ring-ring bg-accent/20' : ''}>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg font-medium flex items-center gap-3">
-                    <span className={isCurrentDay ? 'text-blue-700' : 'text-gray-700'}>
+                    <span className={isCurrentDay ? 'text-foreground' : 'text-muted-foreground'}>
                       {format(day, 'EEEE, dd/MM', { locale: ptBR })}
                     </span>
                     {isCurrentDay && (
-                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                      <Badge variant="secondary" className="text-xs">
                         Hoje
                       </Badge>
                     )}
@@ -398,65 +356,24 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
                 
                 <CardContent>
                   {dayTasks.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-8">
+                    <p className="text-sm text-muted-foreground text-center py-8">
                       Nenhuma tarefa agendada para este dia
                     </p>
                   ) : (
                     <div className="grid gap-3">
                       {dayTasks.map(task => (
-                        <div key={task.id} className="border rounded-lg p-3 hover:bg-card transition-colors">
-                          <div className="flex items-start gap-3">
-                            {/* Priority indicator */}
-                            <div className={`w-3 h-3 rounded-full mt-1 ${getPriorityColor(task.priority)}`} />
-                            
-                            {/* Task content */}
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-start justify-between">
-                                <h4 className="text-sm font-medium text-foreground line-clamp-2">
-                                  {task.title}
-                                </h4>
-                                
-                                {task.startTime && (
-                                  <span className="flex items-center gap-1 text-sm font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                    <Clock className="w-3 h-3" />
-                                    {task.startTime}
-                                  </span>
-                                )}
-                              </div>
-                              
-                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                <span>{task.project.name}</span>
-                                
-                                {task.sprint && (
-                                  <span className="flex items-center gap-1">
-                                    <Target className="w-3 h-3 text-blue-500" />
-                                    {task.sprint.name}
-                                  </span>
-                                )}
-                                
-                                {!task.startTime && task.estimatedMinutes && (
-                                  <span className="flex items-center gap-1">
-                                    <Timer className="w-3 h-3" />
-                                    {Math.floor(task.estimatedMinutes / 60)}h {task.estimatedMinutes % 60}min
-                                  </span>
-                                )}
-                              </div>
-                              
-                              <div>
-                                <Badge variant="outline" className={`${getStatusColor(task.status)} text-xs`}>
-                                  {getStatusIcon(task.status)}
-                                  <span className="ml-1">
-                                    {task.status === 'TODO' ? 'A Fazer' :
-                                     task.status === 'IN_PROGRESS' ? 'Em Progresso' : 'Concluída'}
-                                  </span>
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-3 ml-6">
-                            <TaskChecklist token={token} taskId={task.id} />
-                          </div>
-                        </div>
+                        <button
+                          key={task.id}
+                          onClick={() => {
+                            setSelectedTask(task)
+                            setDetailsOpen(true)
+                          }}
+                          className="w-full text-left border rounded-lg p-3 hover:bg-accent/40 transition-colors focus-visible:ring-ring focus-visible:outline-none"
+                        >
+                          <h4 className="text-sm font-medium text-foreground line-clamp-1">
+                            {task.title}
+                          </h4>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -507,6 +424,12 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
       </Card>
 
       {/* Heatmap de Produtividade removido daqui pois foi movido para o layout pai */}
+      <TaskDetailsModal
+        task={selectedTask}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        token={token}
+      />
     </div>
   )
 }

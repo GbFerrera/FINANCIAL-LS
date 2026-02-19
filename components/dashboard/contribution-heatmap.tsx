@@ -523,6 +523,8 @@ export function ContributionHeatmap({
               showWeekdayLabels={true}
               showMonthLabels={true}
               gutterSize={2}
+              monthLabels={['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']}
+              weekdayLabels={['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']}
               onClick={handleClick}
               onMouseOver={handleMouseEnter}
               onMouseLeave={handleMouseLeave}

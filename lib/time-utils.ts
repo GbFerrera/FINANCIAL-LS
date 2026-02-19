@@ -6,6 +6,7 @@ export function calculateEstimatedTime(task: {
   startTime?: Date | string | null
   endTime?: Date | string | null
   estimatedHours?: number | null
+  estimatedMinutes?: number | null
 }): number {
   // Se temos startTime e endTime, calcular a diferença
   if (task.startTime && task.endTime) {
@@ -17,6 +18,11 @@ export function calculateEstimatedTime(task: {
     const diffInHours = diffInMs / (1000 * 60 * 60)
     
     return Math.max(0, diffInHours) // Garantir que não seja negativo
+  }
+  
+  // Se tiver estimatedMinutes, converter para horas
+  if (task.estimatedMinutes) {
+    return task.estimatedMinutes / 60
   }
   
   // Fallback para estimatedHours se não tiver startTime/endTime

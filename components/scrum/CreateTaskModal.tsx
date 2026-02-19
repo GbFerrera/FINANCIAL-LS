@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'react-hot-toast'
 import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
+import { Calendar, Clock, Flag, Tag, Target, User, Briefcase, CheckSquare } from 'lucide-react'
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -357,251 +358,277 @@ export function CreateTaskModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Título */}
-          <div>
-            <Label htmlFor="title">Título *</Label>
-            <Input
-              id="title"
-              {...register('title')}
-              placeholder="Digite o título da tarefa"
-            />
-            {errors.title && (
-              <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
-            )}
-          </div>
-
-          {/* Descrição */}
-          <div>
-            <Label htmlFor="description">Descrição</Label>
-            <Textarea
-              id="description"
-              {...register('description')}
-              placeholder="Descreva a tarefa (opcional)"
-              rows={6}
-              className="min-h-[140px]"
-            />
-          </div>
-
-          {/* Anexos (opcional) */}
-          <div>
-            <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
-            <div className="bg-card rounded-lg p-3 border border-muted">
-              <FileUpload
-                ref={(instance) => {
-                  fileUploadRef.current = instance as unknown as { handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> }
-                }}
-                taskId={editingTask?.id}
-                existingFiles={attachments}
-                onFilesChange={(files) => setAttachments(files as UploadFileInfo[])}
-                maxFiles={5}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Prioridade */}
-            <div>
-              <Label>Prioridade</Label>
-              <Select
-                value={watch('priority')}
-                onValueChange={(value) => setValue('priority', value as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT')}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LOW">Baixa</SelectItem>
-                  <SelectItem value="MEDIUM">Média</SelectItem>
-                  <SelectItem value="HIGH">Alta</SelectItem>
-                  <SelectItem value="URGENT">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Story Points */}
-            <div>
-              <Label htmlFor="storyPoints">Story Points</Label>
-              <Input
-                id="storyPoints"
-                type="number"
-                min="0"
-                max="100"
-                {...register('storyPoints', { valueAsNumber: true })}
-                placeholder="1"
-              />
-            </div>
-          </div>
-
-          {/* Seleção de Projeto (apenas quando há múltiplos projetos na sprint) */}
-          {sprintProjects.length > 0 && (
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <Label className="text-blue-900 font-medium">Projeto da Sprint *</Label>
-              <p className="text-sm text-blue-700 mb-3">
-                Esta sprint inclui múltiplos projetos. Selecione para qual projeto esta tarefa pertence.
-              </p>
-              <Select
-                value={selectedProjectId}
-                onValueChange={(value) => {
-                  setSelectedProjectId(value)
-                  // Recarregar membros da equipe quando projeto mudar
-                  fetchTeamMembers()
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar projeto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sprintProjects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name} - {project.client.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Responsável */}
-            <div>
-              <Label>Responsável</Label>
-              {sprintProjects.length > 0 && selectedProjectId && (
-                <p className="text-xs text-muted-foreground mb-2">
-                  Colaboradores do projeto selecionado
-                </p>
-              )}
-              <Select
-                value={watch('assigneeId') || 'none'}
-                onValueChange={(value) => setValue('assigneeId', value === 'none' ? undefined : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {teamMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Milestone */}
-            <div>
-              <Label>Milestone</Label>
-              <Select
-                value={watch('milestoneId') || 'none'}
-                onValueChange={(value) => setValue('milestoneId', value === 'none' ? undefined : value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar milestone" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhuma</SelectItem>
-                  {propMilestones.map((milestone) => (
-                    <SelectItem key={milestone.id} value={milestone.id}>
-                      {milestone.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            {/* Data de início */}
-            <div>
-              <Label htmlFor="startDate">Data de Início</Label>
-              <Input
-                id="startDate"
-                type="date"
-                {...register('startDate')}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            {/* Data de vencimento */}
-            <div>
-              <Label htmlFor="dueDate">Data de Vencimento</Label>
-              <Input
-                id="dueDate"
-                type="date"
-                {...register('dueDate')}
-              />
-            </div>
-          </div>
-
-          {/* Horários */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Horário de Início */}
-            <div>
-              <Label htmlFor="startTime">Horário de Início</Label>
-              <Input
-                id="startTime"
-                type="time"
-                {...register('startTime')}
-              />
-            </div>
-
-            {/* Tempo Estimado */}
-            <div>
-              <Label htmlFor="estimatedMinutes">Tempo Estimado (minutos)</Label>
-              <Input
-                id="estimatedMinutes"
-                type="number"
-                step="1"
-                min="0"
-                max="1440"
-                placeholder="Ex: 90"
-                {...register('estimatedMinutes', { valueAsNumber: true })}
-              />
-              {errors.estimatedMinutes && (
-                <p className="text-sm text-red-600 mt-1">{errors.estimatedMinutes.message}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Horário de Fim Calculado */}
-          {estimatedEndTime && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-sm font-medium text-blue-700">
-                    Horário de fim estimado: {estimatedEndTime}
-                  </span>
-                </div>
-                {watch('estimatedMinutes') && (
-                  <span className="text-xs text-blue-600">
-                    ({Math.floor((watch('estimatedMinutes') || 0) / 60)}h {(watch('estimatedMinutes') || 0) % 60}min)
-                  </span>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Coluna Esquerda - Principal */}
+            <div className="lg:col-span-7 space-y-4">
+              {/* Título */}
+              <div>
+                <Label htmlFor="title">Título *</Label>
+                <Input
+                  id="title"
+                  {...register('title')}
+                  placeholder="Digite o título da tarefa"
+                />
+                {errors.title && (
+                  <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* Checklist de Tarefas (apenas edição) */}
-          {editingTask && (
-            <div className="border-t pt-4 mt-4">
-              <Label className="mb-2 block">Checklist e Subtarefas</Label>
-              <div className="bg-card rounded-lg p-4 border border-muted">
-                <TaskChecklist taskId={editingTask.id} />
+              {/* Descrição */}
+              <div>
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  {...register('description')}
+                  placeholder="Descreva a tarefa (opcional)"
+                  rows={12}
+                  className="min-h-[200px]"
+                />
+              </div>
+
+              {/* Anexos (opcional) */}
+              <div>
+                <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
+                <div className="bg-card rounded-lg p-3 border border-muted">
+                  <FileUpload
+                    ref={(instance) => {
+                      fileUploadRef.current = instance as unknown as { handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> }
+                    }}
+                    taskId={editingTask?.id}
+                    existingFiles={attachments}
+                    onFilesChange={(files) => setAttachments(files as UploadFileInfo[])}
+                    maxFiles={5}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              {/* Checklist de Tarefas (apenas edição) */}
+              {editingTask && (
+                <div className="border-t pt-4 mt-4">
+                  <Label className="mb-2 block">Checklist e Subtarefas</Label>
+                  <div className="bg-card rounded-lg p-4 border border-muted">
+                    <TaskChecklist taskId={editingTask.id} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Coluna Direita - Metadados */}
+            <div className="lg:col-span-5 space-y-5">
+              
+              {/* Seleção de Projeto (apenas quando há múltiplos projetos na sprint) */}
+              {sprintProjects.length > 0 && (
+                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 bg-primary/10 rounded-md">
+                      <Briefcase className="w-4 h-4 text-primary" />
+                    </div>
+                    <span className="font-semibold text-sm text-foreground">Projeto</span>
+                  </div>
+                  <Select
+                    value={selectedProjectId}
+                    onValueChange={(value) => {
+                      setSelectedProjectId(value)
+                      fetchTeamMembers()
+                    }}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder="Selecionar projeto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sprintProjects.map((project) => (
+                        <SelectItem key={project.id} value={project.id}>
+                          {project.name} - {project.client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Grupo: Classificação e Planejamento */}
+              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-4">
+                <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+                  <div className="p-1.5 bg-blue-500/10 rounded-md">
+                    <Tag className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <span className="font-semibold text-sm text-foreground">Classificação</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Prioridade */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Flag className="w-3 h-3" /> Prioridade
+                    </Label>
+                    <Select
+                      value={watch('priority')}
+                      onValueChange={(value) => setValue('priority', value as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT')}
+                    >
+                      <SelectTrigger className="h-9 bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LOW">Baixa</SelectItem>
+                        <SelectItem value="MEDIUM">Média</SelectItem>
+                        <SelectItem value="HIGH">Alta</SelectItem>
+                        <SelectItem value="URGENT">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Story Points */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Target className="w-3 h-3" /> Story Points
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      {...register('storyPoints', { valueAsNumber: true })}
+                      placeholder="1"
+                      className="h-9 bg-background"
+                    />
+                  </div>
+
+                  {/* Milestone */}
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <CheckSquare className="w-3 h-3" /> Milestone
+                    </Label>
+                    <Select
+                      value={watch('milestoneId') || 'none'}
+                      onValueChange={(value) => setValue('milestoneId', value === 'none' ? undefined : value)}
+                    >
+                      <SelectTrigger className="h-9 bg-background">
+                        <SelectValue placeholder="Selecionar milestone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {propMilestones.map((milestone) => (
+                          <SelectItem key={milestone.id} value={milestone.id}>
+                            {milestone.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grupo: Atribuição */}
+              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-4">
+                <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+                  <div className="p-1.5 bg-purple-500/10 rounded-md">
+                    <User className="w-4 h-4 text-purple-500" />
+                  </div>
+                  <span className="font-semibold text-sm text-foreground">Responsável</span>
+                </div>
+                
+                <div>
+                  {sprintProjects.length > 0 && selectedProjectId && (
+                    <p className="text-[10px] text-muted-foreground mb-1.5 ml-1">
+                      Membros do projeto selecionado
+                    </p>
+                  )}
+                  <Select
+                    value={watch('assigneeId') || 'none'}
+                    onValueChange={(value) => setValue('assigneeId', value === 'none' ? undefined : value)}
+                  >
+                    <SelectTrigger className="h-9 bg-background">
+                      <SelectValue placeholder="Atribuir a..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguém</SelectItem>
+                      {teamMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Grupo: Agendamento */}
+              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-4">
+                <div className="flex items-center gap-2 border-b border-border/50 pb-2">
+                  <div className="p-1.5 bg-orange-500/10 rounded-md">
+                    <Calendar className="w-4 h-4 text-orange-500" />
+                  </div>
+                  <span className="font-semibold text-sm text-foreground">Prazos e Tempo</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Data Início */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Início</Label>
+                    <Input
+                      type="date"
+                      {...register('startDate')}
+                      className="h-9 bg-background text-xs"
+                    />
+                  </div>
+
+                  {/* Data Entrega */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Entrega</Label>
+                    <Input
+                      type="date"
+                      {...register('dueDate')}
+                      className="h-9 bg-background text-xs"
+                    />
+                  </div>
+
+                  {/* Hora Início */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Hora Início
+                    </Label>
+                    <Input
+                      type="time"
+                      {...register('startTime')}
+                      className="h-9 bg-background text-xs"
+                    />
+                  </div>
+
+                  {/* Tempo Estimado */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Estimado (min)
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      {...register('estimatedMinutes', { valueAsNumber: true })}
+                      placeholder="0"
+                      className="h-9 bg-background text-xs"
+                    />
+                  </div>
+                  
+                  {/* Previsão de Término */}
+                  {estimatedEndTime && (
+                    <div className="col-span-2 bg-blue-500/5 border border-blue-500/20 rounded-md p-2 flex items-center justify-between">
+                      <span className="text-xs text-blue-700 font-medium">Previsão de término:</span>
+                      <span className="text-sm font-bold text-blue-700">{estimatedEndTime}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+
+          </div>
 
           {/* Botões */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-4 border-t mt-6">
             <Button
               type="button"
               variant="outline"
@@ -613,7 +640,7 @@ export function CreateTaskModal({
             <Button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-primary"
             >
               {loading 
                 ? (editingTask ? 'Salvando...' : 'Criando...') 

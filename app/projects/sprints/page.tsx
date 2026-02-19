@@ -6,6 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { 
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel
+} from '@/components/ui/alert-dialog'
+import { toast } from 'react-hot-toast'
 import { 
   Target, 
   Calendar, 
@@ -13,6 +27,7 @@ import {
   Search,
   Eye,
   Edit,
+  Trash,
   Play,
   Pause,
   CheckCircle2,
@@ -65,6 +80,17 @@ function SprintsPageContent() {
   const [searchTerm, setSearchTerm] = useState((searchParams && searchParams.get('search')) || '')
   const [statusFilter, setStatusFilter] = useState<string>((searchParams && searchParams.get('status')) || 'all')
   const [showCreateSprint, setShowCreateSprint] = useState(false)
+  const [showEditSprint, setShowEditSprint] = useState(false)
+  const [sprintToEdit, setSprintToEdit] = useState<Sprint | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    startDate: '',
+    endDate: '',
+    goal: '',
+    capacity: ''
+  })
+  const [deleteTarget, setDeleteTarget] = useState<Sprint | null>(null)
 
   useEffect(() => {
     fetchSprints()
@@ -123,6 +149,58 @@ function SprintsPageContent() {
     }
 
     setFilteredSprints(filtered)
+  }
+
+  const openEdit = (sprint: Sprint) => {
+    setSprintToEdit(sprint)
+    setEditForm({
+      name: sprint.name || '',
+      description: sprint.description || '',
+      startDate: sprint.startDate ? format(new Date(sprint.startDate), 'yyyy-MM-dd') : '',
+      endDate: sprint.endDate ? format(new Date(sprint.endDate), 'yyyy-MM-dd') : '',
+      goal: sprint.goal || '',
+      capacity: sprint.capacity != null ? String(sprint.capacity) : ''
+    })
+    setShowEditSprint(true)
+  }
+
+  const submitEdit = async () => {
+    if (!sprintToEdit) return
+    try {
+      const body = {
+        name: editForm.name,
+        description: editForm.description,
+        startDate: editForm.startDate ? editForm.startDate + 'T12:00:00.000Z' : undefined,
+        endDate: editForm.endDate ? editForm.endDate + 'T12:00:00.000Z' : undefined,
+        goal: editForm.goal,
+        capacity: editForm.capacity !== '' ? Number(editForm.capacity) : undefined
+      }
+      const res = await fetch(`/api/sprints/${sprintToEdit.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+      if (!res.ok) throw new Error('Falha ao atualizar sprint')
+      toast.success('Sprint atualizada')
+      setShowEditSprint(false)
+      setSprintToEdit(null)
+      fetchSprints()
+    } catch (e) {
+      toast.error('Erro ao atualizar sprint')
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      const res = await fetch(`/api/sprints/${deleteTarget.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Falha ao deletar sprint')
+      toast.success('Sprint deletada')
+      setDeleteTarget(null)
+      fetchSprints()
+    } catch (e) {
+      toast.error('Erro ao deletar sprint')
+    }
   }
 
   const getSprintMetrics = (sprint: Sprint) => {
@@ -351,9 +429,28 @@ function SprintsPageContent() {
                         Ver
                       </Button>
                     </Link>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(sprint)}>
                       <Edit className="w-4 h-4" />
                     </Button>
+                    <AlertDialog open={deleteTarget?.id === sprint.id} onOpenChange={(open) => setDeleteTarget(open ? sprint : null)}>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(sprint)}>
+                        <Trash className="w-4 h-4" />
+                      </Button>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Deletar Sprint</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta ação removerá a sprint e desvinculará suas tarefas. Deseja continuar?
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
+                            Deletar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardContent>
@@ -387,6 +484,45 @@ function SprintsPageContent() {
           setShowCreateSprint(false)
         }}
       />
+      <Dialog open={showEditSprint} onOpenChange={setShowEditSprint}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Sprint</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Nome</Label>
+              <Input id="edit-name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            </div>
+            <div>
+              <Label htmlFor="edit-description">Descrição</Label>
+              <Textarea id="edit-description" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-start">Início</Label>
+                <Input id="edit-start" type="date" value={editForm.startDate} onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} />
+              </div>
+              <div>
+                <Label htmlFor="edit-end">Fim</Label>
+                <Input id="edit-end" type="date" value={editForm.endDate} onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-goal">Objetivo</Label>
+              <Input id="edit-goal" value={editForm.goal} onChange={(e) => setEditForm({ ...editForm, goal: e.target.value })} />
+            </div>
+            <div>
+              <Label htmlFor="edit-capacity">Capacidade (SP)</Label>
+              <Input id="edit-capacity" type="number" min="0" value={editForm.capacity} onChange={(e) => setEditForm({ ...editForm, capacity: e.target.value })} />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setShowEditSprint(false)}>Cancelar</Button>
+              <Button onClick={submitEdit} className="bg-blue-600 hover:bg-blue-700">Salvar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -222,11 +222,11 @@ export function TaskListView({ token }: TaskListViewProps) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'COMPLETED': return 'text-green-600 bg-green-100'
-      case 'IN_PROGRESS': return 'text-blue-600 bg-blue-100'
-      case 'IN_REVIEW': return 'text-yellow-600 bg-yellow-100'
-      case 'TODO': return 'text-muted-foreground bg-gray-100'
-      default: return 'text-muted-foreground bg-gray-100'
+      case 'COMPLETED': return 'text-green-800 bg-green-100 border border-green-200 dark:text-green-300 dark:bg-green-900/30 dark:border-green-900/40'
+      case 'IN_PROGRESS': return 'text-blue-800 bg-blue-100 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-900/40'
+      case 'IN_REVIEW': return 'text-amber-800 bg-amber-100 border border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-900/40'
+      case 'TODO': return 'text-muted-foreground bg-card border border-border'
+      default: return 'text-muted-foreground bg-card border border-border'
     }
   }
 
@@ -272,7 +272,7 @@ export function TaskListView({ token }: TaskListViewProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border"></div>
       </div>
     )
   }
@@ -298,7 +298,7 @@ export function TaskListView({ token }: TaskListViewProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               {/* Busca */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
                   placeholder="Buscar tarefas..."
                   value={searchTerm}
@@ -386,7 +386,7 @@ export function TaskListView({ token }: TaskListViewProps) {
         {Object.keys(groupedTasks).length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">Nenhuma tarefa encontrada</h3>
               <p className="text-muted-foreground">Tente ajustar os filtros para ver mais resultados.</p>
             </CardContent>
@@ -397,7 +397,7 @@ export function TaskListView({ token }: TaskListViewProps) {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-blue-500" />
+                    <Target className="w-5 h-5 text-muted-foreground" />
                     <CardTitle className="text-lg">{sprintName}</CardTitle>
                     <Badge variant="outline">{sprintTasks.length} tarefa{sprintTasks.length !== 1 ? 's' : ''}</Badge>
                   </div>

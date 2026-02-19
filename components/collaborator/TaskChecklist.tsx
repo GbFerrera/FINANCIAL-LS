@@ -27,9 +27,10 @@ interface ChecklistGroup {
 interface TaskChecklistProps {
   token?: string
   taskId: string
+  variant?: 'default' | 'minimal'
 }
 
-export function TaskChecklist({ token, taskId }: TaskChecklistProps) {
+export function TaskChecklist({ token, taskId, variant = 'default' }: TaskChecklistProps) {
   const [groups, setGroups] = useState<ChecklistGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [newGroupTitle, setNewGroupTitle] = useState('')
@@ -40,6 +41,8 @@ export function TaskChecklist({ token, taskId }: TaskChecklistProps) {
   const [editingItemTitle, setEditingItemTitle] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   const [isMainCollapsed, setIsMainCollapsed] = useState(false)
+
+  const isMinimal = variant === 'minimal'
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups(prev => ({
@@ -261,6 +264,153 @@ export function TaskChecklist({ token, taskId }: TaskChecklistProps) {
   const totalItems = groups.reduce((sum, g) => sum + g.items.length, 0)
   const completedItems = groups.reduce((sum, g) => sum + g.items.filter(i => i.done).length, 0)
 
+  const content = (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <Input
+          placeholder="Nome do novo grupo..."
+          value={newGroupTitle}
+          onChange={(e) => setNewGroupTitle(e.target.value)}
+        />
+        <Button size="sm" className="gap-2" onClick={addGroup}>
+          <Plus className="w-4 h-4" />
+          {isMinimal ? 'Grupo' : 'Adicionar grupo'}
+        </Button>
+      </div>
+
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="space-y-6">
+          {groups.map(group => {
+            const isGroupCollapsed = collapsedGroups[group.id]
+            const groupTotal = group.items.length
+            const groupDone = group.items.filter(i => i.done).length
+
+            return (
+              <Droppable key={group.id} droppableId={group.id}>
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="space-y-2"
+                  >
+                    {/* Header do Grupo */}
+                    <div className="flex items-center gap-2 group">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => toggleGroupCollapse(group.id)}
+                      >
+                        {isGroupCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Button>
+                      
+                      {editingGroupId === group.id ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <Input
+                            value={editingGroupTitle}
+                            onChange={(e) => setEditingGroupTitle(e.target.value)}
+                            className="h-7 text-sm"
+                            autoFocus
+                          />
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveEditGroup}>
+                            <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="font-medium text-sm">{group.title}</span>
+                          <span className="text-xs text-muted-foreground">({groupDone}/{groupTotal})</span>
+                          <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditGroup(group)}>
+                              <Pencil className="w-3 h-3 text-muted-foreground" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteGroup(group.id)}>
+                              <Trash2 className="w-3 h-3 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isGroupCollapsed && (
+                      <div className="pl-6 space-y-2">
+                        {group.items.map((item, index) => (
+                          <Draggable key={item.id} draggableId={item.id} index={index}>
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className="group/item flex items-start gap-2 text-sm"
+                              >
+                                <Checkbox
+                                  checked={item.done}
+                                  onCheckedChange={(checked) => toggleItem(item.id, checked as boolean)}
+                                  className="mt-0.5"
+                                />
+                                
+                                {editingItemId === item.id ? (
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <Input
+                                      value={editingItemTitle}
+                                      onChange={(e) => setEditingItemTitle(e.target.value)}
+                                      className="h-7 text-sm"
+                                      autoFocus
+                                    />
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveEditItem}>
+                                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className={`flex-1 break-words ${item.done ? 'text-muted-foreground line-through' : ''}`}>
+                                    {item.title}
+                                  </div>
+                                )}
+
+                                <div className="opacity-0 group-hover/item:opacity-100 flex items-center gap-1">
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditItem(item)}>
+                                    <Pencil className="w-3 h-3 text-muted-foreground" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteItem(item.id)}>
+                                    <Trash2 className="w-3 h-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+
+                        <div className="flex gap-2 items-center pt-1">
+                          <Input
+                            placeholder="Nova tarefa..."
+                            value={newItemTitleByGroup[group.id] || ''}
+                            onChange={(e) => setNewItemTitleByGroup(prev => ({ ...prev, [group.id]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') addItem(group.id)
+                            }}
+                            className="h-8 text-sm"
+                          />
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => addItem(group.id)}>
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Droppable>
+            )
+          })}
+        </div>
+      </DragDropContext>
+    </div>
+  )
+
+  if (isMinimal) {
+    return content
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -283,142 +433,7 @@ export function TaskChecklist({ token, taskId }: TaskChecklistProps) {
       {!isMainCollapsed && (
         <Card>
           <CardContent className="p-3 space-y-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nome do novo grupo..."
-                value={newGroupTitle}
-                onChange={(e) => setNewGroupTitle(e.target.value)}
-              />
-              <Button size="sm" className="gap-2" onClick={addGroup}>
-                <Plus className="w-4 h-4" />
-                Adicionar grupo
-              </Button>
-            </div>
-
-            <DragDropContext onDragEnd={onDragEnd}>
-              <div className="space-y-6">
-                {groups.map(group => {
-                const groupCompleted = group.items.filter(i => i.done).length
-                const isCollapsed = collapsedGroups[group.id]
-                
-                return (
-                  <div key={group.id} className="border rounded-lg p-3 bg-card">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-6 w-6 p-0 hover:bg-gray-100" 
-                          onClick={() => toggleGroupCollapse(group.id)}
-                        >
-                          {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </Button>
-                        
-                        {editingGroupId === group.id ? (
-                          <>
-                            <Input
-                              value={editingGroupTitle}
-                              onChange={(e) => setEditingGroupTitle(e.target.value)}
-                              className="h-8"
-                            />
-                            <Button size="sm" onClick={saveEditGroup}>Salvar</Button>
-                          </>
-                        ) : (
-                          <>
-                            <h4 className="text-sm font-medium">{group.title}</h4>
-                            <Badge variant="outline">{groupCompleted}/{group.items.length}</Badge>
-                            <Button variant="ghost" size="sm" onClick={() => startEditGroup(group)}>
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => deleteGroup(group.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-
-                    {!isCollapsed && (
-                      <>
-                        <Droppable droppableId={group.id}>
-                          {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.droppableProps}
-                              className="space-y-2 min-h-[10px]"
-                            >
-                              {group.items.map((item, index) => (
-                                <Draggable key={item.id} draggableId={item.id} index={index}>
-                                  {(provided) => (
-                                    <div
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      {...provided.dragHandleProps}
-                                      className="flex items-center justify-between bg-card border border-transparent hover:border-muted rounded p-1 group"
-                                      style={{ ...provided.draggableProps.style }}
-                                    >
-                                      <div className="flex items-center gap-2 flex-1">
-                                        <div className="cursor-move text-gray-400 opacity-0 group-hover:opacity-100">
-                                          ⋮⋮
-                                        </div>
-                                        <Checkbox
-                                          checked={item.done}
-                                          onCheckedChange={(checked) => toggleItem(item.id, !!checked)}
-                                        />
-                                        {editingItemId === item.id ? (
-                                          <>
-                                            <Input
-                                              value={editingItemTitle}
-                                              onChange={(e) => setEditingItemTitle(e.target.value)}
-                                              className="h-8 flex-1"
-                                            />
-                                            <Button size="sm" onClick={saveEditItem}>Salvar</Button>
-                                          </>
-                                        ) : (
-                                          <span className={`text-sm flex-1 ${item.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                            {item.title}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {editingItemId !== item.id && (
-                                          <Button variant="ghost" size="sm" onClick={() => startEditItem(item)}>
-                                            <Pencil className="w-4 h-4" />
-                                          </Button>
-                                        )}
-                                        <Button variant="ghost" size="sm" onClick={() => deleteItem(item.id)}>
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </Draggable>
-                              ))}
-                              {provided.placeholder}
-                            </div>
-                          )}
-                        </Droppable>
-
-                        <div className="mt-3 flex gap-2">
-                          <Input
-                            placeholder="Nova etapa..."
-                            value={newItemTitleByGroup[group.id] || ''}
-                            onChange={(e) =>
-                              setNewItemTitleByGroup(prev => ({ ...prev, [group.id]: e.target.value }))
-                            }
-                          />
-                          <Button size="sm" className="gap-2" onClick={() => addItem(group.id)}>
-                            <Plus className="w-4 h-4" />
-                            Adicionar etapa
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-              </div>
-            </DragDropContext>
+            {content}
           </CardContent>
         </Card>
       )}

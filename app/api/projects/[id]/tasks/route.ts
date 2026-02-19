@@ -99,7 +99,14 @@ export async function POST(
           select: {
             id: true,
             name: true,
-            email: true
+            email: true,
+            avatar: true
+          }
+        },
+        project: {
+          select: {
+            id: true,
+            name: true
           }
         }
       }
@@ -150,7 +157,14 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            email: true
+            email: true,
+            avatar: true
+          }
+        },
+        project: {
+          select: {
+            id: true,
+            name: true
           }
         }
       },

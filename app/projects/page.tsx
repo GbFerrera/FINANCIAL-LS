@@ -18,7 +18,8 @@ import {
   Trash2,
   FolderOpen,
   Target,
-  Presentation
+  Presentation,
+  Telescope
 } from "lucide-react"
 import { StatsCard } from "@/components/ui/stats-card"
 import {
@@ -846,7 +847,7 @@ export default function ProjectsPage() {
                               onClick={() => router.push(`/projects/${linkSystemProject.id}`)}
                               className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
-                              <Eye className="h-3 w-3 mr-1" />
+                              <Telescope className="h-3 w-3 mr-1" />
                               Ver Detalhes
                             </button>
                             <button 
@@ -855,7 +856,7 @@ export default function ProjectsPage() {
                               title="Abrir anotações do projeto"
                             >
                               <FolderOpen className="h-3 w-3 mr-1" />
-                              Arquivos
+                              Docs
                             </button>
                             <button 
                               onClick={() => openOrCreateSprint(linkSystemProject.id)}
@@ -987,7 +988,7 @@ export default function ProjectsPage() {
                               onClick={() => router.push(`/projects/${project.id}`)}
                               className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
                             >
-                              <Eye className="h-3 w-3 mr-1" />
+                              <Telescope className="h-3 w-3 mr-1" />
                               Ver Detalhes
                             </button>
                             <button 
@@ -996,7 +997,7 @@ export default function ProjectsPage() {
                               title="Abrir anotações do projeto"
                             >
                               <FolderOpen className="h-3 w-3 mr-1" />
-                              Arquivos
+                              Docs
                             </button>
                             <button 
                               onClick={() => openOrCreateSprint(project.id)}

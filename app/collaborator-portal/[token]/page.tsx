@@ -50,8 +50,8 @@ export default function CollaboratorPortalPage({ params }: PageProps) {
               <h1 className="text-3xl font-bold text-foreground">Portal do Colaborador</h1>
               {collaboratorName && (
                 <div className="flex items-center gap-2 mt-1 mb-1">
-                  <User className="h-4 w-4 text-blue-500" />
-                  <span className="font-medium text-blue-600">{collaboratorName}</span>
+                  <User className="h-4 w-4 text-muted-foreground dark:text-muted-foreground" />
+                  <span className="font-medium text-primary">{collaboratorName}</span>
                 </div>
               )}
               <p className="text-muted-foreground">

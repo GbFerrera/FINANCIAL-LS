@@ -73,6 +73,7 @@ export async function GET(
             priority: true,
             dueDate: true,
             estimatedMinutes: true,
+            startDate: true,
             startTime: true,
             endTime: true,
             milestone: {
@@ -86,6 +87,7 @@ export async function GET(
                  id: true,
                  name: true,
                  email: true,
+                 avatar: true,
                }
              }
           },

@@ -474,7 +474,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
         <div className="flex gap-2">
           <Button
             onClick={() => setShowCreateTask(true)}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary"
           >
             <Plus className="w-4 h-4 mr-2" />
             Nova Tarefa

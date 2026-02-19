@@ -12,11 +12,16 @@ import {
   Target, 
   FileText,
   Download,
-  ExternalLink
+  ExternalLink,
+  CheckSquare,
+  X,
+  Layout,
+  Tag
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { useEffect, useState } from "react"
+import { TaskChecklist } from "./TaskChecklist"
 
 interface Task {
   id: string
@@ -52,11 +57,11 @@ export function TaskDetailsModal({ task, open, onOpenChange, token }: TaskDetail
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'URGENT': return 'bg-red-500'
-      case 'HIGH': return 'bg-orange-500'
-      case 'MEDIUM': return 'bg-yellow-500'
-      case 'LOW': return 'bg-green-500'
-      default: return 'bg-card0'
+      case 'URGENT': return 'bg-red-500 hover:bg-red-600'
+      case 'HIGH': return 'bg-orange-500 hover:bg-orange-600'
+      case 'MEDIUM': return 'bg-yellow-500 hover:bg-yellow-600'
+      case 'LOW': return 'bg-green-500 hover:bg-green-600'
+      default: return 'bg-slate-500 hover:bg-slate-600'
     }
   }
 
@@ -72,11 +77,11 @@ export function TaskDetailsModal({ task, open, onOpenChange, token }: TaskDetail
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'COMPLETED': return 'text-green-600 bg-green-100'
-      case 'IN_PROGRESS': return 'text-blue-600 bg-blue-100'
-      case 'IN_REVIEW': return 'text-yellow-600 bg-yellow-100'
-      case 'TODO': return 'text-muted-foreground bg-gray-100'
-      default: return 'text-muted-foreground bg-gray-100'
+      case 'COMPLETED': return 'text-green-700 bg-green-100 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
+      case 'IN_PROGRESS': return 'text-blue-700 bg-blue-100 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+      case 'IN_REVIEW': return 'text-yellow-700 bg-yellow-100 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800'
+      case 'TODO': return 'text-slate-700 bg-slate-100 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+      default: return 'text-muted-foreground bg-muted'
     }
   }
 
@@ -96,10 +101,11 @@ export function TaskDetailsModal({ task, open, onOpenChange, token }: TaskDetail
     }
     const [year, month, day] = dateString.split('-')
     const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-    return format(date, "dd 'de' MMMM", { locale: ptBR })
+    return format(date, "dd 'de' MMM, yyyy", { locale: ptBR })
   }
 
   const [attachments, setAttachments] = useState<Array<{ originalName: string; mimeType: string; filePath: string; url: string; size: number }>>([])
+  
   useEffect(() => {
     const fetchAttachments = async () => {
       if (!open || !task?.id) return
@@ -154,122 +160,152 @@ export function TaskDetailsModal({ task, open, onOpenChange, token }: TaskDetail
       return cleanLines.join('\n').trim()
   }
 
-  // Decidi mostrar a descrição completa mesmo, para garantir que nada se perca
-  // Mas a seção de anexos dedicada é melhor para interação
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <div className="flex items-start justify-between mr-8">
-            <div className="space-y-1">
-              <DialogTitle className="text-xl font-bold leading-tight">
+      <DialogContent showCloseButton={false} className="sm:max-w-[70vw] max-w-[95vw] w-full h-[95vh] p-0 flex flex-col gap-0 overflow-hidden bg-background">
+        
+        {/* Header Fixo */}
+        <div className="px-6 py-5 border-b bg-background shrink-0 flex justify-between items-start gap-4">
+          <div className="space-y-2 flex-1">
+             <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-muted/50 border border-border/50">
+                   <Target className="w-3.5 h-3.5" />
+                   <span className="font-medium">{task.project.name}</span>
+                </div>
+                {task.sprint && (
+                  <>
+                    <span className="text-muted-foreground/40">/</span>
+                    <span className="font-medium flex items-center gap-1.5">
+                       <Layout className="w-3.5 h-3.5" />
+                       {task.sprint.name}
+                    </span>
+                  </>
+                )}
+             </div>
+             
+             <DialogTitle className="text-2xl font-bold leading-tight text-foreground">
                 {task.title}
-              </DialogTitle>
-              <div className="flex items-center gap-2 mt-2">
-                <Badge variant="outline" className={getStatusColor(task.status)}>
+             </DialogTitle>
+
+             <div className="flex items-center gap-2 pt-1">
+                <Badge variant="outline" className={`${getStatusColor(task.status)} border bg-opacity-10 px-2.5 py-0.5`}>
                   {getStatusLabel(task.status)}
                 </Badge>
-                <div className={`px-2 py-0.5 rounded text-xs font-medium text-white ${getPriorityColor(task.priority)}`}>
+                <Badge variant="secondary" className={`${getPriorityColor(task.priority)} text-white border-0 px-2.5 py-0.5`}>
                   {getPriorityLabel(task.priority)}
-                </div>
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Target className="w-3 h-3" />
-                  {task.project.name}
-                </span>
-              </div>
-            </div>
+                </Badge>
+             </div>
           </div>
-        </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto pr-4">
-          <div className="space-y-6 py-4">
-            {/* Metadados */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 bg-card rounded-lg">
-              {task.sprint && (
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground font-medium">Sprint</span>
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <Clock className="w-4 h-4 text-blue-500" />
-                    {task.sprint.name}
-                  </div>
-                </div>
-              )}
-              
-              {task.dueDate && (
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground font-medium">Data de Entrega</span>
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <Calendar className="w-4 h-4 text-red-500" />
-                    {formatDateSafe(task.dueDate)}
-                  </div>
-                </div>
-              )}
+          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="text-muted-foreground hover:bg-muted">
+             <X className="w-5 h-5" />
+          </Button>
+        </div>
 
-              {task.estimatedMinutes && (
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground font-medium">Estimativa</span>
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    {Math.floor(task.estimatedMinutes / 60)}h {task.estimatedMinutes % 60}min
+        {/* Content - Layout Responsivo */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          
+          {/* Coluna Principal (Esquerda) */}
+          <div className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-8 bg-background">
+            
+            {/* Faixa de Metadados */}
+            <div className="flex flex-wrap gap-6 p-4 bg-muted/20 rounded-xl border border-border/50">
+               <div className="flex items-center gap-3 min-w-[140px]">
+                  <div className="p-2.5 rounded-lg bg-background border shadow-sm text-red-500 dark:text-red-400">
+                    <Calendar className="w-5 h-5" />
                   </div>
-                </div>
-              )}
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Entrega</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {task.dueDate ? formatDateSafe(task.dueDate) : 'Sem data'}
+                    </span>
+                  </div>
+               </div>
+               
+               <div className="flex items-center gap-3 min-w-[140px]">
+                  <div className="p-2.5 rounded-lg bg-background border shadow-sm text-amber-500 dark:text-amber-400">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Estimativa</span>
+                    <span className="text-sm font-semibold text-foreground">
+                      {task.estimatedMinutes 
+                        ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}m`
+                        : 'Não definida'}
+                    </span>
+                  </div>
+               </div>
+
+               {/* Espaço para mais metadados se necessário */}
             </div>
 
             {/* Descrição */}
-            <div className="space-y-2">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
-                <FileText className="w-4 h-4" />
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
                 Descrição
               </h3>
-              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap bg-card border rounded-md p-4">
-                {getDescriptionWithoutAttachments() || "Nenhuma descrição fornecida."}
+              <div className="prose prose-sm max-w-none text-muted-foreground leading-relaxed whitespace-pre-wrap pl-1">
+                {getDescriptionWithoutAttachments() || (
+                  <span className="italic text-muted-foreground/60">Nenhuma descrição fornecida para esta tarefa.</span>
+                )}
               </div>
             </div>
 
             {/* Anexos */}
             {attachments.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="font-semibold text-foreground flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Anexos ({attachments.length})
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {attachments.map((att, index) => {
-                    const isImage = att.mimeType?.startsWith('image/')
-                    const src = isImage ? att.url : undefined
-                    return (
-                      <div key={index} className="flex items-center gap-3 p-2 border rounded">
-                        {isImage && src ? (
-                          <img src={src} alt={att.originalName} className="w-12 h-12 object-cover rounded border" />
-                        ) : (
-                          <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                        )}
-                        <Button
-                          variant="outline"
-                          className="justify-start h-auto py-2 px-3 w-full"
-                          onClick={() => handleAttachmentClick(att)}
-                        >
-                          <div className="flex flex-col items-start overflow-hidden">
-                            <span className="truncate w-full text-sm font-medium">{att.originalName}</span>
-                            <span className="text-xs text-muted-foreground">{att.mimeType}</span>
-                          </div>
-                          <ExternalLink className="w-3 h-3 ml-auto text-gray-400 flex-shrink-0" />
-                        </Button>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+               <div className="space-y-4 pt-4 border-t">
+                 <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                   <Download className="w-5 h-5 text-primary" />
+                   Anexos <span className="text-xs font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{attachments.length}</span>
+                 </h3>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                   {attachments.map((att, index) => {
+                     const isImage = att.mimeType?.startsWith('image/')
+                     const src = isImage ? att.url : undefined
+                     return (
+                       <div key={index} className="group relative flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/40 transition-all hover:shadow-sm bg-card">
+                         {isImage && src ? (
+                           <div className="relative w-12 h-12 rounded-md overflow-hidden border bg-muted shrink-0">
+                             <img src={src} alt={att.originalName} className="w-full h-full object-cover" />
+                           </div>
+                         ) : (
+                           <div className="w-12 h-12 rounded-md border bg-muted/50 flex items-center justify-center shrink-0">
+                             <FileText className="w-6 h-6 text-muted-foreground" />
+                           </div>
+                         )}
+                         <div className="flex flex-col min-w-0 flex-1">
+                           <span className="truncate text-sm font-medium text-foreground">{att.originalName}</span>
+                           <span className="text-xs text-muted-foreground">{att.mimeType}</span>
+                         </div>
+                         <Button
+                           variant="ghost"
+                           size="icon"
+                           className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-background/80 backdrop-blur-sm shadow-sm border"
+                           onClick={() => handleAttachmentClick(att)}
+                         >
+                           <ExternalLink className="w-4 h-4" />
+                         </Button>
+                       </div>
+                     )
+                   })}
+                 </div>
+               </div>
             )}
           </div>
-        </div>
 
-        <div className="flex justify-end pt-4 border-t mt-auto">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
+          {/* Coluna Lateral (Direita) - Checklist */}
+          <div className="w-full lg:w-[380px] border-t lg:border-t-0 lg:border-l bg-muted/10 dark:bg-muted/5 flex flex-col h-full">
+            <div className="p-4 border-b bg-muted/20 flex items-center gap-2 shrink-0">
+               <CheckSquare className="w-5 h-5 text-primary" />
+               <h3 className="font-semibold text-foreground">Checklist</h3>
+               <span className="ml-auto text-xs text-muted-foreground font-medium">Sub-tarefas</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+               <TaskChecklist token={token} taskId={task.id} variant="minimal" />
+            </div>
+          </div>
+
         </div>
       </DialogContent>
     </Dialog>

@@ -14,19 +14,28 @@ import {
   DollarSign,
   Target,
   CheckCircle,
-  Clock,
-  AlertCircle,
   Plus,
   Edit,
   Trash2,
   User,
   Flag,
-  MessageSquare,
-  Paperclip,
-  X,
-  Bell
+  LayoutList,
+
+  Kanban as KanbanIcon,
+  Maximize,
+  Minimize,
+  Telescope,
+ GitBranch,
+  File as FileIcon,
+  FileText,
+  Image,
+  Archive,
+  Video,
+  Music,
+  Download
 } from "lucide-react"
 import {
+
   Dialog,
   DialogContent,
   DialogDescription,
@@ -35,6 +44,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import toast from "react-hot-toast"
+import { KanbanBoard } from "@/components/projects/KanbanBoard"
+import { ProjectCreateTaskModal } from "@/components/projects/ProjectCreateTaskModal"
 
 interface ProjectDetails {
   id: string
@@ -72,10 +83,12 @@ interface ProjectDetails {
   tasks: Array<{
     id: string
     title: string
+    description: string | null
     status: string
     priority: string
     dueDate: string | null
-    estimatedHours: number | null
+    estimatedMinutes: number | null
+    startDate: string | null
     startTime: string | null
     endTime: string | null
     milestone: {
@@ -87,6 +100,7 @@ interface ProjectDetails {
       id: string
       name: string
       email: string
+      avatar: string | null
     } | null
   }>
   _count: {
@@ -101,10 +115,10 @@ interface ProjectDetails {
 export default function ProjectDetailsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const params = useParams()
+  const params = useParams() as { id: string }
   const [project, setProject] = useState<ProjectDetails | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'milestones' | 'tasks' | 'team' | 'comments'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'milestones' | 'tasks' | 'team' | 'sprints' | 'files'>('overview')
   const [showAddMilestoneModal, setShowAddMilestoneModal] = useState(false)
   const [newMilestone, setNewMilestone] = useState({
     name: '',
@@ -113,17 +127,6 @@ export default function ProjectDetailsPage() {
   })
   const [editingMilestone, setEditingMilestone] = useState<any>(null)
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
-  const [newTask, setNewTask] = useState({
-    title: '',
-    description: '',
-    status: 'TODO',
-    priority: 'MEDIUM',
-    dueDate: '',
-    assigneeId: '',
-    milestoneId: '',
-    startTime: '',
-    endTime: ''
-  })
   const [editingTask, setEditingTask] = useState<any>(null)
   const [showAddTeamMemberModal, setShowAddTeamMemberModal] = useState(false)
   const [newTeamMember, setNewTeamMember] = useState({
@@ -133,33 +136,28 @@ export default function ProjectDetailsPage() {
   const [availableUsers, setAvailableUsers] = useState<Array<{id: string, name: string, email: string}>>([])  
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false)
-  const [showEditTaskModal, setShowEditTaskModal] = useState(false)
   const [selectedTask, setSelectedTask] = useState<any>(null)
-  const [editTaskData, setEditTaskData] = useState({
-    title: '',
-    description: '',
-    status: 'TODO',
-    priority: 'MEDIUM',
-    assigneeId: '',
-    dueDate: '',
-    startTime: '',
-    endTime: ''
-  })
-  const [comments, setComments] = useState<Array<{
+  const [sprints, setSprints] = useState<Array<{
     id: string
-    content: string
-    type: string
-    createdAt: string
-    authorName: string
-    authorId: string | null
-    isFromClient: boolean
+    name: string
+    description: string | null
+    startDate: string
+    endDate: string
+    goal: string | null
+    capacity: number | null
+    tasks?: Array<{ id: string; status: string }>
   }>>([])
-  const [newComment, setNewComment] = useState('')
-  const [sendingComment, setSendingComment] = useState(false)
-  const [loadingComments, setLoadingComments] = useState(false)
-  const [isConnected, setIsConnected] = useState(false)
-  const [hasNewMessages, setHasNewMessages] = useState(false)
+  const [loadingSprints, setLoadingSprints] = useState(false)
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all')
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list')
+  const [kanbanFullScreen, setKanbanFullScreen] = useState(false)
+  const [projectNotes, setProjectNotes] = useState<Array<{
+    id: string
+    title: string
+    project: { id: string; name: string }
+    createdBy: { id: string; name: string; email: string }
+  }>>([])
+  const [loadingProjectNotes, setLoadingProjectNotes] = useState(false)
 
   useEffect(() => {
     if (status === "loading") return
@@ -175,21 +173,11 @@ export default function ProjectDetailsPage() {
   }, [session, status, router, params.id])
 
   useEffect(() => {
-    let eventSource: EventSource | null = null
-    
-    if (activeTab === 'comments' && params.id) {
-      fetchComments()
-      eventSource = connectToSSE() || null
-      // Limpar notificação quando acessar a aba de comentários
-      setHasNewMessages(false)
+    if (activeTab === 'sprints' && params.id) {
+      fetchSprints()
     }
-    
-    // Cleanup: fechar conexão SSE quando sair da aba de comentários
-    return () => {
-      if (eventSource) {
-        eventSource.close()
-        setIsConnected(false)
-      }
+    if (activeTab === 'files' && params.id) {
+      fetchProjectNotes()
     }
   }, [activeTab, params.id])
 
@@ -238,116 +226,50 @@ export default function ProjectDetailsPage() {
     }
   }
 
-  // Carregar comentários iniciais
-  const fetchComments = async () => {
+  const fetchSprints = async () => {
     if (!params.id) return
-    
     try {
-      setLoadingComments(true)
-      const response = await fetch(`/api/projects/${params.id}/comments`)
-      
+      setLoadingSprints(true)
+      const response = await fetch(`/api/sprints?projectId=${params.id}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
-        throw new Error(errorData.error || 'Falha ao carregar comentários')
+        throw new Error(errorData.error || 'Falha ao carregar sprints')
       }
-      
       const data = await response.json()
-      setComments(data.comments || [])
+      setSprints(data || [])
     } catch (error) {
-      console.error('Erro ao buscar comentários:', error)
-      toast.error('Erro ao carregar comentários')
-      setComments([]) // Definir array vazio em caso de erro
+      console.error('Erro ao buscar sprints:', error)
+      toast.error('Erro ao carregar sprints')
+      setSprints([])
     } finally {
-      setLoadingComments(false)
+      setLoadingSprints(false)
     }
   }
 
-  // Conectar ao SSE para atualizações em tempo real
-  const connectToSSE = () => {
+  const fetchProjectNotes = async () => {
     if (!params.id) return
-
-    const eventSource = new EventSource(`/api/projects/${params.id}/comments/stream`)
-    
-    eventSource.onopen = () => {
-      setIsConnected(true)
-      console.log('Conectado ao SSE para comentários em tempo real')
-    }
-    
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        
-        if (data.type === 'connected') {
-          console.log('SSE conectado para projeto:', data.projectId)
-        } else if (data.type === 'new_comments') {
-          // Adicionar novos comentários sem duplicar
-          setComments(prev => {
-            const existingIds = new Set(prev.map(c => c.id))
-            const newComments = data.comments.filter((c: any) => !existingIds.has(c.id))
-            return [...prev, ...newComments]
-          })
-          
-          if (data.comments.length > 0) {
-            // Se não estamos na aba de comentários, mostrar notificação
-            if (activeTab !== 'comments') {
-              setHasNewMessages(true)
-            }
-            toast.success('Nova mensagem recebida!')
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao processar mensagem SSE:', error)
-      }
-    }
-    
-    eventSource.onerror = () => {
-      setIsConnected(false)
-      console.log('Erro na conexão SSE, tentando reconectar...')
-      eventSource.close()
-      
-      // Tentar reconectar após 5 segundos
-      setTimeout(() => {
-        connectToSSE()
-      }, 5000)
-    }
-    
-    return eventSource
-  }
-
-  const sendComment = async () => {
-    if (!newComment.trim() || !params.id) return
-    
     try {
-      setSendingComment(true)
-      const response = await fetch(`/api/projects/${params.id}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          content: newComment.trim(),
-          type: 'CLIENT_VISIBLE'
-        })
-      })
-      
+      setLoadingProjectNotes(true)
+      const response = await fetch(`/api/notes?projectId=${params.id}`)
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
-        throw new Error(errorData.error || 'Falha ao enviar comentário')
+        throw new Error(errorData.error || 'Falha ao carregar notas')
       }
-      
-      const result = await response.json()
-      toast.success('Mensagem enviada com sucesso!')
-      setNewComment('')
-      
-      // O SSE cuidará da atualização em tempo real
-      // Não precisamos adicionar manualmente o comentário
+      const data = await response.json()
+      setProjectNotes(data.notes || [])
     } catch (error) {
-      console.error('Erro ao enviar comentário:', error)
-      toast.error('Erro ao enviar mensagem')
+      console.error('Erro ao buscar notas:', error)
+      toast.error('Erro ao carregar notas')
+      setProjectNotes([])
     } finally {
-      setSendingComment(false)
+      setLoadingProjectNotes(false)
     }
   }
+
+
+  // removido: lógica de SSE de comentários
+
+  // removido: envio de comentários
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -369,6 +291,30 @@ export default function ProjectDetailsPage() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(value)
+  }
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes || bytes === 0) return '-'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
+
+  const getFileIcon = (mime?: string, type?: string) => {
+    if (type === 'folder') {
+      return <Archive className="h-8 w-8 text-yellow-600" />
+    }
+    if (mime?.startsWith('image/')) {
+      return <Image className="h-8 w-8 text-green-500" />
+    } else if (mime?.startsWith('video/')) {
+      return <Video className="h-8 w-8 text-red-500" />
+    } else if (mime?.startsWith('audio/')) {
+      return <Music className="h-8 w-8 text-purple-500" />
+    } else if (mime?.includes('pdf')) {
+      return <FileText className="h-8 w-8 text-red-600" />
+    }
+    return <FileIcon className="h-8 w-8 text-muted-foreground" />
   }
 
   const handleAddMilestone = async () => {
@@ -470,58 +416,7 @@ export default function ProjectDetailsPage() {
     }
   }
 
-  const handleAddTask = async () => {
-    if (!newTask.title.trim()) {
-      toast.error('Título da tarefa é obrigatório')
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/projects/${params.id}/tasks`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: newTask.title,
-          description: newTask.description || null,
-          status: newTask.status,
-          priority: newTask.priority,
-          dueDate: newTask.dueDate || null,
-          assigneeId: newTask.assigneeId || null,
-          milestoneId: newTask.milestoneId || null,
-          startTime: newTask.startTime || null,
-          endTime: newTask.endTime || null
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao criar tarefa')
-      }
-
-      toast.success('Tarefa criada com sucesso!')
-      setShowAddTaskModal(false)
-      setNewTask({
-        title: '',
-        description: '',
-        status: 'TODO',
-        priority: 'MEDIUM',
-        dueDate: '',
-        assigneeId: '',
-        milestoneId: '',
-        startTime: '',
-        endTime: ''
-      })
-      
-      // Recarregar dados do projeto
-      if (params.id && typeof params.id === 'string') {
-        fetchProjectDetails(params.id)
-      }
-    } catch (error) {
-      console.error('Erro ao criar tarefa:', error)
-      toast.error('Erro ao criar tarefa')
-    }
-  }
+  // Criação de tarefas agora utiliza ProjectCreateTaskModal (Scrum CreateTaskModal)
 
 
 
@@ -623,55 +518,21 @@ export default function ProjectDetailsPage() {
   }
 
   const handleEditTask = (task: any) => {
-    setEditTaskData({
+    setEditingTask({
+      id: task.id,
       title: task.title,
       description: task.description || '',
       status: task.status,
       priority: task.priority,
-      assigneeId: task.assignee?.id || '',
-      dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
-      startTime: task.startTime ? new Date(task.startTime).toISOString().slice(0, 16) : '',
-      endTime: task.endTime ? new Date(task.endTime).toISOString().slice(0, 16) : ''
+      storyPoints: task.storyPoints,
+      assigneeId: task.assignee?.id,
+      milestoneId: task.milestone?.id,
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
+      startDate: task.startDate ? task.startDate.split('T')[0] : undefined,
+      startTime: task.startTime ? new Date(task.startTime).toTimeString().slice(0, 5) : undefined,
+      estimatedMinutes: task.estimatedMinutes
     })
-    setSelectedTask(task)
-    setShowEditTaskModal(true)
-  }
-
-  const handleUpdateTask = async () => {
-    if (!selectedTask) return
-
-    try {
-      const response = await fetch(`/api/projects/${params.id}/tasks/${selectedTask.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title: editTaskData.title,
-          description: editTaskData.description,
-          status: editTaskData.status,
-          priority: editTaskData.priority,
-          assigneeId: editTaskData.assigneeId || null,
-          dueDate: editTaskData.dueDate || null,
-          startTime: editTaskData.startTime || null,
-          endTime: editTaskData.endTime || null
-        })
-      })
-
-      if (response.ok) {
-        toast.success('Tarefa atualizada com sucesso!')
-        setShowEditTaskModal(false)
-        if (params.id && typeof params.id === 'string') {
-          fetchProjectDetails(params.id)
-        }
-      } else {
-        const error = await response.json()
-        toast.error(error.error || 'Erro ao atualizar tarefa')
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar tarefa:', error)
-      toast.error('Erro ao atualizar tarefa')
-    }
+    setShowAddTaskModal(true)
   }
 
   const handleDeleteTask = async (taskId: string) => {
@@ -696,6 +557,41 @@ export default function ProjectDetailsPage() {
     } catch (error) {
       console.error('Erro ao excluir tarefa:', error)
       toast.error('Erro ao excluir tarefa')
+    }
+  }
+
+  const handleTaskStatusChange = async (taskId: string, newStatus: string) => {
+    if (!project || !params?.id) return;
+    
+    const taskToUpdate = project.tasks.find(t => t.id === taskId);
+    if (!taskToUpdate) return;
+
+    try {
+      const response = await fetch(`/api/projects/${params.id}/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: newStatus
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao atualizar status')
+      }
+      setProject(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          tasks: prev.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t)
+        }
+      })
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error)
+      toast.error('Erro ao atualizar status')
+      throw error;
     }
   }
 
@@ -815,11 +711,12 @@ export default function ProjectDetailsPage() {
           <div className="border-b border-border">
             <nav className="-mb-px flex space-x-8 px-6">
               {[
-                { id: 'overview', name: 'Visão Geral', icon: Target },
+                { id: 'overview', name: 'Visão Geral', icon: Telescope },
                 { id: 'milestones', name: 'Milestones', icon: Flag },
                 { id: 'tasks', name: 'Tarefas', icon: CheckCircle },
                 { id: 'team', name: 'Equipe', icon: Users },
-                { id: 'comments', name: 'Comentários', icon: MessageSquare }
+                { id: 'sprints', name: 'Sprints', icon: GitBranch },
+                { id: 'files', name: 'Docs', icon: FileIcon }
               ].map((tab) => {
                 const Icon = tab.icon
                 return (
@@ -833,9 +730,6 @@ export default function ProjectDetailsPage() {
                   >
                     <Icon className="h-4 w-4 mr-2" />
                     {tab.name}
-                    {tab.id === 'comments' && hasNewMessages && (
-                      <Bell className="h-3 w-3 ml-1 text-red-500 animate-pulse" />
-                    )}
                   </button>
                 )
               })}
@@ -847,11 +741,11 @@ export default function ProjectDetailsPage() {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                     <div className="flex items-center">
-                      <Flag className="h-8 w-8 text-blue-800 dark:text-blue-300" />
+                      <Flag className="h-8 w-8 text-primary" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Milestones</p>
+                        <p className="text-sm font-medium text-muted-foreground">Milestones</p>
                         <p className="text-2xl font-semibold text-foreground">
                           {completedMilestones}/{project.milestones.length}
                         </p>
@@ -859,11 +753,11 @@ export default function ProjectDetailsPage() {
                     </div>
                   </div>
                   
-                  <div className="bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                     <div className="flex items-center">
-                      <CheckCircle className="h-8 w-8 text-green-800 dark:text-green-300" />
+                      <CheckCircle className="h-8 w-8 text-primary" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-green-800 dark:text-green-300">Tarefas</p>
+                        <p className="text-sm font-medium text-muted-foreground">Tarefas</p>
                         <p className="text-2xl font-semibold text-foreground">
                           {completedTasks}/{project.tasks.length}
                         </p>
@@ -871,11 +765,11 @@ export default function ProjectDetailsPage() {
                     </div>
                   </div>
                   
-                  <div className="bg-purple-100 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                     <div className="flex items-center">
-                      <Users className="h-8 w-8 text-purple-800 dark:text-purple-300" />
+                      <Users className="h-8 w-8 text-primary" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-purple-800 dark:text-purple-300">Equipe</p>
+                        <p className="text-sm font-medium text-muted-foreground">Equipe</p>
                         <p className="text-2xl font-semibold text-foreground">
                           {project.team.length}
                         </p>
@@ -883,11 +777,11 @@ export default function ProjectDetailsPage() {
                     </div>
                   </div>
                   
-                  <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
                     <div className="flex items-center">
-                      <DollarSign className="h-8 w-8 text-yellow-800 dark:text-yellow-300" />
+                      <DollarSign className="h-8 w-8 text-primary" />
                       <div className="ml-3">
-                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Orçamento</p>
+                        <p className="text-sm font-medium text-muted-foreground">Orçamento</p>
                         <p className="text-lg font-semibold text-foreground">
                           {formatCurrency(project.budget)}
                         </p>
@@ -1126,173 +1020,23 @@ export default function ProjectDetailsPage() {
               </Dialog>
             )}
 
-            {/* Modal de Criação de Tarefa */}
-            <Dialog open={showAddTaskModal} onOpenChange={setShowAddTaskModal}>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Nova Tarefa</DialogTitle>
-                  <DialogDescription>
-                    Crie uma nova tarefa para o projeto.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-title" className="text-right text-sm font-medium text-foreground">
-                      Título *
-                    </label>
-                    <input
-                      id="task-title"
-                      value={newTask.title}
-                      onChange={(e) => setNewTask({...newTask, title: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Título da tarefa"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-description" className="text-right text-sm font-medium text-foreground">
-                      Descrição
-                    </label>
-                    <textarea
-                      id="task-description"
-                      value={newTask.description}
-                      onChange={(e) => setNewTask({...newTask, description: e.target.value})}
-                      className="h-[450px] max-h-[70vh] overflow-y-auto resize-y col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Descrição da tarefa"
-                      rows={12}
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-status" className="text-right text-sm font-medium text-foreground">
-                      Status
-                    </label>
-                    <select
-                      id="task-status"
-                      value={newTask.status}
-                      onChange={(e) => setNewTask({...newTask, status: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="TODO">A Fazer</option>
-                      <option value="IN_PROGRESS">Em Andamento</option>
-                      <option value="DONE">Concluído</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-priority" className="text-right text-sm font-medium text-foreground">
-                      Prioridade
-                    </label>
-                    <select
-                      id="task-priority"
-                      value={newTask.priority}
-                      onChange={(e) => setNewTask({...newTask, priority: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="LOW">Baixa</option>
-                      <option value="MEDIUM">Média</option>
-                      <option value="HIGH">Alta</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-dueDate" className="text-right text-sm font-medium text-foreground">
-                      Prazo
-                    </label>
-                    <input
-                      id="task-dueDate"
-                      type="date"
-                      value={newTask.dueDate}
-                      onChange={(e) => setNewTask({...newTask, dueDate: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-assignee" className="text-right text-sm font-medium text-foreground">
-                      Responsável
-                    </label>
-                    <select
-                      id="task-assignee"
-                      value={newTask.assigneeId}
-                      onChange={(e) => setNewTask({...newTask, assigneeId: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">Selecionar responsável</option>
-                      {project?.team.map((member) => (
-                        <option key={member.user.id} value={member.user.id}>
-                          {member.user.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-milestone" className="text-right text-sm font-medium text-foreground">
-                      Milestone
-                    </label>
-                    <select
-                      id="task-milestone"
-                      value={newTask.milestoneId}
-                      onChange={(e) => setNewTask({...newTask, milestoneId: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">Selecionar milestone</option>
-                      {project?.milestones.map((milestone) => (
-                        <option key={milestone.id} value={milestone.id}>
-                          {milestone.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-startTime" className="text-right text-sm font-medium text-foreground">
-                      Horário de Início
-                    </label>
-                    <input
-                      id="task-startTime"
-                      type="datetime-local"
-                      value={newTask.startTime}
-                      onChange={(e) => setNewTask({...newTask, startTime: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="task-endTime" className="text-right text-sm font-medium text-foreground">
-                      Horário de Término
-                    </label>
-                    <input
-                      id="task-endTime"
-                      type="datetime-local"
-                      value={newTask.endTime}
-                      onChange={(e) => setNewTask({...newTask, endTime: e.target.value})}
-                      className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <button
-                    onClick={() => {
-                      setShowAddTaskModal(false)
-                      setNewTask({
-                        title: '',
-                        description: '',
-                        status: 'TODO',
-                        priority: 'MEDIUM',
-                        dueDate: '',
-                        assigneeId: '',
-                        milestoneId: '',
-                        startTime: '',
-                        endTime: ''
-                      })
-                    }}
-                    className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary border border-transparent rounded-md hover:bg-secondary/80 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleAddTask}
-                    className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 transition-colors"
-                  >
-                    Criar Tarefa
-                  </button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            {/* Modal de Criação/Edição de Tarefa */}
+            <ProjectCreateTaskModal
+              isOpen={showAddTaskModal}
+              onClose={() => {
+                setShowAddTaskModal(false)
+                setEditingTask(null)
+              }}
+              projectId={typeof params.id === 'string' ? params.id : ''}
+              milestones={project.milestones}
+              onSuccess={() => {
+                if (typeof params.id === 'string') {
+                  fetchProjectDetails(params.id)
+                }
+                setEditingTask(null)
+              }}
+              editingTask={editingTask}
+            />
 
             {/* Modal de Adicionar Membro da Equipe */}
             <Dialog open={showAddTeamMemberModal} onOpenChange={setShowAddTeamMemberModal}>
@@ -1391,6 +1135,40 @@ export default function ProjectDetailsPage() {
                       <option value="IN_PROGRESS">Em Andamento</option>
                       <option value="DONE">Concluído</option>
                     </select>
+
+                    <div className="flex bg-muted rounded-md p-1 border border-border">
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className={`p-1.5 rounded-sm transition-all ${
+                          viewMode === 'list' 
+                            ? 'bg-background shadow-sm text-primary' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Visualização em Lista"
+                      >
+                        <LayoutList className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('kanban')}
+                        className={`p-1.5 rounded-sm transition-all ${
+                          viewMode === 'kanban' 
+                            ? 'bg-background shadow-sm text-primary' 
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                        title="Visualização em Kanban"
+                      >
+                        <KanbanIcon className="h-4 w-4" />
+                      </button>
+                      {viewMode === 'kanban' && (
+                        <button
+                          onClick={() => setKanbanFullScreen(true)}
+                          className="p-1.5 rounded-sm transition-all text-muted-foreground hover:text-foreground"
+                          title="Kanban em Tela Cheia"
+                        >
+                          <Maximize className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {session?.user.role === 'ADMIN' && (
                     <button 
@@ -1403,6 +1181,7 @@ export default function ProjectDetailsPage() {
                   )}
                 </div>
                 
+                {viewMode === 'list' ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-border">
                     <thead className="bg-muted/50">
@@ -1418,6 +1197,9 @@ export default function ProjectDetailsPage() {
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Responsável
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Início
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Prazo
@@ -1462,6 +1244,9 @@ export default function ProjectDetailsPage() {
                             {task.assignee?.name || 'Não atribuído'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                            {task.startDate ? formatDate(task.startDate) : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
                             {task.dueDate ? formatDate(task.dueDate) : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
@@ -1493,6 +1278,15 @@ export default function ProjectDetailsPage() {
                     </tbody>
                   </table>
                 </div>
+                ) : (
+                  <KanbanBoard 
+                    tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
+                    onTaskUpdate={handleTaskStatusChange}
+                    onTaskClick={(taskId) => handleViewTaskDetails(taskId)}
+                    onTaskEdit={handleEditTask}
+                    onTaskDelete={handleDeleteTask}
+                  />
+                )}
               </div>
             )}
 
@@ -1555,102 +1349,177 @@ export default function ProjectDetailsPage() {
               </div>
             )}
 
-            {/* Comments Tab */}
-            {activeTab === 'comments' && (
+            {/* Sprints Tab */}
+            {activeTab === 'sprints' && (
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-foreground">
-                    Mensagens ({project._count.comments})
+                    Sprints ({sprints.length})
                   </h3>
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      isConnected ? 'bg-green-500' : 'bg-red-500'
-                    }`}></div>
-                    <span className="text-sm text-muted-foreground">
-                      {isConnected ? 'Tempo real ativo' : 'Desconectado'}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Messages List */}
-                <div className="bg-card border border-border rounded-lg">
-                  <div className="px-4 py-5 sm:p-6">
-                    <h4 className="text-lg font-medium text-foreground mb-4">
-                      Conversas - {project.name}
-                    </h4>
-                    
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {loadingComments ? (
-                        <div className="flex justify-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                      ) : comments.length === 0 ? (
-                        <div className="text-center py-8">
-                          <MessageSquare className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                          <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma mensagem</h3>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Inicie uma conversa enviando uma mensagem.
-                          </p>
-                        </div>
-                      ) : (
-                        comments.map((comment) => (
-                          <div key={comment.id} className={`flex ${
-                            comment.type === 'CLIENT_REQUEST' || comment.isFromClient 
-                              ? 'justify-end' 
-                              : 'justify-start'
-                          }`}>
-                            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                              comment.type === 'CLIENT_REQUEST' || comment.isFromClient
-                                ? 'bg-primary text-primary-foreground' 
-                                : 'bg-muted text-foreground'
-                            }`}>
-                              <p className="text-sm">{comment.content}</p>
-                              <p className={`text-xs mt-1 ${
-                                comment.type === 'CLIENT_REQUEST' || comment.isFromClient
-                                  ? 'text-primary-foreground/80' 
-                                  : 'text-muted-foreground'
-                              }`}>
-                                {comment.authorName} • {parseISO(comment.createdAt).toLocaleString('pt-BR')}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Send Message */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex space-x-4">
-                    <div className="flex-1">
-                      <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Digite sua mensagem..."
-                        rows={3}
-                        className="block w-full bg-background border-input rounded-md shadow-sm focus:ring-primary focus:border-primary sm:text-sm"
-                      />
-                    </div>
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={sendComment}
-                      disabled={!newComment.trim() || sendingComment}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => router.push(`/projects/${params.id}/scrum`)}
+                      className="inline-flex items-center px-3 py-1.5 border border-input text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
+                      title="Abrir Scrum do Projeto"
                     >
-                      {sendingComment ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-foreground" />
-                      ) : (
-                        <MessageSquare className="h-4 w-4" />
-                      )}
+                      <KanbanIcon className="h-4 w-4 mr-1" />
+                      Abrir Scrum
                     </button>
                   </div>
                 </div>
+                
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {loadingSprints ? (
+                    <div className="col-span-full flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : sprints.length === 0 ? (
+                    <div className="col-span-full text-center py-12">
+                      <KanbanIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                      <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma sprint vinculada</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Vincule sprints a este projeto pelo módulo Scrum.
+                      </p>
+                    </div>
+                  ) : (
+                    sprints.map((sprint) => (
+                      <div key={sprint.id} className="bg-card border border-border rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="text-sm font-medium text-foreground">{sprint.name}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(sprint.startDate)} — {formatDate(sprint.endDate)}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => router.push(`/projects/${params.id}/scrum?tab=board&sprint=${sprint.id}`)}
+                            className="inline-flex items-center px-2 py-1 border border-input text-xs font-medium rounded-md text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
+                            title="Abrir Quadro"
+                          >
+                            <KanbanIcon className="h-3 w-3 mr-1" />
+                            Quadro
+                          </button>
+                        </div>
+                        
+                        {sprint.goal && (
+                          <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{sprint.goal}</p>
+                        )}
+                        
+                        <div className="mt-3 flex items-center justify-between">
+                          <div className="text-xs text-muted-foreground">
+                            Tarefas: {sprint.tasks?.length ?? 0}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Files Tab */}
+            {activeTab === 'files' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium text-foreground">
+                    Docs ({projectNotes.length})
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    
+                  </div>
+                </div>
+                
+                {loadingProjectNotes ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : projectNotes.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                    <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma nota vinculada</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Crie notas em Notes e vincule ao projeto atual.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {projectNotes.map((note) => (
+                      <div
+                        key={note.id}
+                        onClick={() => project?.id && router.push(`/projects/notes?projectId=${project.id}`)}
+                        className="bg-card border border-border rounded-lg p-4 hover:bg-muted/40 transition-colors cursor-pointer"
+                        title="Abrir Notes do Projeto"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center">
+                            <FileText className="h-8 w-8 text-muted-foreground" />
+                            <div className="ml-3">
+                              <h4 className="text-sm font-medium text-foreground">{note.title}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                Projeto: {note.project.name} • Autor: {note.createdBy.name}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
 
         {/* Modal de Detalhes da Tarefa */}
+        {project && (
+          <ProjectCreateTaskModal
+            isOpen={showAddTaskModal}
+            onClose={() => {
+              setShowAddTaskModal(false)
+              setEditingTask(null)
+            }}
+            projectId={project.id}
+            milestones={project.milestones}
+            onSuccess={() => {
+              setShowAddTaskModal(false)
+              setEditingTask(null)
+              if (project?.id) {
+                fetchProjectDetails(project.id)
+              }
+            }}
+            editingTask={editingTask}
+          />
+        )}
+
+        {kanbanFullScreen && project && (
+          <div className="fixed inset-0 z-50 bg-background">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-card">
+              <div className="flex items-center gap-2">
+                <KanbanIcon className="h-5 w-5 text-primary" />
+                <h2 className="text-sm font-medium text-foreground">Kanban — {project.name}</h2>
+              </div>
+              <button
+                onClick={() => setKanbanFullScreen(false)}
+                className="inline-flex items-center px-3 py-1.5 border border-input text-sm font-medium rounded-md text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
+                title="Sair de Tela Cheia"
+              >
+                <Minimize className="-ml-1 mr-2 h-4 w-4" />
+                Fechar
+              </button>
+            </div>
+            <div className="p-4 h-[calc(100vh-64px)]">
+              <KanbanBoard 
+                tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
+                onTaskUpdate={handleTaskStatusChange}
+                onTaskClick={(taskId) => handleViewTaskDetails(taskId)}
+                onTaskEdit={handleEditTask}
+                onTaskDelete={handleDeleteTask}
+              />
+            </div>
+          </div>
+        )}
+
         <Dialog open={showTaskDetailsModal} onOpenChange={setShowTaskDetailsModal}>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
@@ -1701,118 +1570,7 @@ export default function ProjectDetailsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal de Editar Tarefa */}
-        <Dialog open={showEditTaskModal} onOpenChange={setShowEditTaskModal}>
-          <DialogContent className="sm:max-w-[800px] max">
-            <DialogHeader>
-              <DialogTitle>Editar Tarefa</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 ">
-              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                <label className="block text-sm font-medium text-foreground mb-1">Título *</label>
-                <input
-                  type="text"
-                  value={editTaskData.title}
-                  onChange={(e) => setEditTaskData({...editTaskData, title: e.target.value})}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Descrição</label>
-                <textarea
-                  value={editTaskData.description}
-                  onChange={(e) => setEditTaskData({...editTaskData, description: e.target.value})}
-                  rows={12}
-                  className="w-full max-h-[50vh] overflow-y-auto resize-y px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-                  <select
-                    value={editTaskData.status}
-                    onChange={(e) => setEditTaskData({...editTaskData, status: e.target.value})}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="TODO">A Fazer</option>
-                    <option value="IN_PROGRESS">Em Andamento</option>
-                    <option value="DONE">Concluído</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Prioridade</label>
-                  <select
-                    value={editTaskData.priority}
-                    onChange={(e) => setEditTaskData({...editTaskData, priority: e.target.value})}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="LOW">Baixa</option>
-                    <option value="MEDIUM">Média</option>
-                    <option value="HIGH">Alta</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Responsável</label>
-                  <select
-                    value={editTaskData.assigneeId}
-                    onChange={(e) => setEditTaskData({...editTaskData, assigneeId: e.target.value})}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">Não atribuído</option>
-                    {project?.team.map((member) => (
-                      <option key={member.user.id} value={member.user.id}>
-                        {member.user.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1">Prazo</label>
-                  <input
-                    type="date"
-                    value={editTaskData.dueDate}
-                    onChange={(e) => setEditTaskData({...editTaskData, dueDate: e.target.value})}
-                    className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Horário de Início</label>
-                <input
-                  type="datetime-local"
-                  value={editTaskData.startTime}
-                  onChange={(e) => setEditTaskData({...editTaskData, startTime: e.target.value})}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Horário de Término</label>
-                <input
-                  type="datetime-local"
-                  value={editTaskData.endTime}
-                  onChange={(e) => setEditTaskData({...editTaskData, endTime: e.target.value})}
-                  className="w-full px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-              <div className="flex justify-end space-x-2 pt-4">
-                <button
-                  onClick={() => setShowEditTaskModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleUpdateTask}
-                  className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors"
-                >
-                  Salvar
-                </button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+
       </div>
   )
 }
