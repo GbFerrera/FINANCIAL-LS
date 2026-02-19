@@ -169,19 +169,40 @@ export async function PUT(
               select: { id: true, name: true, email: true, avatar: true }
             }
           }
-        },
-        project: {
-          select: { id: true, name: true }
         }
       }
     })
 
+    const projects = await prisma.$queryRaw`
+      SELECT 
+        p.id,
+        p.name,
+        c.id as client_id,
+        c.name as client_name
+      FROM sprint_projects sp
+      JOIN projects p ON sp."projectId" = p.id
+      JOIN clients c ON p."clientId" = c.id
+      WHERE sp."sprintId" = ${params.id}
+    ` as any[]
+
+    const formattedProjects = projects.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      client: {
+        id: p.client_id,
+        name: p.client_name
+      }
+    }))
     // Enviar notificação se o status mudou
     if (status && status !== oldStatus) {
       notifySprintStatusChange(params.id, oldStatus, status).catch(console.error)
     }
 
-    return NextResponse.json(sprint)
+    return NextResponse.json({
+      ...sprint,
+      projects: formattedProjects,
+      project: formattedProjects.length > 0 ? formattedProjects[0] : null
+    })
   } catch (error) {
     console.error('Erro ao atualizar sprint:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })

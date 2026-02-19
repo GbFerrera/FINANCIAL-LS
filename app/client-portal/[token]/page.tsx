@@ -515,7 +515,7 @@ export default function ClientPortalPage() {
       {/* Header */}
       <div className="bg-card shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center py-6 gap-4">
             <div className="flex items-center">
               <User className="h-10 w-10 text-primary mr-3" />
               <div>
@@ -524,7 +524,7 @@ export default function ClientPortalPage() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+            <div className="flex items-center space-x-4 text-sm text-muted-foreground w-full md:w-auto justify-end md:justify-start">
               {client.company && (
                 <div className="flex items-center">
                   <Building2 className="h-4 w-4 mr-1" />
@@ -622,10 +622,10 @@ export default function ClientPortalPage() {
                   <div className="space-y-3">
                     {projects.slice(0, 3).map((project) => (
                       <div key={project.id} className="border border-muted rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3">
-                              <h4 className="text-lg font-medium text-foreground">{project.name}</h4>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                          <div className="flex-1 w-full">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <h4 className="text-lg font-medium text-foreground mr-2">{project.name}</h4>
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
                                 {project.status === 'IN_PROGRESS' ? 'Em Andamento' : 
                                  project.status === 'COMPLETED' ? 'Concluído' :
@@ -634,7 +634,7 @@ export default function ClientPortalPage() {
                             </div>
                             <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
                             
-                            <div className="mt-3 flex items-center space-x-4 text-sm text-muted-foreground">
+                            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                               <div className="flex items-center">
                                 <Calendar className="h-4 w-4 mr-1" />
                                 Início: {formatDate(project.startDate)}
@@ -646,10 +646,12 @@ export default function ClientPortalPage() {
                             </div>
                           </div>
                           
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-foreground">{project.progress}%</div>
-                            <div className="text-sm text-muted-foreground">Progresso</div>
-                            <div className="mt-2 w-20 bg-muted rounded-full h-2">
+                          <div className="w-full sm:w-auto flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-4 sm:gap-0 mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-t-0 border-muted">
+                            <div className="flex flex-col items-start sm:items-end">
+                              <div className="text-2xl font-bold text-foreground">{project.progress}%</div>
+                              <div className="text-sm text-muted-foreground">Progresso</div>
+                            </div>
+                            <div className="mt-0 sm:mt-2 w-32 sm:w-20 bg-muted rounded-full h-2">
                               <div 
                                 className="bg-primary h-2 rounded-full transition-all duration-300"
                                 style={{ width: `${project.progress}%` }}
@@ -672,20 +674,20 @@ export default function ClientPortalPage() {
                 <div className="space-y-4">
                   {projects.map((project) => (
                     <div key={project.id} className="border border-muted rounded-lg p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3">
-                            <h4 className="text-xl font-medium text-foreground">{project.name}</h4>
+                      <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-4">
+                        <div className="flex-1 w-full">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h4 className="text-xl font-medium text-foreground mr-2">{project.name}</h4>
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
                               {project.status === 'IN_PROGRESS' ? 'Em Andamento' : 
                                project.status === 'COMPLETED' ? 'Concluído' :
                                project.status === 'PLANNING' ? 'Planejamento' : project.status}
                             </span>
                           </div>
-                          <p className="mt-2 text-muted-foreground">{project.description}</p>
+                          <p className="text-muted-foreground">{project.description}</p>
                         </div>
                         
-                        <div className="text-right">
+                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center w-full sm:w-auto border-t sm:border-t-0 border-muted pt-4 sm:pt-0">
                           <div className="text-3xl font-bold text-foreground">{project.progress}%</div>
                           <div className="text-sm text-muted-foreground">Concluído</div>
                         </div>
@@ -1258,20 +1260,20 @@ export default function ClientPortalPage() {
                             </div>
                             <div className="space-y-2">
                               {payment.attachments.map((att) => (
-                                <div key={att.id} className="flex items-center justify-between p-2 bg-card border border-muted rounded">
-                                  <div className="flex items-center gap-3">
-                                    <FileText className="h-5 w-5 text-muted-foreground" />
-                                    <div>
-                                      <p className="text-sm font-medium text-foreground">{att.originalName || att.filename}</p>
+                                <div key={att.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-card border border-muted rounded gap-4">
+                                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                                    <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium text-foreground break-all">{att.originalName || att.filename}</p>
                                       <p className="text-xs text-muted-foreground">{formatFileSize(att.size)}</p>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3 py-1.5 border border-border text-xs rounded">
+                                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end sm:justify-start">
+                                    <a href={att.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3 py-1.5 border border-border text-xs rounded hover:bg-muted transition-colors">
                                       <Eye className="h-3 w-3 mr-1" />
                                       Visualizar
                                     </a>
-                                    <a href={att.url} download className="inline-flex items-center px-3 py-1.5 border border-border text-xs rounded">
+                                    <a href={att.url} download className="inline-flex items-center px-3 py-1.5 border border-border text-xs rounded hover:bg-muted transition-colors">
                                       <Download className="h-3 w-3 mr-1" />
                                       Download
                                     </a>
@@ -1316,18 +1318,18 @@ export default function ClientPortalPage() {
                       {selectedProjectData.files.length > 0 ? (
                         <div className="space-y-3">
                           {selectedProjectData.files.map((file) => (
-                            <div key={file.id} className="flex items-center justify-between p-3 border border-muted rounded-lg">
-                              <div className="flex items-center space-x-3">
-                                <FileText className="h-8 w-8 text-muted-foreground" />
-                                <div>
-                                  <p className="text-sm font-medium text-foreground">{file.originalName}</p>
+                            <div key={file.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-muted rounded-lg gap-4">
+                              <div className="flex items-center space-x-3 w-full sm:w-auto">
+                                <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-foreground break-all">{file.originalName}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {formatFileSize(file.size)} • {formatDate(file.createdAt)}
                                   </p>
                                 </div>
                               </div>
                               
-                              <div className="flex space-x-2">
+                              <div className="flex space-x-2 w-full sm:w-auto justify-end sm:justify-start">
                                 <button className="inline-flex items-center px-3 py-1.5 border border-border shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-card">
                                   <Eye className="h-3 w-3 mr-1" />
                                   Visualizar
@@ -1369,17 +1371,17 @@ export default function ClientPortalPage() {
                     <div className="px-4 py-5 sm:p-6">
                       <div className="space-y-3">
                         {clientAttachments.map((file) => (
-                          <div key={file.url} className="flex items-center justify-between p-3 border border-muted rounded-lg">
-                            <div className="flex items-center space-x-3">
-                              <FileText className="h-8 w-8 text-muted-foreground" />
-                              <div>
-                                <p className="text-sm font-medium text-foreground">{file.filename}</p>
+                          <div key={file.url} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 border border-muted rounded-lg gap-4">
+                            <div className="flex items-center space-x-3 w-full sm:w-auto">
+                              <FileText className="h-8 w-8 text-muted-foreground shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-foreground break-all">{file.filename}</p>
                                 <p className="text-xs text-muted-foreground">
                                   {formatFileSize(file.size)} • {formatDate(file.uploadedAt)}
                                 </p>
                               </div>
                             </div>
-                            <div className="flex space-x-2">
+                            <div className="flex space-x-2 w-full sm:w-auto justify-end sm:justify-start">
                               <a href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3 py-1.5 border border-border shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-card">
                                 <Eye className="h-3 w-3 mr-1" />
                                 Visualizar
