@@ -3,7 +3,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { FinancialType, RecurringType } from '@prisma/client'
+import { FinancialType, RecurringType, Prisma } from '@prisma/client'
+import { startOfDay, endOfDay, format } from 'date-fns'
 
 // Schema de validação para distribuição de projetos
 const projectDistributionSchema = z.object({
@@ -22,6 +23,9 @@ const financialEntrySchema = z.object({
   isRecurring: z.boolean().default(false),
   recurringType: z.nativeEnum(RecurringType).nullable().optional(),
   projectId: z.string().nullable().optional(),
+  collaboratorId: z.string().nullable().optional(),
+  periodStart: z.string().datetime('Data inicial inválida').nullable().optional(),
+  periodEnd: z.string().datetime('Data final inválida').nullable().optional(),
   projectDistributions: z.array(projectDistributionSchema).nullable().optional(),
   attachments: z.array(z.object({
     originalName: z.string(),
@@ -34,6 +38,9 @@ const financialEntrySchema = z.object({
   ...data,
   recurringType: data.recurringType || undefined,
   projectId: data.projectId || undefined,
+  collaboratorId: data.collaboratorId || undefined,
+  periodStart: data.periodStart || undefined,
+  periodEnd: data.periodEnd || undefined,
   projectDistributions: data.projectDistributions || undefined,
   attachments: data.attachments || undefined,
 }))
@@ -61,7 +68,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit
 
     // Construir filtros
-    const where: any = {}
+    const where: Prisma.FinancialEntryWhereInput = {}
 
     if (type) {
       where.type = type
@@ -77,6 +84,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const parseLocalDate = (s: string) => {
+      const [y, m, d] = s.split('-').map(Number)
+      return new Date(y, (m || 1) - 1, d || 1)
+    }
+
     // Filtro por período
     if (days && days !== 'all') {
       const daysAgo = new Date()
@@ -87,10 +99,12 @@ export async function GET(request: NextRequest) {
     } else if (startDate || endDate) {
       where.date = {}
       if (startDate) {
-        where.date.gte = new Date(startDate)
+        const sd = parseLocalDate(startDate)
+        where.date.gte = startOfDay(sd)
       }
       if (endDate) {
-        where.date.lte = new Date(endDate)
+        const ed = parseLocalDate(endDate)
+        where.date.lte = endOfDay(ed)
       }
     }
 
@@ -119,6 +133,12 @@ export async function GET(request: NextRequest) {
                   name: true,
                 }
               }
+            }
+          },
+          collaborator: {
+            select: {
+              id: true,
+              name: true,
             }
           },
           payment: {
@@ -152,13 +172,14 @@ export async function GET(request: NextRequest) {
       category: entry.category,
       description: entry.description,
       amount: entry.amount,
-      date: entry.date.toISOString(),
+      date: format(entry.date, 'yyyy-MM-dd'),
       isRecurring: entry.isRecurring,
       recurringType: entry.recurringType,
       projectName: entry.project?.name,
       clientName: entry.project?.client?.name,
       paymentId: entry.paymentId,
-      projectDistributions: entry.payment?.paymentProjects?.map((pp: any) => ({
+      collaboratorName: entry.collaborator?.name || null,
+      projectDistributions: entry.payment?.paymentProjects?.map((pp) => ({
         projectId: pp.project.id,
         projectName: pp.project.name,
         amount: pp.amount
@@ -259,7 +280,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             error: 'Dados inválidos', 
-            details: zodError.issues.map((err: any) => ({
+            details: zodError.issues.map((err: z.ZodIssue) => ({
               field: err.path.join('.'),
               message: err.message,
               received: err.received
@@ -340,6 +361,64 @@ export async function POST(request: NextRequest) {
 
     let entry
     let payment = null
+    let amountToCreate = validatedData.amount
+
+    // Se for salário com colaborador e período, calcular valor (salário fixo proporcional + comissão por hora)
+    if (
+      validatedData.category.toLowerCase() === 'salários' &&
+      validatedData.collaboratorId &&
+      validatedData.periodStart &&
+      validatedData.periodEnd
+    ) {
+      const from = new Date(validatedData.periodStart)
+      const to = new Date(validatedData.periodEnd)
+      from.setHours(0,0,0,0)
+      to.setHours(23,59,59,999)
+
+      const profileRows = await prisma.$queryRaw`
+        SELECT 
+          "userId",
+          "hasFixedSalary",
+          "fixedSalary",
+          "hourRate"
+        FROM compensation_profiles
+        WHERE "userId" = ${validatedData.collaboratorId}
+        LIMIT 1
+      ` as Array<{ userId: string; hasFixedSalary: boolean; fixedSalary: number | null; hourRate: number }>
+      const profile = profileRows[0] || { userId: validatedData.collaboratorId, hasFixedSalary: false, fixedSalary: null, hourRate: 0 }
+
+      const tasks = await prisma.task.findMany({
+        where: {
+          assigneeId: validatedData.collaboratorId,
+          status: 'COMPLETED',
+          OR: [
+            { completedAt: { gte: from, lte: to } },
+            { endTime: { gte: from, lte: to } },
+            { updatedAt: { gte: from, lte: to } },
+            { startDate: { gte: from, lte: to } }
+          ]
+        },
+        select: { actualMinutes: true, estimatedMinutes: true }
+      })
+
+      const totalMinutes = tasks.reduce((sum, t) => {
+        const m = (t.actualMinutes ?? t.estimatedMinutes ?? 0)
+        return sum + m
+      }, 0)
+      const variablePay = (totalMinutes / 60) * (profile?.hourRate || 0)
+
+      let fixedComponent = 0
+      if (profile?.hasFixedSalary && profile.fixedSalary) {
+        const endMonth = new Date(from.getFullYear(), from.getMonth() + 1, 0)
+        const daysInMonth = endMonth.getDate()
+        const oneDayMs = 24 * 60 * 60 * 1000
+        const daysInRange = Math.floor((to.getTime() - from.getTime()) / oneDayMs) + 1
+        const ratio = Math.max(0, Math.min(1, daysInRange / daysInMonth))
+        fixedComponent = profile.fixedSalary * ratio
+      }
+
+      amountToCreate = Number((fixedComponent + variablePay).toFixed(2))
+    }
 
     // Se há distribuição de projetos, criar um Payment e suas distribuições
     if (validatedData.projectDistributions && validatedData.projectDistributions.length > 0) {
@@ -359,7 +438,7 @@ export async function POST(request: NextRequest) {
       // Criar o Payment
       payment = await prisma.payment.create({
         data: {
-          amount: validatedData.amount,
+          amount: amountToCreate,
           description: validatedData.description,
           paymentDate: entryDate,
           method: 'BANK_TRANSFER', // Valor padrão, pode ser ajustado conforme necessário
@@ -393,12 +472,15 @@ export async function POST(request: NextRequest) {
           type: validatedData.type,
           category: validatedData.category,
           description: validatedData.description,
-          amount: validatedData.amount,
+          amount: amountToCreate,
           date: entryDate,
           isRecurring: validatedData.isRecurring,
           recurringType: validatedData.recurringType,
           projectId: null, // Não vincula a um projeto específico
           paymentId: payment.id, // Vincula com o pagamento distribuído
+          collaboratorId: validatedData.collaboratorId || undefined,
+          periodStart: validatedData.periodStart ? new Date(validatedData.periodStart) : undefined,
+          periodEnd: validatedData.periodEnd ? new Date(validatedData.periodEnd) : undefined
         }
       })
     } else {
@@ -408,11 +490,14 @@ export async function POST(request: NextRequest) {
           type: validatedData.type,
           category: validatedData.category,
           description: validatedData.description,
-          amount: validatedData.amount,
+          amount: amountToCreate,
           date: entryDate,
           isRecurring: validatedData.isRecurring,
           recurringType: validatedData.recurringType,
           projectId: validatedData.projectId,
+          collaboratorId: validatedData.collaboratorId || undefined,
+          periodStart: validatedData.periodStart ? new Date(validatedData.periodStart) : undefined,
+          periodEnd: validatedData.periodEnd ? new Date(validatedData.periodEnd) : undefined
         },
         include: {
           project: {
@@ -447,6 +532,21 @@ export async function POST(request: NextRequest) {
       where: { financialEntryId: entry.id }
     })
 
+    const entryWithRelations = await prisma.financialEntry.findUnique({
+      where: { id: entry.id },
+      include: {
+        project: {
+          select: {
+            id: true,
+            name: true,
+            client: {
+              select: { name: true }
+            }
+          }
+        },
+      }
+    })
+
     // Transformar para o frontend
     const transformedEntry = {
       id: entry.id,
@@ -454,11 +554,11 @@ export async function POST(request: NextRequest) {
       category: entry.category,
       description: entry.description,
       amount: entry.amount,
-      date: entry.date.toISOString(),
+      date: format(entry.date, 'yyyy-MM-dd'),
       isRecurring: entry.isRecurring,
       recurringType: entry.recurringType,
-      projectName: entry.project?.name || null,
-      clientName: entry.project?.client?.name || (payment?.client?.name) || null,
+      projectName: entryWithRelations?.project?.name || null,
+      clientName: entryWithRelations?.project?.client?.name || (payment?.client?.name) || null,
       createdAt: entry.createdAt.toISOString(),
       projectDistributions: payment ? payment.paymentProjects.map(pp => ({
         projectId: pp.projectId,

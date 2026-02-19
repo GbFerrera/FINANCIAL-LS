@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { parseISO, format } from "date-fns"
+import { parseISO, format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { DateRange } from "react-day-picker"
+import { cn } from "@/lib/utils"
 import {
   Plus,
   Download,
   Filter,
   Search,
-  Calendar,
+  Calendar as CalendarIcon,
   DollarSign,
   TrendingUp,
   TrendingDown,
@@ -35,6 +38,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import toast from "react-hot-toast"
@@ -50,6 +55,7 @@ interface FinancialEntry {
   recurringType?: string
   projectName?: string
   paymentId?: string // Novo campo para vincular com pagamento
+  collaboratorName?: string | null
   projectDistributions?: Array<{
     projectId: string
     projectName: string
@@ -82,7 +88,10 @@ export default function FinancialPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [searchTerm, setSearchTerm] = useState('')
-  const [dateRange, setDateRange] = useState('all') // days
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(subMonths(new Date(), 1)),
+    to: endOfMonth(subMonths(new Date(), 1)),
+  })
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -170,7 +179,7 @@ export default function FinancialPage() {
         fd.append('file', file)
         const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
         if (!uploadRes.ok) {
-          const err = await uploadRes.json().catch(() => ({} as any))
+          const err = await uploadRes.json().catch(() => ({} as { error?: string }))
           throw new Error(err.error || `Falha ao enviar arquivo ${file.name}`)
         }
         const data = await uploadRes.json()
@@ -223,7 +232,14 @@ export default function FinancialPage() {
   const fetchFinancialData = async () => {
     try {
       setLoading(true)
-      let url = `/api/financial?days=${dateRange}`
+      let url = `/api/financial?`
+      
+      if (dateRange?.from) {
+        url += `&startDate=${format(dateRange.from, 'yyyy-MM-dd')}`
+      }
+      if (dateRange?.to) {
+        url += `&endDate=${format(dateRange.to, 'yyyy-MM-dd')}`
+      }
       
       if (selectedClientId) {
         url += `&clientId=${selectedClientId}`
@@ -433,18 +449,92 @@ export default function FinancialPage() {
               </div>
               
               {/* Date Range */}
-              <div>
-                <select
-                  value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-input bg-background focus:outline-none focus:ring-primary focus:border-primary rounded-md"
-                >
-                  <option value="all">Todos os períodos</option>
-                  <option value="7">Últimos 7 dias</option>
-                  <option value="30">Últimos 30 dias</option>
-                  <option value="90">Últimos 90 dias</option>
-                  <option value="365">Último ano</option>
-                </select>
+              <div className="sm:col-span-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !dateRange && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
+                            {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                          </>
+                        ) : (
+                          format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                        )
+                      ) : (
+                        <span>Selecione o período</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <div className="flex flex-col space-y-2 p-2 border-b">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDateRange({
+                            from: startOfMonth(new Date()),
+                            to: endOfMonth(new Date())
+                          })}
+                          className="justify-start text-xs"
+                        >
+                          Mês Atual
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDateRange({
+                            from: startOfMonth(subMonths(new Date(), 1)),
+                            to: endOfMonth(subMonths(new Date(), 1))
+                          })}
+                          className="justify-start text-xs"
+                        >
+                          Mês Anterior
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDateRange({
+                            from: subDays(new Date(), 30),
+                            to: new Date()
+                          })}
+                          className="justify-start text-xs"
+                        >
+                          Últimos 30 dias
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDateRange({
+                            from: startOfYear(new Date()),
+                            to: endOfYear(new Date())
+                          })}
+                          className="justify-start text-xs"
+                        >
+                          Este Ano
+                        </Button>
+                      </div>
+                    </div>
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </div>
@@ -516,6 +606,11 @@ export default function FinancialPage() {
                             <div className="text-sm font-medium text-foreground">{entry.description}</div>
                             {entry.isRecurring && (
                               <div className="text-xs text-muted-foreground">Recorrente</div>
+                            )}
+                            {entry.collaboratorName && (
+                              <div className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-1">
+                                Colaborador: {entry.collaboratorName}
+                              </div>
                             )}
                             {hasDistributions && (
                               <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">

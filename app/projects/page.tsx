@@ -19,7 +19,9 @@ import {
   FolderOpen,
   Target,
   Presentation,
-  Telescope
+  Telescope,
+  LayoutGrid,
+  List
 } from "lucide-react"
 import { StatsCard } from "@/components/ui/stats-card"
 import {
@@ -100,6 +102,7 @@ export default function ProjectsPage() {
   })
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const openOrCreateSprint = async (projectId: string) => {
     try {
@@ -435,6 +438,24 @@ export default function ProjectsPage() {
             </p>
           </div>
           <div className="mt-4 flex flex-wrap gap-3 md:mt-0 md:ml-4">
+            <div className="inline-flex items-center bg-card p-1 rounded-lg border border-input shadow-sm">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                title="Visualização em Grade"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="text-sm font-medium">Grade</span>
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
+                title="Visualização em Lista"
+              >
+                <List className="h-4 w-4" />
+                <span className="text-sm font-medium">Linha</span>
+              </button>
+            </div>
             <button
               onClick={() => router.push('/projects/cmfv5cmde001lm701frdbxgo4/canvas')}
               className="inline-flex items-center px-4 py-2 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-card hover:bg-primary/10 transition-colors"
@@ -686,16 +707,16 @@ export default function ProjectsPage() {
         {/* Filters */}
         <div className="bg-secondary shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {/* Search */}
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-2 lg:col-span-1">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Search className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <input
                     type="text"
-                    placeholder="Buscar por nome do projeto ou cliente..."
+                    placeholder="Buscar..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="block w-full pl-10 pr-3 py-2 border border-input rounded-md leading-5 bg-card placeholder:text-muted-foreground focus:outline-none focus:placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-primary focus:border-primary text-foreground"
@@ -734,6 +755,8 @@ export default function ProjectsPage() {
                   ))}
                 </select>
               </div>
+
+
             </div>
           </div>
         </div>
@@ -741,7 +764,7 @@ export default function ProjectsPage() {
         {/* Projects Grid */}
         <div className="bg-card shadow rounded-lg overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
+            <h3 className="text-lg leading-6 font-medium text-foreground mb-6">
               Projetos ({filteredProjects.length})
             </h3>
             
@@ -754,11 +777,11 @@ export default function ProjectsPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div className={viewMode === 'grid' ? "grid grid-cols-1 gap-6 sm:grid-cols-2" : "flex flex-col gap-4"}>
                 {/* Projeto Link System sempre primeiro */}
                 {linkSystemProject && (() => {
                   const StatusIcon = getStatusIcon(linkSystemProject.status)
-                  return (
+                  return viewMode === 'grid' ? (
                     <div key={linkSystemProject.id} className="bg-card border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative">
                       {/* Badge Fixo */}
                       <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
@@ -897,13 +920,108 @@ export default function ProjectsPage() {
                         </div>
                       </div>
                     </div>
+                  ) : (
+                    <div key={linkSystemProject.id} className="bg-card border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative p-4 flex flex-col md:flex-row items-center gap-4">
+                      {/* Badge Fixo */}
+                      <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md z-10">
+                        FIXO
+                      </div>
+                      
+                      {/* Info Principal */}
+                      <div className="flex-1 min-w-0 w-full md:w-auto ml-2">
+                        <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-medium text-foreground truncate cursor-pointer hover:underline" onClick={() => router.push(`/projects/${linkSystemProject.id}`)}>
+                              {linkSystemProject.name}
+                            </h4>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center"><Users className="h-3 w-3 mr-1"/> {linkSystemProject.clientName}</span>
+                            <span className="flex items-center"><Calendar className="h-3 w-3 mr-1"/> {formatDate(linkSystemProject.startDate)}</span>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex-shrink-0">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(linkSystemProject.status)}`}>
+                          <StatusIcon className="w-3 h-3 mr-1" />
+                          {getStatusLabel(linkSystemProject.status)}
+                        </span>
+                      </div>
+
+                      {/* Progresso Compacto */}
+                      <div className="w-full md:w-32 flex-shrink-0 flex flex-col gap-1 hidden sm:flex">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{linkSystemProject.progress}%</span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-1.5">
+                          <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: `${linkSystemProject.progress}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Métricas Compactas */}
+                      <div className="hidden lg:flex items-center gap-4 text-sm text-muted-foreground">
+                         <div title="Milestones" className="flex items-center gap-1">
+                            <Target className="w-4 h-4" />
+                            <span>{linkSystemProject.completedMilestones}/{linkSystemProject.milestonesCount}</span>
+                         </div>
+                         <div title="Tarefas" className="flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>{linkSystemProject.completedTasks}/{linkSystemProject.tasksCount}</span>
+                         </div>
+                      </div>
+
+                      {/* Ações Simplificadas */}
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button 
+                          onClick={() => router.push(`/projects/${linkSystemProject.id}`)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Ver Detalhes"
+                        >
+                          <Telescope className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => openOrCreateSprint(linkSystemProject.id)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Sprints"
+                        >
+                           <Clock className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => router.push(`/projects/${linkSystemProject.id}/canvas`)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Canvas"
+                        >
+                           <Presentation className="h-4 w-4" />
+                        </button>
+                        
+                        {session?.user.role === 'ADMIN' && (
+                            <>
+                              <button 
+                                onClick={() => handleEditProject(linkSystemProject)}
+                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                title="Editar"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteProject(linkSystemProject.id)}
+                                disabled={deletingProjectId === linkSystemProject.id}
+                                className="p-2 rounded-md hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                        )}
+                      </div>
+                    </div>
                   )
                 })()}
 
                 {/* Demais projetos */}
                 {otherProjects.map((project) => {
                   const StatusIcon = getStatusIcon(project.status)
-                  return (
+                  return viewMode === 'grid' ? (
                     <div key={project.id} className="bg-card border border-muted rounded-lg shadow-sm hover:shadow-md transition-shadow">
                       <div className="p-6">
                         {/* Header */}
@@ -1035,6 +1153,103 @@ export default function ProjectsPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={project.id} className="bg-card border border-muted rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col md:flex-row items-center gap-4">
+                      {/* Info Principal */}
+                      <div className="flex-1 min-w-0 w-full md:w-auto ml-2">
+                        <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-medium text-foreground truncate cursor-pointer hover:underline" onClick={() => router.push(`/projects/${project.id}`)}>
+                              {project.name}
+                            </h4>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center"><Users className="h-3 w-3 mr-1"/> {project.clientName}</span>
+                            <span className="flex items-center"><Calendar className="h-3 w-3 mr-1"/> {formatDate(project.startDate)}</span>
+                        </div>
+                      </div>
+
+                      {/* Status */}
+                      <div className="flex-shrink-0">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
+                          <StatusIcon className="w-3 h-3 mr-1" />
+                          {getStatusLabel(project.status)}
+                        </span>
+                      </div>
+
+                      {/* Progresso Compacto */}
+                      <div className="w-full md:w-32 flex-shrink-0 flex flex-col gap-1 hidden sm:flex">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{project.progress}%</span>
+                        </div>
+                        <div className="w-full bg-secondary rounded-full h-1.5">
+                          <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: `${project.progress}%` }} />
+                        </div>
+                      </div>
+
+                      {/* Métricas Compactas */}
+                      <div className="hidden lg:flex items-center gap-4 text-sm text-muted-foreground">
+                         <div title="Milestones" className="flex items-center gap-1">
+                            <Target className="w-4 h-4" />
+                            <span>{project.completedMilestones}/{project.milestonesCount}</span>
+                         </div>
+                         <div title="Tarefas" className="flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>{project.completedTasks}/{project.tasksCount}</span>
+                         </div>
+                      </div>
+
+                      {/* Ações Simplificadas */}
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button 
+                          onClick={() => router.push(`/projects/${project.id}`)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Ver Detalhes"
+                        >
+                          <Telescope className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => router.push(`/projects/notes?projectId=${project.id}`)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Docs"
+                        >
+                          <FolderOpen className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => openOrCreateSprint(project.id)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Sprints"
+                        >
+                           <Clock className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => router.push(`/projects/${project.id}/canvas`)}
+                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                          title="Canvas"
+                        >
+                           <Presentation className="h-4 w-4" />
+                        </button>
+                        
+                        {session?.user.role === 'ADMIN' && (
+                            <>
+                              <button 
+                                onClick={() => handleEditProject(project)}
+                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                title="Editar"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteProject(project.id)}
+                                disabled={deletingProjectId === project.id}
+                                className="p-2 rounded-md hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                        )}
                       </div>
                     </div>
                   )

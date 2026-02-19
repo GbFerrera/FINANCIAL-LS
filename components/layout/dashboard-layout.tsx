@@ -58,7 +58,15 @@ const navigation = [
     ]
   },
   { name: "Clientes", href: "/clients", icon: User },
-  { name: "Financeiro", href: "/financial", icon: Wallet },
+  { 
+    name: "Financeiro", 
+    href: "/financial", 
+    icon: Wallet,
+    submenu: [
+      { name: "Visão", href: "/financial", icon: Wallet },
+      { name: "Comissões", href: "/financial/commissions", icon: DollarSign },
+    ]
+  },
   { 
     name: "Equipe", 
     href: "/team", 

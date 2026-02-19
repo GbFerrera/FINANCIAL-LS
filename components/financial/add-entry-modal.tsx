@@ -1,6 +1,7 @@
 "use client"
 
-import { parseISO } from "date-fns"
+import { format, parseISO } from "date-fns"
+import { ptBR } from "date-fns/locale"
 import { useState, useEffect } from "react"
 import { DollarSign, Calendar, Tag, FileText, Repeat, Upload, X, Plus } from "lucide-react"
 import toast from "react-hot-toast"
@@ -23,6 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Calendar as RangeCalendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { DateRange } from "react-day-picker"
+import { cn } from "@/lib/utils"
 
 interface Project {
   id: string
@@ -91,6 +96,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
   const [loading, setLoading] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [categories, setCategories] = useState<{INCOME: string[], EXPENSE: string[]}>({INCOME: [], EXPENSE: []})
+  const [teamMembers, setTeamMembers] = useState<Array<{ id: string; name: string }>>([])
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState('')
   const [clientProjectSummaries, setClientProjectSummaries] = useState<ProjectPaymentSummary[]>([])
@@ -104,7 +110,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     isRecurring: false,
     recurringType: '',
     projectId: '',
-    clientId: ''
+    clientId: '',
+    collaboratorId: '',
+    periodStart: '',
+    periodEnd: ''
   })
   const [attachments, setAttachments] = useState<File[]>([])
   const [existingAttachments, setExistingAttachments] = useState<Array<{
@@ -114,7 +123,27 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     size: number
     url: string
   }>>([])
+  const [salaryRange, setSalaryRange] = useState<DateRange | undefined>()
+  const [entryDate, setEntryDate] = useState<Date | undefined>(new Date())
+
+  useEffect(() => {
+    if (salaryRange?.from && salaryRange?.to) {
+      setFormData(prev => ({
+        ...prev,
+        periodStart: format(salaryRange.from, "yyyy-MM-dd"),
+        periodEnd: format(salaryRange.to, "yyyy-MM-dd"),
+      }))
+    }
+  }, [salaryRange])
   
+  useEffect(() => {
+    if (entryDate) {
+      setFormData(prev => ({
+        ...prev,
+        date: format(entryDate, "yyyy-MM-dd"),
+      }))
+    }
+  }, [entryDate])
   // Estados para distribuição de projetos
   const [enableProjectDistribution, setEnableProjectDistribution] = useState(false)
   const [projectDistributions, setProjectDistributions] = useState<ProjectDistribution[]>([])
@@ -125,6 +154,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       fetchProjects()
       fetchCategories()
       fetchClients()
+      fetchTeamMembers()
       
       // Reset formulário para nova entrada ou preencher se editando
       if (editingEntry) {
@@ -137,7 +167,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           isRecurring: editingEntry.isRecurring,
           recurringType: editingEntry.recurringType || '',
           projectId: '',
-          clientId: ''
+          clientId: '',
+          collaboratorId: '',
+          periodStart: '',
+          periodEnd: ''
         })
         setExistingAttachments(editingEntry.attachments || [])
       } else {
@@ -151,7 +184,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           isRecurring: false,
           recurringType: '',
           projectId: '',
-          clientId: ''
+          clientId: '',
+          collaboratorId: '',
+          periodStart: '',
+          periodEnd: ''
         })
         setSelectedClientId('')
         setClientProjectSummaries([])
@@ -259,6 +295,18 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       }
     } catch (error) {
       console.error('Erro ao buscar clientes:', error)
+    }
+  }
+
+  const fetchTeamMembers = async () => {
+    try {
+      const response = await fetch('/api/users')
+      if (response.ok) {
+        const users = await response.json()
+        setTeamMembers(users)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar colaboradores:', error)
     }
   }
 
@@ -381,7 +429,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
         fd.append('file', file)
         const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd })
         if (!uploadRes.ok) {
-          const err = await uploadRes.json().catch(() => ({} as any))
+          const err = await uploadRes.json().catch(() => ({} as { error?: string }))
           throw new Error(err.error || `Falha ao enviar arquivo ${file.name}`)
         }
         const data = await uploadRes.json()
@@ -399,9 +447,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     const url = editingEntry ? `/api/financial/${editingEntry.id}` : '/api/financial'
     const method = editingEntry ? 'PUT' : 'POST'
 
-    let removeAttachmentIds: string[] = []
-
-    const payload: any = {
+    const payload = {
       type: formData.type,
       category: formData.category,
       description: formData.description,
@@ -410,7 +456,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       isRecurring: formData.isRecurring,
       recurringType: formData.isRecurring && formData.recurringType ? formData.recurringType : null,
       projectId: enableProjectDistribution ? null : (formData.projectId || null),
-      projectDistributions: enableProjectDistribution ? projectDistributions : null
+      projectDistributions: enableProjectDistribution ? projectDistributions : null,
+      collaboratorId: formData.category === 'Salários' ? (formData.collaboratorId || null) : null,
+      periodStart: formData.category === 'Salários' && formData.periodStart ? (formData.periodStart + 'T00:00:00.000Z') : null,
+      periodEnd: formData.category === 'Salários' && formData.periodEnd ? (formData.periodEnd + 'T23:59:59.999Z') : null
     }
 
     if (method === 'POST' && uploadedAttachments.length > 0) {
@@ -452,7 +501,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       isRecurring: false,
       recurringType: '',
       projectId: '',
-      clientId: ''
+      clientId: '',
+      collaboratorId: '',
+      periodStart: '',
+      periodEnd: ''
     })
     setAttachments([])
     setExistingAttachments([])
@@ -562,10 +614,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 type="button"
                 variant={formData.type === 'INCOME' ? 'default' : 'outline'}
                 onClick={() => setFormData(prev => ({ ...prev, type: 'INCOME' }))}
-                className={`p-3 h-auto flex-col ${
+                className={`p-3 h-auto flex-col rounded-lg transition-all ${
                   formData.type === 'INCOME'
-                    ? 'border-green-200 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-800/40'
-                    : ''
+                    ? 'border-green-200 bg-green-100 text-green-800 hover:bg-green-200 ring-2 ring-green-200/50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/40 dark:hover:bg-green-800/40 dark:ring-green-800/40'
+                    : 'hover:bg-muted'
                 }`}
               >
                 <DollarSign className="h-4 w-4 mb-1" />
@@ -575,10 +627,10 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 type="button"
                 variant={formData.type === 'EXPENSE' ? 'default' : 'outline'}
                 onClick={() => setFormData(prev => ({ ...prev, type: 'EXPENSE' }))}
-                className={`p-3 h-auto flex-col ${
+                className={`p-3 h-auto flex-col rounded-lg transition-all ${
                   formData.type === 'EXPENSE'
-                    ? 'border-red-200 bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/40 dark:hover:bg-red-800/40'
-                    : ''
+                    ? 'border-red-200 bg-red-100 text-red-800 hover:bg-red-200 ring-2 ring-red-200/50 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/40 dark:hover:bg-red-800/40 dark:ring-red-800/40'
+                    : 'hover:bg-muted'
                 }`}
               >
                 <DollarSign className="h-4 w-4 mb-1" />
@@ -599,7 +651,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                   value={formData.category}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                 >
-                  <SelectTrigger className="pl-10 w-full max-w-[560px]">
+                  <SelectTrigger className="pl-10 w-full max-w-[560px] rounded-lg border-muted focus:border-blue-400">
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent className="w-full max-w-[560px]">
@@ -627,7 +679,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       setFormData(prev => ({ ...prev, clientId: value, projectId: '' }))
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="rounded-lg border-muted focus:border-blue-400">
                       <SelectValue placeholder="Selecione um cliente" />
                     </SelectTrigger>
                     <SelectContent>
@@ -663,7 +715,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                     const numericValue = (parseFloat(value) / 100).toString()
                     setFormData(prev => ({ ...prev, amount: numericValue }))
                   }}
-                  className="pl-10"
+                  className="pl-10 rounded-lg border-muted focus:border-blue-400"
                   placeholder="0,00"
                   required
                 />
@@ -682,7 +734,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                 rows={12}
-                className="pl-10 h-[150px]"
+                className="pl-10 h-[150px] rounded-lg border-muted focus:border-blue-400"
                 placeholder="Descreva a entrada financeira..."
                 required
               />
@@ -695,17 +747,145 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
               <Label className="text-sm font-medium">
                 Data *
               </Label>
-              <div className="relative mt-1">
-                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
-                <Input
-                  type="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                  className="pl-10"
-                  required
-                />
+              <div className="mt-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal rounded-lg",
+                        !entryDate && "text-muted-foreground"
+                      )}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {entryDate ? format(entryDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <RangeCalendar
+                      mode="single"
+                      selected={entryDate}
+                      onSelect={setEntryDate}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
+            
+            {/* Salary-specific: collaborator and date range */}
+            {formData.type === 'EXPENSE' && formData.category === 'Salários' && (
+              <div className="space-y-4 p-4 border border-muted rounded-lg bg-muted/30">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">Colaborador *</Label>
+                    <Select
+                      value={formData.collaboratorId || undefined}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, collaboratorId: value }))}
+                    >
+                      <SelectTrigger className="rounded-lg border-muted focus:border-blue-400">
+                        <SelectValue placeholder="Selecione o colaborador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {teamMembers.map(member => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-sm font-medium">Período *</Label>
+                    <div className="mt-1">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal rounded-lg",
+                              !salaryRange && "text-muted-foreground"
+                            )}
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {salaryRange?.from ? (
+                              salaryRange.to ? (
+                                <>
+                                  {format(salaryRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
+                                  {format(salaryRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                                </>
+                              ) : (
+                                format(salaryRange.from, "dd/MM/yyyy", { locale: ptBR })
+                              )
+                            ) : (
+                              <span>Selecione o período</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <RangeCalendar
+                            mode="range"
+                            defaultMonth={salaryRange?.from}
+                            selected={salaryRange}
+                            onSelect={setSalaryRange}
+                            numberOfMonths={2}
+                            locale={ptBR}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        if (!formData.collaboratorId || !salaryRange?.from || !salaryRange?.to) {
+                          toast.error('Selecione colaborador e período')
+                          return
+                        }
+                        const from = format(salaryRange.from, "yyyy-MM-dd")
+                        const to = format(salaryRange.to, "yyyy-MM-dd")
+                        const res = await fetch(`/api/commissions/${formData.collaboratorId}?from=${from}&to=${to}`)
+                        if (!res.ok) {
+                          throw new Error('Erro ao calcular valores do colaborador')
+                        }
+                        const data = await res.json()
+                        const { summary } = data
+                        const hasFixed = !!summary.hasFixedSalary
+                        const fixedSalary = summary.fixedSalary || 0
+                        const variablePay = summary.variablePay || 0
+                        // Pro-rata de salário fixo por dias do mês do início
+                        const startDate = salaryRange.from
+                        const endDate = salaryRange.to
+                        const endMonth = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
+                        const daysInMonth = endMonth.getDate()
+                        const oneDay = 24 * 60 * 60 * 1000
+                        const daysInRange = Math.floor((endDate.getTime() - startDate.getTime()) / oneDay) + 1
+                        const ratio = Math.max(0, Math.min(1, daysInRange / daysInMonth))
+                        const fixedComponent = hasFixed ? fixedSalary * ratio : 0
+                        const total = fixedComponent + variablePay
+                        setFormData(prev => ({
+                          ...prev,
+                          amount: total.toFixed(2),
+                          description: prev.description || `Salário + comissão (${from} a ${to})`
+                        }))
+                        toast.success('Valor calculado automaticamente')
+                      } catch (err) {
+                        console.error(err)
+                        toast.error('Falha ao calcular valor')
+                      }
+                    }}
+                  >
+                    Calcular Salário + Comissão
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Project Distribution Toggle */}
             <div>
@@ -892,7 +1072,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       {projectDistributions.length === 0 && (
                         <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-muted rounded-lg">
                           <Plus className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p className="text-sm">Clique em "Adicionar Projeto" para começar a distribuir</p>
+                          <p className="text-sm">Clique em Adicionar Projeto para começar a distribuir</p>
                         </div>
                       )}
 

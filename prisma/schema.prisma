@@ -39,6 +39,8 @@ model User {
   timerEvents   TimerEvent[]
   notesCreated  Note[]
   noteAccesses  NoteAccess[]
+  compensationProfile CompensationProfile?
+  collaboratedEntries FinancialEntry[] @relation("FinancialEntryCollaborator")
 
   @@map("users")
 }
@@ -289,9 +291,13 @@ model FinancialEntry {
   updatedAt     DateTime              @updatedAt
   projectId     String?
   paymentId     String?
+  collaboratorId String?
+  periodStart   DateTime?
+  periodEnd     DateTime?
   attachments   FinancialAttachment[]
   payment       Payment?              @relation(fields: [paymentId], references: [id])
   project       Project?              @relation(fields: [projectId], references: [id])
+  collaborator   User?                 @relation("FinancialEntryCollaborator", fields: [collaboratorId], references: [id])
 
   @@map("financial_entries")
 }
@@ -398,6 +404,20 @@ model TimeEntry {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("time_entries")
+}
+
+model CompensationProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hasFixedSalary Boolean  @default(false)
+  fixedSalary    Float?
+  hourRate       Float    @default(0)
+  effectiveFrom  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("compensation_profiles")
 }
 
 model TimerEvent {

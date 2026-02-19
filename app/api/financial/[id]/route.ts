@@ -3,7 +3,13 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { FinancialType, RecurringType } from '@prisma/client'
+import { FinancialType, RecurringType, Prisma } from '@prisma/client'
+
+const projectDistributionSchema = z.object({
+  projectId: z.string().min(1, 'ID do projeto é obrigatório'),
+  projectName: z.string().min(1, 'Nome do projeto é obrigatório'),
+  amount: z.number().positive('Valor deve ser positivo')
+})
 
 // Schema de validação para atualização de entrada financeira
 const updateFinancialEntrySchema = z.object({
@@ -15,6 +21,7 @@ const updateFinancialEntrySchema = z.object({
   isRecurring: z.boolean().optional(),
   recurringType: z.nativeEnum(RecurringType).optional(),
   projectId: z.string().nullable().optional(),
+  projectDistributions: z.array(projectDistributionSchema).nullable().optional(),
   addAttachments: z.array(z.object({
     originalName: z.string(),
     mimeType: z.string(),
@@ -178,17 +185,122 @@ export async function PUT(
       }
     }
 
-    // Preparar dados para atualização
-    const updateData: any = { ...validatedData }
-    delete updateData.addAttachments
-    delete updateData.removeAttachmentIds
-    if (validatedData.date) {
-      updateData.date = new Date(validatedData.date)
+    const finalAmount = validatedData.amount ?? existingEntry.amount
+
+    if (validatedData.projectDistributions && validatedData.projectDistributions.length > 0) {
+      if (validatedData.projectId) {
+        return NextResponse.json(
+          { error: 'Não é possível ter projeto único e distribuição de projetos ao mesmo tempo' },
+          { status: 400 }
+        )
+      }
+      const projectIds = validatedData.projectDistributions.map(d => d.projectId)
+      const projects = await prisma.project.findMany({
+        where: { id: { in: projectIds } },
+        include: { client: true }
+      })
+      if (projects.length !== projectIds.length) {
+        return NextResponse.json(
+          { error: 'Um ou mais projetos não foram encontrados' },
+          { status: 404 }
+        )
+      }
+      const totalDistributed = validatedData.projectDistributions.reduce((sum, dist) => sum + dist.amount, 0)
+      if (Math.abs(totalDistributed - finalAmount) > 0.01) {
+        return NextResponse.json(
+          { error: `A soma das distribuições (${totalDistributed}) deve ser igual ao valor total (${finalAmount})` },
+          { status: 400 }
+        )
+      }
+      const firstProjectClientId = projects[0].clientId
+      if (existingEntry.paymentId) {
+        await prisma.$transaction([
+          prisma.payment.update({
+            where: { id: existingEntry.paymentId },
+            data: {
+              amount: finalAmount,
+              description: validatedData.description ?? existingEntry.description,
+            }
+          }),
+          prisma.paymentProject.deleteMany({
+            where: { paymentId: existingEntry.paymentId }
+          }),
+          prisma.paymentProject.createMany({
+            data: validatedData.projectDistributions.map(d => ({
+              paymentId: existingEntry.paymentId!,
+              projectId: d.projectId,
+              amount: d.amount
+            }))
+          })
+        ])
+      } else {
+        const payment = await prisma.payment.create({
+          data: {
+            amount: finalAmount,
+            description: validatedData.description ?? existingEntry.description,
+            paymentDate: validatedData.date ? new Date(validatedData.date) : existingEntry.date,
+            method: 'BANK_TRANSFER',
+            status: 'COMPLETED',
+            clientId: firstProjectClientId,
+            paymentProjects: {
+              create: validatedData.projectDistributions.map(d => ({
+                projectId: d.projectId,
+                amount: d.amount
+              }))
+            }
+          }
+        })
+        existingEntry.paymentId = payment.id
+      }
+    } else if (validatedData.projectDistributions && validatedData.projectDistributions.length === 0) {
+      if (existingEntry.paymentId) {
+        await prisma.$transaction([
+          prisma.paymentProject.deleteMany({
+            where: { paymentId: existingEntry.paymentId }
+          }),
+          prisma.payment.delete({
+            where: { id: existingEntry.paymentId }
+          })
+        ])
+        existingEntry.paymentId = null
+      }
     }
+
+    if (validatedData.projectId && existingEntry.paymentId) {
+      await prisma.$transaction([
+        prisma.paymentProject.deleteMany({
+          where: { paymentId: existingEntry.paymentId }
+        }),
+        prisma.payment.delete({
+          where: { id: existingEntry.paymentId }
+        })
+      ])
+      existingEntry.paymentId = null
+    }
+
+    const updateData: Prisma.FinancialEntryUncheckedUpdateInput = {}
+    if (validatedData.type !== undefined) updateData.type = validatedData.type
+    if (validatedData.category !== undefined) updateData.category = validatedData.category
+    if (validatedData.description !== undefined) updateData.description = validatedData.description
+    if (validatedData.amount !== undefined) updateData.amount = validatedData.amount
+    if (validatedData.date !== undefined) updateData.date = new Date(validatedData.date)
+    if (validatedData.isRecurring !== undefined) updateData.isRecurring = validatedData.isRecurring
+    if (validatedData.recurringType !== undefined) updateData.recurringType = validatedData.recurringType
+    if (validatedData.projectId !== undefined) updateData.projectId = validatedData.projectId
 
     // Se isRecurring for false, limpar recurringType
     if (validatedData.isRecurring === false) {
       updateData.recurringType = null
+    }
+    if (validatedData.projectDistributions && validatedData.projectDistributions.length > 0) {
+      updateData.projectId = null
+      updateData.paymentId = existingEntry.paymentId
+    }
+    if (validatedData.projectDistributions && validatedData.projectDistributions.length === 0) {
+      updateData.paymentId = null
+    }
+    if (existingEntry.paymentId && !validatedData.projectDistributions && validatedData.projectId) {
+      updateData.paymentId = null
     }
 
     const updatedEntry = await prisma.financialEntry.update({
