@@ -43,7 +43,12 @@ export async function GET(
     } as any)
     const stored = (userData?.skillsInterests as any) || {}
     const storedPaths: string[] = Array.isArray(stored.pagePermissions) ? stored.pagePermissions : []
-    const allowedPaths = storedPaths.length > 0 ? storedPaths : getDefaultAllowedPaths(user.role)
+    const ALIASES: Record<string, string> = {
+      "/sprints": "/projects/sprints",
+      "/tasks": "/projects/backlog",
+    }
+    const allowedRaw = storedPaths.length > 0 ? storedPaths : getDefaultAllowedPaths(user.role)
+    const allowedPaths = allowedRaw.map((p: string) => ALIASES[p] ?? p)
 
     return NextResponse.json({ allowedPaths })
   } catch (e) {
@@ -70,7 +75,13 @@ export async function PUT(
     const body = await req.json()
     const data = updateSchema.parse(body)
 
-    const allowedSet = new Set(data.allowedPaths)
+    const ALIASES: Record<string, string> = {
+      "/sprints": "/projects/sprints",
+      "/tasks": "/projects/backlog",
+    }
+
+    const normalizedPaths = data.allowedPaths.map((p: string) => ALIASES[p] ?? p)
+    const allowedSet = new Set(normalizedPaths)
     // Validar contra o registro de rotas
     const validPaths = registryPaths()
     for (const p of allowedSet) {
@@ -84,8 +95,12 @@ export async function PUT(
       where: { id: targetUserId },
       select: { skillsInterests: true },
     } as any)
-    const payload: any = {
-      ...(existing?.skillsInterests || {}),
+    const base =
+      typeof existing?.skillsInterests === "object" && existing?.skillsInterests !== null
+        ? (existing?.skillsInterests as Record<string, unknown>)
+        : {}
+    const payload = {
+      ...base,
       pagePermissions: Array.from(allowedSet),
     }
     await prisma.user.update({
