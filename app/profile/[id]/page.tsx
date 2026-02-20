@@ -35,14 +35,33 @@ export default function ProfileDetailPage() {
   const [user, setUser] = useState<ViewUser | null>(null)
 
   const toArray = (v: unknown): string[] => {
-    if (Array.isArray(v)) return v.map(String)
-    if (typeof v === 'string') {
-      try {
-        const parsed = JSON.parse(v)
-        return Array.isArray(parsed) ? parsed.map(String) : [v]
-      } catch {
-        return [v]
+    const splitTokens = (s: string) => s.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)
+    if (Array.isArray(v)) {
+      const out: string[] = []
+      for (const item of v) {
+        if (typeof item === 'string') {
+          out.push(...splitTokens(item))
+        } else if (item && typeof item === 'object') {
+          const obj = item as Record<string, unknown>
+          const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value ?? Object.values(obj)) as unknown
+          if (Array.isArray(candidate)) {
+            out.push(...candidate.map(String))
+          } else {
+            out.push(String(item))
+          }
+        } else if (item != null) {
+          out.push(String(item))
+        }
       }
+      return out
+    }
+    if (typeof v === 'string') {
+      const text = v.trim()
+      try {
+        const parsed = JSON.parse(text)
+        if (Array.isArray(parsed)) return parsed.map(String)
+      } catch {}
+      return text.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
     }
     if (v && typeof v === 'object') {
       const obj = v as Record<string, unknown>
@@ -243,7 +262,7 @@ export default function ProfileDetailPage() {
                   {(user?.skillsInterests || []).length === 0 && (
                     <p className="text-sm text-muted-foreground italic w-full text-center py-2">Nenhuma habilidade listada.</p>
                   )}
-                  {(user?.skillsInterests || []).map((s, i) => (
+                  {Array.from(new Set((user?.skillsInterests || []).filter(s => !String(s).trim().startsWith('/')))).map((s, i) => (
                     <Badge 
                       key={`i-${i}`} 
                       className="px-3 py-1 text-sm bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 hover:bg-blue-200 border-blue-200"

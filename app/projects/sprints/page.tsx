@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { Suspense, useState, useEffect, useMemo } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -31,12 +31,17 @@ import {
   Play,
   Pause,
   CheckCircle2,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react'
 import Link from 'next/link'
-import { format, differenceInDays } from 'date-fns'
+import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
+import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
+import 'react-big-calendar/lib/css/react-big-calendar.css'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 interface Sprint {
   id: string
@@ -69,10 +74,38 @@ interface Sprint {
   }>
 }
 
+type SprintEvent = {
+  id: string
+  title: string
+  start: Date
+  end: Date
+  status: string
+}
+
+const CustomEvent = ({ event }: { event: SprintEvent }) => {
+  return (
+    <div className="flex flex-col">
+      <span className="font-semibold text-xs">{event.title}</span>
+      <span className="text-[10px] opacity-90">
+        {format(event.start, 'dd/MM')} - {format(event.end, 'dd/MM')}
+      </span>
+    </div>
+  )
+}
+
 function SprintsPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+
+  const locales = { 'pt-BR': ptBR }
+  const localizer = dateFnsLocalizer({
+    format,
+    parse,
+    startOfWeek,
+    getDay,
+    locales,
+  })
 
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [filteredSprints, setFilteredSprints] = useState<Sprint[]>([])
@@ -91,7 +124,83 @@ function SprintsPageContent() {
     capacity: ''
   })
   const [deleteTarget, setDeleteTarget] = useState<Sprint | null>(null)
+  const [expandedProjects, setExpandedProjects] = useState<string[]>([])
+  const [isCalendarExpanded, setIsCalendarExpanded] = useState(true)
+  const [calendarDate, setCalendarDate] = useState(new Date())
+  const [calendarView, setCalendarView] = useState<View>(Views.MONTH)
 
+  const toggleProject = (projectId: string) => {
+    setExpandedProjects(prev => 
+      prev.includes(projectId) 
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    )
+  }
+
+  const groupedSprints = useMemo(() => {
+    const groups: Record<string, { project: any, sprints: Sprint[] }> = {}
+    
+    filteredSprints.forEach(sprint => {
+      let assigned = false
+      
+      if (sprint.project) {
+        assigned = true
+        const pid = sprint.project.id
+        if (!groups[pid]) {
+          groups[pid] = { project: sprint.project, sprints: [] }
+        }
+        groups[pid].sprints.push(sprint)
+      }
+      
+      if (sprint.projects && sprint.projects.length > 0) {
+        assigned = true
+        sprint.projects.forEach(p => {
+          const pid = p.id
+          if (!groups[pid]) {
+            groups[pid] = { project: p, sprints: [] }
+          }
+          if (!groups[pid].sprints.some(s => s.id === sprint.id)) {
+            groups[pid].sprints.push(sprint)
+          }
+        })
+      }
+      
+      if (!assigned) {
+        const pid = 'unassigned'
+        if (!groups[pid]) {
+          groups[pid] = { 
+            project: { id: 'unassigned', name: 'Sem Projeto', client: { name: '-' } }, 
+            sprints: [] 
+          }
+        }
+        groups[pid].sprints.push(sprint)
+      }
+    })
+    
+    return Object.values(groups).map(group => ({
+      ...group,
+      sprints: group.sprints.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    }))
+  }, [filteredSprints])
+
+  const sprintEvents = useMemo<SprintEvent[]>(() => {
+    return filteredSprints.map(s => ({
+      id: s.id,
+      title: s.name,
+      start: new Date(s.startDate),
+      end: new Date(s.endDate),
+      status: s.status,
+    }))
+  }, [filteredSprints])
+
+  const eventStyleGetter = (event: SprintEvent) => {
+    let className = 'bg-gray-500 text-white border-none rounded'
+    if (event.status === 'PLANNING') className = 'bg-amber-500 text-white border-none rounded'
+    else if (event.status === 'ACTIVE') className = 'bg-emerald-600 text-white border-none rounded'
+    else if (event.status === 'COMPLETED') className = 'bg-[#161f46] text-white border-none rounded'
+    else if (event.status === 'CANCELLED') className = 'bg-rose-600 text-white border-none rounded'
+    return { className, style: { border: 'none' } }
+  }
   useEffect(() => {
     fetchSprints()
   }, [])
@@ -346,115 +455,249 @@ function SprintsPageContent() {
         </CardContent>
       </Card>
 
-      {/* Lista de Sprints */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredSprints.map(sprint => {
-          const metrics = getSprintMetrics(sprint)
-          const daysRemaining = getDaysRemaining(sprint)
+      <Card className="overflow-hidden">
+        <div 
+          className="flex flex-row items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Calendar className="w-5 h-5 text-primary" />
+            </div>
+            <div className="flex flex-col">
+              <h3 className="text-base font-semibold leading-none">Agenda de Sprints</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isCalendarExpanded 
+                  ? 'Visualize a distribuição das sprints no calendário'
+                  : 'Clique para expandir e visualizar o calendário'}
+              </p>
+            </div>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 shrink-0 text-muted-foreground"
+          >
+            {isCalendarExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </Button>
+        </div>
+        {isCalendarExpanded && (
+          <CardContent className="p-0 border-t transition-all duration-200 ease-in-out">
+            <style>{`
+              .rbc-today {
+                background-color: hsl(var(--muted)) !important;
+              }
+              .rbc-calendar {
+                color: hsl(var(--foreground));
+              }
+              .rbc-off-range-bg {
+                background-color: hsl(var(--muted) / 0.3) !important;
+              }
+              .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-month-row, .rbc-day-bg, .rbc-header {
+                border-color: hsl(var(--border)) !important;
+              }
+              .rbc-header {
+                padding: 8px 0;
+                font-weight: 600;
+              }
+              .rbc-toolbar button {
+                color: hsl(var(--foreground));
+                border-color: hsl(var(--border));
+              }
+              .rbc-toolbar button:hover {
+                background-color: hsl(var(--accent));
+                color: hsl(var(--accent-foreground));
+              }
+              .rbc-toolbar button.rbc-active {
+                background-color: hsl(var(--primary));
+                color: hsl(var(--primary-foreground));
+                border-color: hsl(var(--primary));
+              }
+              .rbc-toolbar button.rbc-active:hover {
+                background-color: hsl(var(--primary) / 0.9);
+              }
+              .rbc-toolbar-label {
+                color: hsl(var(--foreground));
+                font-weight: 600;
+              }
+            `}</style>
+            <div className="h-[500px] p-4">
+              <RBCalendar
+                components={{
+                  event: CustomEvent
+                }}
+                localizer={localizer}
+                events={sprintEvents}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: '100%' }}
+                view={calendarView}
+                onView={(v) => setCalendarView(v)}
+                date={calendarDate}
+                onNavigate={(d) => setCalendarDate(d)}
+                culture="pt-BR"
+                messages={{
+                  next: 'Próximo',
+                  previous: 'Anterior',
+                  today: 'Hoje',
+                  month: 'Mês',
+                  week: 'Semana',
+                  day: 'Dia',
+                  agenda: 'Agenda',
+                  date: 'Data',
+                  time: 'Hora',
+                  event: 'Sprint',
+                  noEventsInRange: 'Não há sprints neste período.',
+                  allDay: 'Dia todo'
+                }}
+                eventPropGetter={eventStyleGetter}
+              />
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Lista de Sprints Agrupada por Projeto */}
+      <div className="space-y-4">
+        {groupedSprints.map(({ project, sprints }) => {
+          const isExpanded = expandedProjects.includes(project.id)
           
           return (
-            <Card key={sprint.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg line-clamp-1">{sprint.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {sprint.project?.name || (sprint.projects && sprint.projects.length > 0 
-                        ? `${sprint.projects.length} projeto${sprint.projects.length > 1 ? 's' : ''}` 
-                        : 'Nenhum projeto')}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {sprint.project?.client?.name || (sprint.projects && sprint.projects.length > 0 
-                        ? sprint.projects.map(p => p.client.name).join(', ')
-                        : 'Sem cliente')}
-                    </p>
-                  </div>
-                  <Badge className={`${getStatusColor(sprint.status)} flex items-center gap-1 ml-2`}>
-                    {getStatusIcon(sprint.status)}
-                    {getStatusLabel(sprint.status)}
-                  </Badge>
-                </div>
-                
-                {sprint.goal && (
-                  <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{sprint.goal}</p>
-                )}
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-4">
-                  {/* Datas */}
-                  <div className="text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>
-                        {format(new Date(sprint.startDate), 'dd/MM', { locale: ptBR })} - {format(new Date(sprint.endDate), 'dd/MM/yyyy', { locale: ptBR })}
-                      </span>
-                    </div>
-                    {daysRemaining && (
-                      <p className="text-xs text-muted-foreground ml-6">{daysRemaining}</p>
-                    )}
-                  </div>
-
-                  {/* Métricas */}
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-[#161f46]" />
-                      <span>{metrics.completedTasks}/{metrics.totalTasks} tarefas</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-[#161f46]" />
-                      <span>{metrics.completedStoryPoints}/{metrics.totalStoryPoints} SP</span>
-                    </div>
-                  </div>
-
-                  {/* Barra de Progresso */}
+            <div key={project.id} className="border rounded-lg bg-card text-card-foreground shadow-sm overflow-hidden">
+              <div 
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => toggleProject(project.id)}
+              >
+                <div className="flex items-center gap-4">
+                  {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
                   <div>
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                      <span>Progresso</span>
-                      <span>{metrics.progress}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-[#161f46] h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${metrics.progress}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Ações */}
-                  <div className="flex gap-2 pt-2">
-                    <Link href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Eye className="w-4 h-4 mr-2" />
-                        Ver
-                      </Button>
-                    </Link>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(sprint)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <AlertDialog open={deleteTarget?.id === sprint.id} onOpenChange={(open) => setDeleteTarget(open ? sprint : null)}>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(sprint)}>
-                        <Trash className="w-4 h-4" />
-                      </Button>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Deletar Sprint</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta ação removerá a sprint e desvinculará suas tarefas. Deseja continuar?
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
-                            Deletar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                      {project.name}
+                      <Badge variant="secondary" className="text-xs font-normal">
+                        {project.client?.name || 'Cliente não definido'}
+                      </Badge>
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {sprints.length} sprint{sprints.length !== 1 ? 's' : ''} encontrada{sprints.length !== 1 ? 's' : ''}
+                    </p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              
+              {isExpanded && (
+                <div className="p-4 border-t bg-muted/10">
+                   <div className="flex flex-col gap-3">
+                    {sprints.map(sprint => {
+                      const metrics = getSprintMetrics(sprint)
+                      const daysRemaining = getDaysRemaining(sprint)
+                      const startDate = new Date(sprint.startDate)
+                      const endDate = new Date(sprint.endDate)
+                      const today = new Date()
+                      const isCurrent = isWithinInterval(today, { start: startOfDay(startDate), end: endOfDay(endDate) })
+                      
+                      return (
+                        <Card 
+                          key={sprint.id} 
+                          className={`hover:shadow-md transition-all bg-background border-l-4 ${isCurrent ? 'border-l-primary ring-1 ring-primary/20' : 'border-l-transparent'}`}
+                        >
+                          <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center gap-4">
+                            {/* Info Principal */}
+                            <div className="flex-1 min-w-[200px]">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-base font-semibold line-clamp-1">{sprint.name}</h3>
+                                <Badge className={`${getStatusColor(sprint.status)} text-[10px] px-1.5 py-0 h-5`}>
+                                  {getStatusLabel(sprint.status)}
+                                </Badge>
+                              </div>
+                              {sprint.goal && (
+                                <p className="text-xs text-muted-foreground line-clamp-1 mb-2" title={sprint.goal}>
+                                  {sprint.goal}
+                                </p>
+                              )}
+                              
+                              <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isCurrent ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted/50 border-border/50 text-muted-foreground'}`}>
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span className="text-sm font-medium">
+                                      {format(startDate, 'dd/MM', { locale: ptBR })} - {format(endDate, 'dd/MM', { locale: ptBR })}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                {daysRemaining && (
+                                  <span className={`text-xs ml-1 ${isCurrent ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                                    {daysRemaining}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Métricas e Progresso */}
+                            <div className="flex-1 w-full md:w-auto flex flex-col gap-2 min-w-[200px]">
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <div className="flex gap-3">
+                                  <span className="flex items-center gap-1" title="Tarefas">
+                                    <Target className="w-3 h-3" /> {metrics.completedTasks}/{metrics.totalTasks}
+                                  </span>
+                                  <span className="flex items-center gap-1" title="Story Points">
+                                    <TrendingUp className="w-3 h-3" /> {metrics.completedStoryPoints}/{metrics.totalStoryPoints} SP
+                                  </span>
+                                </div>
+                                <span>{metrics.progress}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div 
+                                  className="bg-[#161f46] h-1.5 rounded-full transition-all duration-300"
+                                  style={{ width: `${metrics.progress}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Ações */}
+                            <div className="flex items-center gap-1 w-full md:w-auto justify-end border-t md:border-t-0 pt-2 md:pt-0 mt-2 md:mt-0">
+                              <Link href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`}>
+                                <Button variant="outline" size="sm" className="h-8 text-xs">
+                                  <Eye className="w-3 h-3 mr-1.5" />
+                                  Ver
+                                </Button>
+                              </Link>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(sprint)}>
+                                <Edit className="w-3 h-3" />
+                              </Button>
+                              <AlertDialog open={deleteTarget?.id === sprint.id} onOpenChange={(open) => setDeleteTarget(open ? sprint : null)}>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(sprint)}>
+                                  <Trash className="w-3 h-3" />
+                                </Button>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Deletar Sprint</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Esta ação removerá a sprint e desvinculará suas tarefas. Deseja continuar?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
+                                      Deletar
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                   </div>
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
