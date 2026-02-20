@@ -36,7 +36,7 @@ import {
   ChevronRight
 } from 'lucide-react'
 import Link from 'next/link'
-import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay } from 'date-fns'
+import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay, isSameDay, eachDayOfInterval, isWeekend, isBefore, isAfter } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
@@ -375,27 +375,61 @@ function SprintsPageContent() {
     }
   }
 
-  const getDaysRemaining = (sprint: Sprint) => {
-    const today = new Date()
-    const endDate = new Date(sprint.endDate)
-    const startDate = new Date(sprint.startDate)
+  const getSprintTimeInfo = (sprint: Sprint) => {
+    const today = startOfDay(new Date())
+    const startDate = startOfDay(new Date(sprint.startDate))
+    const endDate = startOfDay(new Date(sprint.endDate))
+    
+    // Calculate total duration (inclusive)
+    let totalDays = 0
+    let totalBusinessDays = 0
+    
+    try {
+      if (startDate <= endDate) {
+        const allDays = eachDayOfInterval({ start: startDate, end: endDate })
+        totalDays = allDays.length
+        totalBusinessDays = allDays.filter(d => !isWeekend(d)).length
+      }
+    } catch (e) {
+      console.error('Error calculating sprint duration', e)
+    }
+    
+    let remainingDays = 0
+    let remainingBusinessDays = 0
+    let statusText = ''
+    let isDelayed = false
     
     if (sprint.status === 'COMPLETED' || sprint.status === 'CANCELLED') {
-      return null
+      return { totalDays, totalBusinessDays, statusText: null, remainingDays: 0, remainingBusinessDays: 0, isDelayed: false }
     }
     
-    if (today < startDate) {
+    if (isBefore(today, startDate)) {
       const daysToStart = differenceInDays(startDate, today)
-      return `Inicia em ${daysToStart} dia${daysToStart !== 1 ? 's' : ''}`
-    }
-    
-    if (today > endDate) {
+      statusText = `Inicia em ${daysToStart} dia${daysToStart !== 1 ? 's' : ''}`
+    } else if (isAfter(today, endDate)) {
       const daysOverdue = differenceInDays(today, endDate)
-      return `Atrasada ${daysOverdue} dia${daysOverdue !== 1 ? 's' : ''}`
+      statusText = `Atrasada ${daysOverdue} dia${daysOverdue !== 1 ? 's' : ''}`
+      isDelayed = true
+    } else {
+      // Active sprint (today is within start and end)
+      try {
+        const remainingInterval = eachDayOfInterval({ start: today, end: endDate })
+        remainingDays = remainingInterval.length
+        remainingBusinessDays = remainingInterval.filter(d => !isWeekend(d)).length
+        statusText = `${remainingDays} dia${remainingDays !== 1 ? 's' : ''} restante${remainingDays !== 1 ? 's' : ''}`
+      } catch (e) {
+        console.error('Error calculating remaining days', e)
+      }
     }
     
-    const daysRemaining = differenceInDays(endDate, today)
-    return `${daysRemaining} dia${daysRemaining !== 1 ? 's' : ''} restante${daysRemaining !== 1 ? 's' : ''}`
+    return {
+      totalDays,
+      totalBusinessDays,
+      remainingDays,
+      remainingBusinessDays,
+      statusText,
+      isDelayed
+    }
   }
 
   if (loading) {
@@ -594,7 +628,7 @@ function SprintsPageContent() {
                    <div className="flex flex-col gap-3">
                     {sprints.map(sprint => {
                       const metrics = getSprintMetrics(sprint)
-                      const daysRemaining = getDaysRemaining(sprint)
+                      const timeInfo = getSprintTimeInfo(sprint)
                       const startDate = new Date(sprint.startDate)
                       const endDate = new Date(sprint.endDate)
                       const today = new Date()
@@ -630,10 +664,20 @@ function SprintsPageContent() {
                                   </div>
                                 </div>
                                 
-                                {daysRemaining && (
-                                  <span className={`text-xs ml-1 ${isCurrent ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
-                                    {daysRemaining}
-                                  </span>
+                                {timeInfo.statusText && (
+                                  <div className="flex flex-col gap-0.5 ml-1">
+                                    <span className={`text-xs ${isCurrent ? 'text-primary font-medium' : (timeInfo.isDelayed ? 'text-destructive font-medium' : 'text-muted-foreground')}`}>
+                                      {timeInfo.statusText}
+                                      {isCurrent && timeInfo.remainingBusinessDays > 0 && (
+                                        <span className="opacity-80"> ({timeInfo.remainingBusinessDays} úteis)</span>
+                                      )}
+                                    </span>
+                                    {timeInfo.totalDays > 0 && (
+                                      <span className="text-[10px] text-muted-foreground opacity-80">
+                                        Duração: {timeInfo.totalDays} dias ({timeInfo.totalBusinessDays} úteis)
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
