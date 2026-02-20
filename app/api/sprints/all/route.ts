@@ -43,15 +43,31 @@ export async function GET(request: NextRequest) {
           WHERE sp."sprintId" = ${sprint.id}
         ` as any[]
 
-        // Buscar tarefas da sprint
-        const sprintTasks = await prisma.$queryRaw`
-          SELECT 
-            id,
-            "storyPoints",
-            status
-          FROM tasks
-          WHERE "sprintId" = ${sprint.id}
-        ` as any[]
+        // Extrair IDs dos projetos
+        const projectIds = sprintProjects.map((p: any) => p.id)
+
+        // Buscar tarefas da sprint (incluindo tarefas sem sprint mas com data dentro do range e do projeto da sprint)
+        const sprintTasks = await prisma.task.findMany({
+          where: {
+            OR: [
+              { sprintId: sprint.id },
+              {
+                AND: [
+                  { sprintId: null },
+                  { projectId: { in: projectIds } },
+                  { dueDate: { gte: new Date(sprint.startDate), lte: new Date(sprint.endDate) } }
+                ]
+              }
+            ]
+          },
+          select: {
+            id: true,
+            title: true,
+            storyPoints: true,
+            status: true,
+            dueDate: true
+          }
+        })
 
         return {
           ...sprint,
@@ -65,8 +81,10 @@ export async function GET(request: NextRequest) {
           })),
           tasks: sprintTasks.map((t: any) => ({
             id: t.id,
+            title: t.title,
             storyPoints: t.storyPoints,
-            status: t.status
+            status: t.status,
+            dueDate: t.dueDate
           }))
         }
       })

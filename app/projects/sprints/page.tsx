@@ -42,6 +42,7 @@ import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface Sprint {
   id: string
@@ -69,8 +70,10 @@ interface Sprint {
   }>
   tasks: Array<{
     id: string
+    title: string
     storyPoints?: number
     status: string
+    dueDate?: string
   }>
 }
 
@@ -80,6 +83,7 @@ type SprintEvent = {
   start: Date
   end: Date
   status: string
+  projectId: string
 }
 
 const CustomEvent = ({ event }: { event: SprintEvent }) => {
@@ -187,9 +191,10 @@ function SprintsPageContent() {
     return filteredSprints.map(s => ({
       id: s.id,
       title: s.name,
-      start: new Date(s.startDate),
-      end: new Date(s.endDate),
+      start: startOfDay(new Date(s.startDate)),
+      end: endOfDay(new Date(s.endDate)),
       status: s.status,
+      projectId: s.project?.id || (s.projects && s.projects.length > 0 ? s.projects[0].id : '')
     }))
   }, [filteredSprints])
 
@@ -201,6 +206,93 @@ function SprintsPageContent() {
     else if (event.status === 'CANCELLED') className = 'bg-rose-600 text-white border-none rounded'
     return { className, style: { border: 'none' } }
   }
+
+  const tasksByDate = useMemo(() => {
+    const tasksPerDate: Record<string, Map<string, any>> = {}
+    
+    sprints.forEach(sprint => {
+      if (sprint.tasks) {
+        sprint.tasks.forEach(task => {
+          if (task.dueDate) {
+            const dateKey = format(new Date(task.dueDate), 'yyyy-MM-dd')
+            if (!tasksPerDate[dateKey]) {
+              tasksPerDate[dateKey] = new Map()
+            }
+            tasksPerDate[dateKey].set(task.id, task)
+          }
+        })
+      }
+    })
+    
+    // Convert maps to arrays
+    const result: Record<string, any[]> = {}
+    Object.keys(tasksPerDate).forEach(key => {
+      result[key] = Array.from(tasksPerDate[key].values())
+    })
+    
+    return result
+  }, [sprints])
+
+  const { components } = useMemo(() => ({
+    components: {
+      event: CustomEvent,
+      month: {
+        dateHeader: ({ date, label }: any) => {
+          const dateKey = format(date, 'yyyy-MM-dd')
+          const tasks = tasksByDate[dateKey] || []
+          const count = tasks.length
+          const isToday = isSameDay(date, new Date())
+          
+          return (
+            <div className="flex flex-col px-1">
+              <span className={`text-xs font-semibold ${isToday ? 'text-blue-600' : ''}`}>{label}</span>
+              {count > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="mt-1 flex justify-center cursor-pointer hover:opacity-80 transition-opacity">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold">
+                          {count}
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="p-0 border-none bg-transparent shadow-none" sideOffset={5}>
+                      <div className="bg-popover text-popover-foreground rounded-md border shadow-md p-3 w-[300px] z-50 relative">
+                        <div className="font-semibold text-sm mb-2 pb-1 border-b">Tarefas ({count})</div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {tasks.map((task: any) => (
+                            <div key={task.id} className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded hover:bg-muted transition-colors border border-border/50">
+                              <div className="flex flex-col min-w-0 text-left">
+                                <span className="text-xs font-medium truncate">{task.title}</span>
+                                <span className={
+                                  task.status === 'COMPLETED' ? 'text-green-600 dark:text-green-400 text-[10px] font-medium' :
+                                  task.status === 'IN_PROGRESS' ? 'text-blue-600 dark:text-blue-400 text-[10px] font-medium' :
+                                  'text-amber-600 dark:text-amber-400 text-[10px] font-medium'
+                                }>
+                                  {task.status === 'TODO' ? 'A Fazer' :
+                                   task.status === 'IN_PROGRESS' ? 'Em Progresso' :
+                                   task.status === 'COMPLETED' ? 'Concluído' : task.status}
+                                </span>
+                              </div>
+                              {task.storyPoints && (
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                                  {task.storyPoints} pts
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+          )
+        }
+      }
+    }
+  }), [tasksByDate])
   useEffect(() => {
     fetchSprints()
   }, [])
@@ -521,6 +613,12 @@ function SprintsPageContent() {
               .rbc-today {
                 background-color: hsl(var(--muted)) !important;
               }
+              .dark .rbc-today {
+                background-color: #ffffff !important;
+              }
+              .dark .rbc-today .rbc-button-link {
+                color: #2563eb !important;
+              }
               .rbc-calendar {
                 color: hsl(var(--foreground));
               }
@@ -557,9 +655,7 @@ function SprintsPageContent() {
             `}</style>
             <div className="h-[500px] p-4">
               <RBCalendar
-                components={{
-                  event: CustomEvent
-                }}
+                components={components}
                 localizer={localizer}
                 events={sprintEvents}
                 startAccessor="start"
@@ -570,6 +666,13 @@ function SprintsPageContent() {
                 date={calendarDate}
                 onNavigate={(d) => setCalendarDate(d)}
                 culture="pt-BR"
+                onSelectEvent={(event: SprintEvent) => {
+                  if (event.projectId) {
+                    router.push(`/projects/${event.projectId}/scrum?sprint=${event.id}`)
+                  } else {
+                    toast.error('Sprint sem projeto associado')
+                  }
+                }}
                 messages={{
                   next: 'Próximo',
                   previous: 'Anterior',

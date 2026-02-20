@@ -44,16 +44,16 @@ type TaskFormData = z.infer<typeof taskSchema>
 interface Task {
   id: string
   title: string
-  description?: string
+  description?: string | null
   status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
-  storyPoints?: number
-  assigneeId?: string
-  milestoneId?: string
-  dueDate?: string
-  startDate?: string
-  startTime?: string
-  estimatedMinutes?: number
+  storyPoints?: number | null
+  assigneeId?: string | null
+  milestoneId?: string | null
+  dueDate?: string | null
+  startDate?: string | null
+  startTime?: string | null
+  estimatedMinutes?: number | null
 }
 
 interface CreateTaskModalProps {
@@ -152,13 +152,13 @@ export function CreateTaskModal({
         setValue('title', editingTask.title)
         setValue('description', editingTask.description || '')
         setValue('priority', editingTask.priority)
-        setValue('storyPoints', editingTask.storyPoints || 1)
-        setValue('assigneeId', editingTask.assigneeId)
-        setValue('milestoneId', editingTask.milestoneId)
+        setValue('storyPoints', editingTask.storyPoints ?? 1)
+        setValue('assigneeId', editingTask.assigneeId || undefined)
+        setValue('milestoneId', editingTask.milestoneId || undefined)
         setValue('dueDate', editingTask.dueDate ? editingTask.dueDate.split('T')[0] : '')
         setValue('startDate', editingTask.startDate ? editingTask.startDate.split('T')[0] : '')
         setValue('startTime', editingTask.startTime || '')
-        setValue('estimatedMinutes', editingTask.estimatedMinutes)
+        setValue('estimatedMinutes', editingTask.estimatedMinutes ?? undefined)
         // Carregar anexos existentes
         ;(async () => {
           try {
@@ -363,7 +363,7 @@ export function CreateTaskModal({
           <DialogTitle>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, (errors) => console.error('Validation errors:', errors))} className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Coluna Esquerda - Principal */}
             <div className="lg:col-span-7 space-y-4">

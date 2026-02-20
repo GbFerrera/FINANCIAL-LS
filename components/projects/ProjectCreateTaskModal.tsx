@@ -10,16 +10,16 @@
  interface Task {
   id: string
   title: string
-  description?: string
+  description?: string | null
   status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
-  storyPoints?: number
-  assigneeId?: string
-  milestoneId?: string
-  dueDate?: string
-  startDate?: string
-  startTime?: string
-  estimatedMinutes?: number
+  storyPoints?: number | null
+  assigneeId?: string | null
+  milestoneId?: string | null
+  dueDate?: string | null
+  startDate?: string | null
+  startTime?: string | null
+  estimatedMinutes?: number | null
 }
 
 interface ProjectCreateTaskModalProps {
