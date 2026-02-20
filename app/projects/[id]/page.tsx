@@ -517,22 +517,32 @@ export default function ProjectDetailsPage() {
     }
   }
 
-  const handleEditTask = (task: any) => {
-    setEditingTask({
-      id: task.id,
-      title: task.title,
-      description: task.description || '',
-      status: task.status,
-      priority: task.priority,
-      storyPoints: task.storyPoints,
-      assigneeId: task.assignee?.id,
-      milestoneId: task.milestone?.id,
-      dueDate: task.dueDate ? task.dueDate.split('T')[0] : undefined,
-      startDate: task.startDate ? task.startDate.split('T')[0] : undefined,
-      startTime: task.startTime ? new Date(task.startTime).toTimeString().slice(0, 5) : undefined,
-      estimatedMinutes: task.estimatedMinutes
-    })
-    setShowAddTaskModal(true)
+  const handleEditTask = async (task: any) => {
+    try {
+      const response = await fetch(`/api/projects/${params.id}/tasks/${task.id}`)
+      if (!response.ok) {
+        throw new Error('Falha ao carregar detalhes da tarefa')
+      }
+      const full = await response.json()
+      setEditingTask({
+        id: full.id,
+        title: full.title,
+        description: full.description || '',
+        status: full.status,
+        priority: full.priority,
+        storyPoints: full.storyPoints ?? 1,
+        assigneeId: full.assignee?.id ?? full.assigneeId,
+        milestoneId: full.milestoneId ?? full.milestone?.id,
+        dueDate: full.dueDate ? new Date(full.dueDate).toISOString().split('T')[0] : undefined,
+        startDate: full.startDate ? new Date(full.startDate).toISOString().split('T')[0] : undefined,
+        startTime: full.startTime || undefined,
+        estimatedMinutes: full.estimatedMinutes ?? undefined
+      })
+      setShowAddTaskModal(true)
+    } catch (error) {
+      console.error('Erro ao carregar detalhes da tarefa para edição:', error)
+      toast.error('Erro ao carregar detalhes da tarefa para edição')
+    }
   }
 
   const handleDeleteTask = async (taskId: string) => {

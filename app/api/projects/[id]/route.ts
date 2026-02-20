@@ -69,9 +69,11 @@ export async function GET(
           select: {
             id: true,
             title: true,
+            description: true,
             status: true,
             priority: true,
             dueDate: true,
+            storyPoints: true,
             estimatedMinutes: true,
             startDate: true,
             startTime: true,

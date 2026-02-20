@@ -95,7 +95,7 @@ export async function GET() {
       return {
         id: project.id,
         name: project.name,
-        description: project.description,
+        description: project.description ?? '',
         status: project.status,
         startDate: project.startDate.toISOString(),
         endDate: project.endDate?.toISOString() || null,
