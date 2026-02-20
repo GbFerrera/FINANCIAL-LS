@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
+import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import { format, parse, startOfWeek, getDay, addMinutes, isSameDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -18,6 +18,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar as UiCalendar } from '@/components/ui/calendar'
 import {
   Dialog,
   DialogContent,
@@ -225,9 +227,7 @@ export default function AgendaPage() {
     
     const type = event.type || 'other'
 
-    if (type === 'meeting') {
-      className = 'bg-blue-600 dark:bg-blue-500 text-white border-none block rounded transition-colors hover:brightness-90'
-    } else if (type === 'visit') {
+    if (type === 'visit') {
       className = 'bg-orange-500 dark:bg-orange-600 text-white border-none block rounded transition-colors hover:brightness-90'
     } else if (type === 'integration') {
       className = 'bg-violet-600 dark:bg-violet-500 text-white border-none block rounded transition-colors hover:brightness-90'
@@ -254,7 +254,7 @@ export default function AgendaPage() {
             <h1 className="text-2xl font-bold text-foreground">Agenda de Atendimento</h1>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-1">
               <div className="flex items-center space-x-1.5">
-                <div className="w-3 h-3 rounded-full bg-blue-600 dark:bg-blue-500" />
+                <div className="w-3 h-3 rounded-full bg-gray-500 dark:bg-gray-600" />
                 <span className="text-xs text-muted-foreground font-medium">Reunião</span>
               </div>
               <div className="flex items-center space-x-1.5">
@@ -285,17 +285,29 @@ export default function AgendaPage() {
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" onClick={() => setDate(new Date())}>Hoje</Button>
-            <div className="flex items-center border rounded-md bg-card">
-              <Button variant="ghost" size="icon" onClick={() => setDate(d => new Date(d.setDate(d.getDate() - 1)))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="px-4 font-medium">
-                {format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-              </span>
-              <Button variant="ghost" size="icon" onClick={() => setDate(d => new Date(d.setDate(d.getDate() + 1)))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="icon" onClick={() => setDate(d => new Date(d.setDate(d.getDate() - 1)))}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="min-w-[220px] justify-between">
+                  {format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  <CalendarIcon className="ml-2 h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="p-0">
+                <UiCalendar
+                  mode="single"
+                  selected={date}
+                  onSelect={(d) => d && setDate(d)}
+                  defaultMonth={date}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button variant="ghost" size="icon" onClick={() => setDate(d => new Date(d.setDate(d.getDate() + 1)))}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
             <Button onClick={() => {
               setFormData({
                 ...formData,
@@ -312,7 +324,7 @@ export default function AgendaPage() {
 
         <Card className="flex-1 overflow-hidden shadow-sm border-none bg-card">
           <CardContent className="p-0 h-[calc(100vh-200px)]">
-            <Calendar
+            <RBCalendar
               localizer={localizer}
               events={appointments}
               startAccessor="start"
@@ -437,7 +449,7 @@ export default function AgendaPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="meeting">Reunião (Azul)</SelectItem>
+                      <SelectItem value="meeting">Reunião</SelectItem>
                       <SelectItem value="visit">Visita Técnica (Laranja)</SelectItem>
                       <SelectItem value="integration">Integração de App (Roxo)</SelectItem>
                       <SelectItem value="interval">Intervalo (Cinza)</SelectItem>
@@ -517,37 +529,28 @@ export default function AgendaPage() {
           }
           .rbc-timeslot-group {
             min-height: 64px;
-            border-bottom: 1px solid hsl(var(--border));
+            border-top: 1px solid hsl(var(--muted-foreground) / 0.28);
           }
           .rbc-day-slot .rbc-time-slot {
-            border-top: 1px solid hsl(var(--border));
+            border-top: 1px solid hsl(var(--muted-foreground) / 0.16);
           }
-          .rbc-current-time-indicator {
-            background-color: hsl(var(--primary));
-            height: 2px;
-            z-index: 5;
+          .rbc-time-content .rbc-time-gutter {
+            border-right: 1px solid hsl(var(--muted-foreground) / 0.24);
           }
-          .rbc-current-time-indicator::before {
-            content: '';
-            position: absolute;
-            background-color: hsl(var(--primary));
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            left: -6px;
-            top: -5px;
+          .rbc-time-columns .rbc-time-column {
+            border-left: 1px solid hsl(var(--muted-foreground) / 0.24);
           }
-          .rbc-current-time-indicator::after {
-            content: '${format(new Date(), 'HH:mm')}';
-            position: absolute;
-            right: 0;
-            top: -10px;
-            background: hsl(var(--primary));
-            color: hsl(var(--primary-foreground));
-            font-size: 10px;
-            padding: 2px 4px;
-            border-radius: 4px;
-            font-weight: bold;
+          .rbc-time-columns .rbc-time-column:first-child {
+            border-left: none;
+          }
+          .rbc-time-columns .rbc-time-column:last-child {
+            border-right: 1px solid hsl(var(--muted-foreground) / 0.24);
+          }
+          .rbc-time-slot.rbc-now {
+            background-color: hsl(var(--accent) / 0.12);
+          }
+          .rbc-today {
+            background-color: hsl(var(--muted) / 0.3);
           }
           .rbc-event {
             padding: 4px 8px;
@@ -583,8 +586,23 @@ export default function AgendaPage() {
             font-size: 12px;
             color: hsl(var(--muted-foreground));
           }
+          .rbc-time-gutter .rbc-label,
+          .rbc-time-header .rbc-time-gutter .rbc-label {
+            color: hsl(var(--muted-foreground)) !important;
+            opacity: 0.95;
+            font-weight: 500;
+          }
           .rbc-time-gutter {
             background-color: hsl(var(--background));
+          }
+          .rbc-time-header .rbc-time-gutter,
+          .rbc-time-gutter {
+            background-color: hsl(var(--background)) !important;
+            border-right: 1px solid hsl(var(--muted-foreground) / 0.28);
+          }
+          .rbc-time-gutter .rbc-time-slot,
+          .rbc-time-header .rbc-time-gutter .rbc-time-slot {
+            border-top: 1px solid hsl(var(--muted-foreground) / 0.16);
           }
           .rbc-toolbar button {
             color: hsl(var(--foreground));
