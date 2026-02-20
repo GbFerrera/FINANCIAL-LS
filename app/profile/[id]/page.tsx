@@ -34,6 +34,24 @@ export default function ProfileDetailPage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<ViewUser | null>(null)
 
+  const toArray = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.map(String)
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v)
+        return Array.isArray(parsed) ? parsed.map(String) : [v]
+      } catch {
+        return [v]
+      }
+    }
+    if (v && typeof v === 'object') {
+      const obj = v as Record<string, unknown>
+      const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value ?? Object.values(obj)) as unknown
+      return Array.isArray(candidate) ? candidate.map(String) : []
+    }
+    return []
+  }
+
   useEffect(() => {
     if (status === 'loading') return
     if (status === 'unauthenticated') {
@@ -55,9 +73,9 @@ export default function ProfileDetailPage() {
           email: u.email,
           role: u.role,
           avatar: u.avatar || undefined,
-          skillsMastered: u.skillsMastered || [],
-          skillsReinforcement: u.skillsReinforcement || [],
-          skillsInterests: u.skillsInterests || [],
+          skillsMastered: toArray(u.skillsMastered),
+          skillsReinforcement: toArray(u.skillsReinforcement),
+          skillsInterests: toArray(u.skillsInterests),
         })
       }
     } finally {
