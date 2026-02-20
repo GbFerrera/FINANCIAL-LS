@@ -220,12 +220,6 @@ export default function FinancialPage() {
       return
     }
 
-    if (session.user.role !== "ADMIN") {
-      toast.error("Acesso negado. Apenas administradores podem acessar o módulo financeiro.")
-      router.push("/dashboard")
-      return
-    }
-
     fetchFinancialData()
   }, [session, status, router, dateRange, selectedClientId])
 

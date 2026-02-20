@@ -102,13 +102,6 @@ export default function DashboardPage() {
       return
     }
 
-    // Check if user has admin access
-    if (session.user.role !== "ADMIN") {
-      toast.error("Acesso negado. Apenas administradores podem acessar o dashboard.")
-      router.push("/auth/signin")
-      return
-    }
-
     fetchDashboardData()
   }, [session, status, router])
 

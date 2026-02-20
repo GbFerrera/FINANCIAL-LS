@@ -40,12 +40,20 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { isPathAllowed } from "@/lib/access-control"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
-const navigation = [
+type NavItem = {
+  name: string
+  href: string
+  icon: React.ElementType
+  submenu?: { name: string; href: string; icon: React.ElementType }[]
+}
+
+const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: ChartNoAxesCombined },
   { 
     name: "Projetos", 
@@ -86,7 +94,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [hydrated, setHydrated] = useState(false)
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const [allowedPaths, setAllowedPaths] = useState<string[] | null>(null)
   const router = useRouter()
   const pathname = usePathname() || ""
   const isFullBleed = pathname.startsWith("/projects/") && pathname.includes("/canvas")
@@ -99,6 +108,43 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     }
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (status === "loading") return
+    if (!session) return
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/users/${session.user.id}/permissions`)
+        if (res.ok) {
+          const data = await res.json()
+          setAllowedPaths(data.allowedPaths || [])
+        } else {
+          setAllowedPaths([])
+        }
+      } catch {
+        setAllowedPaths([])
+      }
+    }
+    run()
+  }, [session, status])
+
+  useEffect(() => {
+    const handler = () => {
+      if (!session) return
+      fetch(`/api/users/${session.user.id}/permissions`)
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json()
+            setAllowedPaths(data.allowedPaths || [])
+          }
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('permissionsUpdated', handler)
+    return () => {
+      window.removeEventListener('permissionsUpdated', handler)
+    }
+  }, [session])
 
   // Salvar estado da sidebar no localStorage
   const toggleSidebarCollapsed = () => {
@@ -117,6 +163,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     router.push("/auth/signin")
   }
 
+  const filteredNavigation = (allowedPaths || []).length > 0
+    ? navigation
+        .map(item => ({
+          ...item,
+          submenu: item.submenu?.filter(s => isPathAllowed(s.href, allowedPaths!))
+        }))
+        .filter(item => {
+          const allowTop = isPathAllowed(item.href, allowedPaths!)
+          const allowSub = (item.submenu?.length ?? 0) > 0
+          return allowTop || allowSub
+        })
+    : navigation
+
   return (
     <TooltipProvider>
       <div className="h-screen flex overflow-hidden bg-background">
@@ -132,7 +191,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <X className="h-6 w-6 text-white" />
             </button>
           </div>
-          <SidebarContent onNavigate={closeMobileSidebar} />
+          <SidebarContent items={filteredNavigation} onNavigate={closeMobileSidebar} />
         </div>
       </div>
 
@@ -143,7 +202,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className={`flex flex-col ${hydrated ? 'transition-all duration-300' : ''} ${
           sidebarCollapsed ? 'w-16' : 'w-64'
         } bg-sidebar text-sidebar-foreground border-r border-sidebar-border`}>
-          <SidebarContent collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapsed} />
+          <SidebarContent items={filteredNavigation} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapsed} />
         </div>
       </div>
 
@@ -173,7 +232,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 }
 
-function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { collapsed?: boolean; onNavigate?: () => void; onToggleCollapse?: () => void }) {
+function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void; onToggleCollapse?: () => void }) {
   const { data: session } = useSession()
   const router = useRouter()
   const pathname = usePathname()
@@ -190,7 +249,7 @@ function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { c
   // Atualizar caminho atual e expansão com base no pathname
   useEffect(() => {
     setCurrentPath(pathname || '')
-    navigation.forEach(item => {
+    items.forEach(item => {
       if (item.submenu) {
         const hasActiveSubmenu = item.submenu.some(subItem => 
           (pathname || '').startsWith(subItem.href)
@@ -265,7 +324,7 @@ function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse }: { c
 
       <div className="flex-1 flex flex-col overflow-y-auto">
         <nav className="flex-1 px-2 space-y-1">
-          {navigation.map((item) => {
+          {items.map((item) => {
             const isActive = currentPath === item.href
             const hasSubmenu = item.submenu && item.submenu.length > 0
             const isExpanded = expandedMenus.includes(item.name)

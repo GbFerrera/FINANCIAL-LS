@@ -219,11 +219,6 @@ export default function CommissionsPage() {
       router.push("/auth/signin")
       return
     }
-    if (session.user.role !== "ADMIN") {
-      toast.error("Acesso negado. Apenas administradores podem acessar o módulo financeiro.")
-      router.push("/dashboard")
-      return
-    }
     initDefaults()
   }, [session, status])
 
@@ -380,7 +375,9 @@ export default function CommissionsPage() {
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Colaboradores</SelectItem>
+                {session?.user.role === "ADMIN" && (
+                  <SelectItem value="all">Todos os Colaboradores</SelectItem>
+                )}
                 {users.map((u) => (
                   <SelectItem key={u.userId} value={u.userId}>
                     {u.name}

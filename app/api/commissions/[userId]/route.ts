@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
 import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 
-const prisma = new PrismaClient()
+function canView(session: any, targetUserId: string): boolean {
+  if (!session?.user) return false
+  if (session.user.role === "ADMIN") return true
+  return session.user.id === targetUserId
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const { userId } = await params
+    if (!canView(session, userId)) {
+      return NextResponse.json({ error: "Permissão insuficiente" }, { status: 403 })
+    }
     const url = new URL(request.url)
     const fromParam = url.searchParams.get("from")
     const toParam = url.searchParams.get("to")
@@ -112,12 +120,15 @@ export async function PUT(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const session = await getServerSession()
+    const session = await getServerSession(authOptions)
     if (!session?.user) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
 
     const { userId } = await params
+    if (session.user.role !== "ADMIN" && session.user.id !== userId) {
+      return NextResponse.json({ error: "Permissão insuficiente" }, { status: 403 })
+    }
     const body = await request.json()
     const { hasFixedSalary, fixedSalary, hourRate } = body
 

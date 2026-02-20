@@ -22,6 +22,7 @@ import {
   EyeOff
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
+import { ROUTE_REGISTRY } from '@/lib/access-control'
 import toast from 'react-hot-toast'
 
 interface User {
@@ -46,6 +47,8 @@ export default function CollaboratorsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showTokens, setShowTokens] = useState<Set<string>>(new Set())
+  const [permissionsOpen, setPermissionsOpen] = useState<Set<string>>(new Set())
+  const [userPermissions, setUserPermissions] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     if (status === 'loading') return
@@ -162,6 +165,55 @@ export default function CollaboratorsPage() {
     collab.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     collab.user.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const togglePermissions = async (userId: string) => {
+    setPermissionsOpen(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
+      return next
+    })
+    if (!userPermissions[userId]) {
+      try {
+        const res = await fetch(`/api/users/${userId}/permissions`)
+        if (res.ok) {
+          const data = await res.json()
+          setUserPermissions(prev => ({ ...prev, [userId]: data.allowedPaths || [] }))
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }
+
+  const onTogglePath = (userId: string, path: string, checked: boolean) => {
+    setUserPermissions(prev => {
+      const current = prev[userId] || []
+      const set = new Set(current)
+      if (checked) set.add(path)
+      else set.delete(path)
+      return { ...prev, [userId]: Array.from(set) }
+    })
+  }
+
+  const savePermissions = async (userId: string) => {
+    try {
+      const allowedPaths = userPermissions[userId] || []
+      const res = await fetch(`/api/users/${userId}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowedPaths }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Erro ao salvar permissões')
+      }
+      toast.success('Permissões atualizadas')
+    } catch (e: any) {
+      console.error(e)
+      toast.error(e.message || 'Erro ao salvar permissões')
+    }
+  }
 
   if (status === 'loading' || loading) {
     return (
@@ -331,6 +383,14 @@ export default function CollaboratorsPage() {
                               <Trash2 className="h-4 w-4" />
                               Revogar
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => togglePermissions(collab.user.id)}
+                              className="gap-1"
+                            >
+                              Gerenciar Acesso
+                            </Button>
                           </>
                         ) : (
                           <Button
@@ -392,6 +452,36 @@ export default function CollaboratorsPage() {
                           <> • Atualizado em: {parseISO(collab.user.updatedAt).toLocaleDateString('pt-BR')}</>
                         )}
                       </div>
+                      
+                      {permissionsOpen.has(collab.user.id) && (
+                        <div className="space-y-4 border-t pt-4">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium">Permissões de Páginas</Label>
+                            <Button size="sm" onClick={() => savePermissions(collab.user.id)}>
+                              Salvar
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {ROUTE_REGISTRY.map((route) => {
+                              const checked = (userPermissions[collab.user.id] || []).includes(route.path)
+                              return (
+                                <label key={route.key} className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => onTogglePath(collab.user.id, route.path, e.target.checked)}
+                                  />
+                                  <span className="text-foreground">{route.label}</span>
+                                  <span className="text-muted-foreground text-xs">({route.path})</span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Dica: marcar "Projetos" libera também páginas internas de projetos.
+                          </p>
+                        </div>
+                      )}
                     </CardContent>
                   )}
                 </Card>

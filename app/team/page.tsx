@@ -19,6 +19,7 @@ import {
   MoreVertical,
   Edit,
   Trash2,
+  LockKeyhole,
   Shield,
   Clock,
   CheckCircle,
@@ -38,6 +39,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -45,6 +48,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ROUTE_REGISTRY, getDefaultAllowedPaths, registryPaths } from "@/lib/access-control"
 
 import {
   Dialog,
@@ -109,6 +113,10 @@ export default function TeamPage() {
     role: '',
     password: ''
   })
+  const [isPermissionsOpen, setIsPermissionsOpen] = useState(false)
+  const [permissionsMember, setPermissionsMember] = useState<TeamMember | null>(null)
+  const [allowedPaths, setAllowedPaths] = useState<string[]>([])
+  const [savingPermissions, setSavingPermissions] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -185,6 +193,80 @@ export default function TeamPage() {
     } catch (error) {
       console.error('Erro ao editar membro:', error)
       toast.error('Erro ao editar membro')
+    }
+  }
+
+  const openPermissions = async (member: TeamMember) => {
+    setPermissionsMember(member)
+    try {
+      const res = await fetch(`/api/users/${member.id}/permissions`)
+      if (res.ok) {
+        const data = await res.json()
+        let initial = (data.allowedPaths || getDefaultAllowedPaths(member.role as any)) as string[]
+        if (initial.includes("/*")) {
+          initial = registryPaths()
+        }
+        setAllowedPaths(Array.from(new Set(initial)))
+        setIsPermissionsOpen(true)
+      } else {
+        toast.error('Não foi possível carregar permissões')
+      }
+    } catch (e) {
+      toast.error('Erro ao carregar permissões')
+    }
+  }
+
+  const togglePath = (path: string) => {
+    setAllowedPaths((prev) => {
+      const set = new Set(prev)
+      if (set.has(path)) {
+        set.delete(path)
+      } else {
+        set.add(path)
+      }
+      return Array.from(set)
+    })
+  }
+
+  const allowAll = () => {
+    setAllowedPaths(registryPaths())
+  }
+
+  const applyRoleDefaults = () => {
+    if (!permissionsMember) return
+    setAllowedPaths(getDefaultAllowedPaths(permissionsMember.role as any))
+  }
+
+  const savePermissions = async () => {
+    if (!permissionsMember) return
+    try {
+      setSavingPermissions(true)
+      const allPaths = registryPaths()
+      const selected = Array.from(new Set(allowedPaths))
+      const payloadPaths =
+        permissionsMember.role === 'ADMIN' && selected.length === allPaths.length
+          ? ["/*"]
+          : selected
+      const res = await fetch(`/api/users/${permissionsMember.id}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowedPaths: payloadPaths }),
+      })
+      if (res.ok) {
+        toast.success('Permissões atualizadas')
+        setIsPermissionsOpen(false)
+        setPermissionsMember(null)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('permissionsUpdated'))
+        }
+      } else {
+        const err = await res.json()
+        toast.error(err.error || 'Erro ao salvar permissões')
+      }
+    } catch (e) {
+      toast.error('Erro ao salvar permissões')
+    } finally {
+      setSavingPermissions(false)
     }
   }
 
@@ -679,6 +761,10 @@ export default function TeamPage() {
                           Gerar Token
                         </DropdownMenuItem>
                       )}
+                      <DropdownMenuItem onClick={() => openPermissions(member)}>
+                        <LockKeyhole className="h-4 w-4 mr-2" />
+                        Permissões de Páginas
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => openEditMember(member)}>
                         <Edit className="h-4 w-4 mr-2" />
                         Editar
@@ -785,6 +871,70 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         )}
+        
+        <Dialog open={isPermissionsOpen} onOpenChange={setIsPermissionsOpen}>
+          <DialogTrigger asChild>
+            <div style={{display: 'none'}} />
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[700px]">
+            <DialogHeader>
+              <DialogTitle>Permissões de Páginas</DialogTitle>
+              <DialogDescription>
+                Selecione quais páginas o usuário pode acessar.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                {ROUTE_REGISTRY.map((route) => (
+                  <div key={route.key} className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={allowedPaths.includes(route.path)}
+                      onCheckedChange={() => togglePath(route.path)}
+                      id={`perm-${route.key}`}
+                    />
+                    <Label htmlFor={`perm-${route.key}`} className="cursor-pointer">
+                      {route.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Ações Rápidas</CardTitle>
+                    <CardDescription>Aplicar configurações pré-definidas</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button variant="default" className="w-full" onClick={allowAll}>
+                      Permitir Tudo
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={applyRoleDefaults}>
+                      Padrões do Cargo
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => setAllowedPaths([])}>
+                      Desmarcar Tudo
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsPermissionsOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="default"
+                onClick={savePermissions}
+                disabled={savingPermissions}
+              >
+                {savingPermissions ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
   )
 }
