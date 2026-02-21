@@ -18,7 +18,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # Expose the port
-EXPOSE 3003
+EXPOSE 3000
 
 # Start the application (standalone output)
 CMD ["node", ".next/standalone/server.js"]
