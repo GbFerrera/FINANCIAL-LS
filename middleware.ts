@@ -13,6 +13,7 @@ export async function middleware(request: NextRequest) {
     '/auth/error',
     '/login',
     '/register',
+    '/api/health', // Healthcheck sem autenticação
     '/api/files/.*', // Permitir acesso a arquivos sem autenticação
     '/client-portal/.*', // Portal do cliente
     '/collaborator-portal/.*', // Portal do colaborador

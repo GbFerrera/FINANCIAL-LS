@@ -22,7 +22,7 @@ RUN NEXT_TELEMETRY_DISABLED=1 SKIP_AUTH_MIDDLEWARE=1 NEXTAUTH_URL=$NEXTAUTH_URL 
 # Expose the port
 EXPOSE 3000
 
-# Start the application (standalone output)
+# Start the application with Next.js
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-CMD ["node", ".next/standalone/server.js"]
+CMD ["npm", "run", "start"]
