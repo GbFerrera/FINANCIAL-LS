@@ -41,7 +41,10 @@ export async function middleware(request: NextRequest) {
       )
     }
     
-    return NextResponse.redirect(new URL('/auth/signin', request.nextUrl.origin))
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/signin'
+    url.search = ''
+    return NextResponse.redirect(url)
   }
 
   return NextResponse.next()
