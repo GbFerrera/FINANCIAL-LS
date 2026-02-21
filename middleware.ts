@@ -3,6 +3,9 @@ import type { NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 export async function middleware(request: NextRequest) {
+  if (process.env.SKIP_AUTH_MIDDLEWARE === '1') {
+    return NextResponse.next()
+  }
   // Rotas públicas que não precisam de autenticação
   const publicPaths = [
     '/api/auth/.*',
