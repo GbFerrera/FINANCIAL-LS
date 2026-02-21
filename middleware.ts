@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
       )
     }
     
-    return NextResponse.redirect(new URL('/auth/signin', request.url))
+    return NextResponse.redirect(new URL('/auth/signin', request.nextUrl.origin))
   }
 
   return NextResponse.next()
@@ -50,6 +50,6 @@ export async function middleware(request: NextRequest) {
 // Configurar quais rotas devem passar pelo middleware
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|_not-found|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
