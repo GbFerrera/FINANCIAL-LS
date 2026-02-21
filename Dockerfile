@@ -20,5 +20,5 @@ RUN npm run build
 # Expose the port
 EXPOSE 3003
 
-# Start the application
-CMD ["npm", "start"]
+# Start the application (standalone output)
+CMD ["node", ".next/standalone/server.js"]
