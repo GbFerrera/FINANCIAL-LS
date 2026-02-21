@@ -15,12 +15,14 @@ COPY . .
 RUN npx prisma generate
 
 # Build the application
-# Ensure NEXTAUTH_URL is set during build to avoid Invalid URL errors in prerender
 ARG NEXTAUTH_URL=http://localhost:3000
+ARG NEXTAUTH_SECRET
 RUN NEXT_TELEMETRY_DISABLED=1 SKIP_AUTH_MIDDLEWARE=1 NEXTAUTH_URL=$NEXTAUTH_URL npm run build
 
 # Expose the port
 EXPOSE 3000
 
 # Start the application (standalone output)
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 CMD ["node", ".next/standalone/server.js"]
