@@ -9,7 +9,7 @@ services:
       - "3003:3003"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/financial_ls?schema=public
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:3003
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - SEED_DB=false
       - SEED_ADMIN_NAME=${SEED_ADMIN_NAME}
@@ -26,7 +26,7 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/health',res=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3003/api/health',res=>process.exit(res.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
       interval: 10s
       timeout: 5s
       retries: 5
