@@ -456,14 +456,14 @@ function ProjectNotesPage() {
                           value={editing.content || ""}
                           onChange={(html) => setEditing((prev) => (prev ? { ...prev, content: html } : prev))}
                           placeholder="Escreva sua nota aqui..."
-                          height={{ min: 0, max: "100vh" }}
+                          height={{ min: 300, max: "100%" }}
                         />
                       ) : (
                         <RichTextEditor
                           value={newNote.content}
                           onChange={(html) => setNewNote((p) => ({ ...p, content: html }))}
                           placeholder="Escreva sua nota aqui..."
-                          height={{ min: 0, max: "100%" }}
+                          height={{ min: 300, max: "100%" }}
                         />
                       )}
                     </TabsContent>

@@ -144,3 +144,12 @@
     @apply bg-background text-foreground font-sans;
   }
 }
+
+/* Placeholder para o editor rich-text baseado em data-placeholder */
+.rte[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  display: block;
+  pointer-events: none;
+}

@@ -37,6 +37,14 @@
      if (ref.current.innerHTML !== initialHtml) {
        ref.current.innerHTML = initialHtml
      }
+    if (ref.current) {
+      const text = (ref.current.textContent || "").trim()
+      if (text.length === 0) {
+        ref.current.setAttribute("data-empty", "true")
+      } else {
+        ref.current.removeAttribute("data-empty")
+      }
+    }
    }, [initialHtml])
  
    function inEditor(node: Node | null) {
@@ -74,6 +82,12 @@
  
    function handleInput() {
      if (ref.current) {
+      const text = (ref.current.textContent || "").trim()
+      if (text.length === 0) {
+        ref.current.setAttribute("data-empty", "true")
+      } else {
+        ref.current.removeAttribute("data-empty")
+      }
        onChange(ref.current.innerHTML)
      }
    }
@@ -178,7 +192,7 @@
          onPaste={handlePaste}
          data-placeholder={placeholder || ""}
          className={clsx(
-           "flex-1 min-h-0 rounded-lg border bg-muted/20 px-4 py-3 text-base leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "rte flex-1 min-h-0 rounded-lg border bg-muted/20 px-4 py-3 text-base leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring",
            "overflow-y-auto",
            "prose-headings:mt-4 prose-headings:mb-2 prose-ul:list-disc prose-ol:list-decimal prose-li:ml-4"
          )}
