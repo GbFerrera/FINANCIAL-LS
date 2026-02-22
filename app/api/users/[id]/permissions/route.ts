@@ -7,7 +7,28 @@ import { getDefaultAllowedPaths, registryPaths } from "@/lib/access-control"
 
 const updateSchema = z.object({
   allowedPaths: z.array(z.string()).min(1),
+  commissionsAccess: z.enum(["OWN_READ", "OWN_EDIT", "ALL_EDIT", "OWN", "ALL", "EDIT"]).optional(),
 })
+
+function normalizeAccess(
+  input: string | undefined,
+  role?: string
+): "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" {
+  if (!input) return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
+  switch (input) {
+    case "OWN_READ":
+    case "OWN_EDIT":
+    case "ALL_EDIT":
+      return input
+    case "OWN":
+      return "OWN_READ"
+    case "ALL":
+    case "EDIT":
+      return "ALL_EDIT"
+    default:
+      return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
+  }
+}
 
 async function canManage(session: any, targetUserId: string) {
   if (!session) return false
@@ -43,6 +64,7 @@ export async function GET(
     } as any)
     const stored = (userData?.skillsInterests as any) || {}
     const storedPaths: string[] = Array.isArray(stored.pagePermissions) ? stored.pagePermissions : []
+    const commissionsAccess = normalizeAccess(stored.commissionsAccess, userData?.role as any)
     const ALIASES: Record<string, string> = {
       "/sprints": "/projects/sprints",
       "/tasks": "/projects/backlog",
@@ -50,7 +72,7 @@ export async function GET(
     const allowedRaw = storedPaths.length > 0 ? storedPaths : getDefaultAllowedPaths(user.role)
     const allowedPaths = allowedRaw.map((p: string) => ALIASES[p] ?? p)
 
-    return NextResponse.json({ allowedPaths })
+    return NextResponse.json({ allowedPaths, commissionsAccess })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
@@ -99,9 +121,12 @@ export async function PUT(
       typeof existing?.skillsInterests === "object" && existing?.skillsInterests !== null
         ? (existing?.skillsInterests as Record<string, unknown>)
         : {}
-    const payload = {
+    const payload: any = {
       ...base,
       pagePermissions: Array.from(allowedSet),
+    }
+    if (typeof data.commissionsAccess !== "undefined") {
+      payload.commissionsAccess = normalizeAccess(data.commissionsAccess, session.user.role)
     }
     await prisma.user.update({
       where: { id: targetUserId },

@@ -117,6 +117,7 @@ export default function TeamPage() {
   const [permissionsMember, setPermissionsMember] = useState<TeamMember | null>(null)
   const [allowedPaths, setAllowedPaths] = useState<string[]>([])
   const [savingPermissions, setSavingPermissions] = useState(false)
+  const [commissionsAccess, setCommissionsAccess] = useState<"OWN_READ" | "OWN_EDIT" | "ALL_EDIT">("OWN_READ")
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -207,6 +208,7 @@ export default function TeamPage() {
           initial = registryPaths()
         }
         setAllowedPaths(Array.from(new Set(initial)))
+        setCommissionsAccess((data.commissionsAccess as "OWN_READ" | "OWN_EDIT" | "ALL_EDIT") ?? (member.role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"))
         setIsPermissionsOpen(true)
       } else {
         toast.error('Não foi possível carregar permissões')
@@ -235,6 +237,7 @@ export default function TeamPage() {
   const applyRoleDefaults = () => {
     if (!permissionsMember) return
     setAllowedPaths(getDefaultAllowedPaths(permissionsMember.role as any))
+    setCommissionsAccess(permissionsMember.role === "ADMIN" ? "ALL_EDIT" : "OWN_READ")
   }
 
   const savePermissions = async () => {
@@ -250,7 +253,7 @@ export default function TeamPage() {
       const res = await fetch(`/api/users/${permissionsMember.id}/permissions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allowedPaths: payloadPaths }),
+        body: JSON.stringify({ allowedPaths: payloadPaths, commissionsAccess }),
       })
       if (res.ok) {
         toast.success('Permissões atualizadas')
@@ -914,6 +917,26 @@ export default function TeamPage() {
                     <Button variant="outline" className="w-full" onClick={() => setAllowedPaths([])}>
                       Desmarcar Tudo
                     </Button>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Acesso a Comissões</CardTitle>
+                    <CardDescription>Controle de visualização/edição de comissões</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-2">
+                      <label className="text-sm text-muted-foreground">Permissão</label>
+                      <select
+                        className="border rounded-md px-3 py-2 bg-background"
+                        value={commissionsAccess}
+                        onChange={(e) => setCommissionsAccess(e.target.value as "OWN_READ" | "OWN_EDIT" | "ALL_EDIT")}
+                      >
+                        <option value="OWN_READ">Ver somente a própria</option>
+                        <option value="OWN_EDIT">Ver e editar a própria</option>
+                        <option value="ALL_EDIT">Ver e editar de todos</option>
+                      </select>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

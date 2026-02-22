@@ -3,11 +3,11 @@
 import { Suspense, useEffect, useRef, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Search, Plus, FilePen, Trash2, Save } from "lucide-react"
+import { Search, Plus, FilePen, Trash2, Save, Maximize2, Minimize2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import RichTextEditor from "@/components/ui/rich-text-editor"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -46,6 +46,9 @@ function ProjectNotesPage() {
   })
   const [team, setTeam] = useState<TeamMember[]>([])
   const [activeTab, setActiveTab] = useState("content")
+  const [diagramFullscreen, setDiagramFullscreen] = useState(false)
+  const [diagramUnsaved, setDiagramUnsaved] = useState(false)
+  const [diagramSaving, setDiagramSaving] = useState(false)
   const excaliRef = useRef<ExcalidrawClientHandle>(null)
   type UploadFileInfo = {
     id: string
@@ -86,6 +89,15 @@ function ProjectNotesPage() {
     if (pid) fetchTeam(pid)
     else setTeam([])
   }, [editing, newNote.projectId])
+
+  useEffect(() => {
+    if (!diagramFullscreen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDiagramFullscreen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [diagramFullscreen])
 
   const fetchProjects = async () => {
     const res = await fetch("/api/projects/list")
@@ -329,7 +341,7 @@ function ProjectNotesPage() {
               <p>Selecione uma nota para visualizar ou crie uma nova</p>
             </div>
           ) : (
-            <div className="bg-card rounded-xl border shadow-sm h-[calc(100vh-200px)] flex flex-col">
+            <div className={`bg-card rounded-xl border shadow-sm ${activeTab === "diagrams" ? "h-[100vh]" : "h-full"} flex flex-col`}>
               <div className="p-6 border-b shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                   <div className="flex-1 space-y-4">
@@ -437,30 +449,81 @@ function ProjectNotesPage() {
                     </TabsList>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-6 bg-card">
+                  <div className="flex-1 overflow-hidden p-6 bg-card">
                     <TabsContent value="content" className="mt-0 h-full">
                       {editing ? (
-                        <Textarea
+                        <RichTextEditor
                           value={editing.content || ""}
-                          onChange={(e) => setEditing((prev) => (prev ? { ...prev, content: e.target.value } : prev))}
-                          className="min-h-[400px] h-full resize-none border-0 focus-visible:ring-0 p-6 text-base leading-relaxed"
+                          onChange={(html) => setEditing((prev) => (prev ? { ...prev, content: html } : prev))}
                           placeholder="Escreva sua nota aqui..."
+                          height={{ min: 0, max: "100vh" }}
                         />
                       ) : (
-                        <Textarea
+                        <RichTextEditor
                           value={newNote.content}
-                          onChange={(e) => setNewNote((p) => ({ ...p, content: e.target.value }))}
-                          className="min-h-[400px] h-full p-6 resize-none border-0 focus-visible:ring-0 text-base leading-relaxed"
+                          onChange={(html) => setNewNote((p) => ({ ...p, content: html }))}
                           placeholder="Escreva sua nota aqui..."
+                          height={{ min: 0, max: "100%" }}
                         />
                       )}
                     </TabsContent>
                     
                     <TabsContent value="diagrams" className="mt-0 h-full min-h-[500px]">
-                      <div className="border rounded-lg overflow-hidden h-full shadow-sm">
+                      <div className={`${diagramFullscreen ? "fixed inset-0 z-50 bg-background" : "relative h-full"} border rounded-lg overflow-hidden shadow-sm`}>
+                        <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              if (!editing?.id) return
+                              if (!excaliRef.current) return
+                              try {
+                                setDiagramSaving(true)
+                                const scene = excaliRef.current.getScene()
+                                const res = await fetch(`/api/notes/${editing.id}`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ diagram: scene }),
+                                })
+                                if (res.ok) {
+                                  const updated = await res.json()
+                                  setEditing(updated)
+                                  setDiagramUnsaved(false)
+                                } else {
+                                  toast.error("Falha ao salvar diagrama")
+                                }
+                              } catch {
+                                toast.error("Erro ao salvar diagrama")
+                              } finally {
+                                setDiagramSaving(false)
+                              }
+                            }}
+                            disabled={!editing?.id || diagramSaving}
+                            className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors ${
+                              !editing?.id
+                                ? "opacity-60 cursor-not-allowed bg-muted"
+                                : diagramSaving
+                                  ? "bg-blue-300 text-white border-blue-300 cursor-not-allowed"
+                                  : diagramUnsaved
+                                    ? "bg-yellow-500 text-black border-yellow-600 hover:bg-yellow-600"
+                                    : "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                            }`}
+                            title={!editing?.id ? "Salve a nota antes de salvar o diagrama" : (diagramUnsaved ? "Salvar alterações do diagrama" : "Salvar diagrama")}
+                          >
+                            <Save className="h-4 w-4" />
+                            {diagramSaving ? "Salvando..." : diagramUnsaved ? "Salvar alterações" : "Salvar diagrama"}
+                          </button>
+                          <button
+                            onClick={() => setDiagramFullscreen((v) => !v)}
+                            className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-muted transition-colors"
+                            aria-label={diagramFullscreen ? "Sair de tela cheia" : "Tela cheia"}
+                          >
+                            {diagramFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                            {diagramFullscreen ? "Sair" : "Tela cheia"}
+                          </button>
+                        </div>
                         <ExcalidrawClient
                           ref={excaliRef}
                           initialData={editing?.diagram || null}
+                          onChange={() => setDiagramUnsaved(true)}
                         />
                       </div>
                     </TabsContent>

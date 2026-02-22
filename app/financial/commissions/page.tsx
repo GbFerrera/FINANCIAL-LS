@@ -67,12 +67,13 @@ interface UserProfile {
    }>
  }
  
- interface UserCommissionRowProps {
+interface UserCommissionRowProps {
   user: AggregatedProfile
   onUpdate: () => void
+  canEdit?: boolean
 }
 
-function UserCommissionRow({ user, onUpdate }: UserCommissionRowProps) {
+function UserCommissionRow({ user, onUpdate, canEdit = true }: UserCommissionRowProps) {
   const [hasFixedSalary, setHasFixedSalary] = useState(user.hasFixedSalary)
   const [fixedSalary, setFixedSalary] = useState(user.fixedSalary?.toString() || "")
   const [hourRate, setHourRate] = useState(user.hourRate.toString())
@@ -171,7 +172,7 @@ function UserCommissionRow({ user, onUpdate }: UserCommissionRowProps) {
               <Input 
                 value={fixedSalary} 
                 onChange={(e) => setFixedSalary(e.target.value)}
-                disabled={!hasFixedSalary}
+                disabled={!hasFixedSalary || !canEdit}
                 className="bg-muted/50"
               />
             </div>
@@ -183,11 +184,12 @@ function UserCommissionRow({ user, onUpdate }: UserCommissionRowProps) {
               <Input 
                 value={hourRate} 
                 onChange={(e) => setHourRate(e.target.value)}
+                disabled={!canEdit}
                 className="bg-muted/50"
               />
             </div>
 
-            <Button onClick={handleSave} disabled={loading} className="w-full md:w-auto">
+            <Button onClick={handleSave} disabled={loading || !canEdit} className="w-full md:w-auto">
               {loading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               ) : (
@@ -206,6 +208,7 @@ export default function CommissionsPage() {
    const router = useRouter()
    const [users, setUsers] = useState<AggregatedProfile[]>([])
   const [selectedUserId, setSelectedUserId] = useState<string>("all")
+  const [commissionAccess, setCommissionAccess] = useState<"OWN_READ" | "OWN_EDIT" | "ALL_EDIT">("OWN_READ")
   const [date, setDate] = useState<DateRange | undefined>()
   const [loading, setLoading] = useState<boolean>(true)
   const [userData, setUserData] = useState<UserProfile | null>(null)
@@ -220,6 +223,23 @@ export default function CommissionsPage() {
       return
     }
     initDefaults()
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/users/${session.user.id}/permissions`)
+        if (res.ok) {
+          const json = await res.json()
+          const access: "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" = json.commissionsAccess ?? (session.user.role === "ADMIN" ? "ALL_EDIT" : "OWN_READ")
+          setCommissionAccess(access)
+          if (access === "OWN_READ" || access === "OWN_EDIT") {
+            setSelectedUserId(session.user.id)
+          } else {
+            setSelectedUserId("all")
+          }
+        }
+      } catch {
+        // ignore
+      }
+    })()
   }, [session, status])
 
   useEffect(() => {
@@ -375,10 +395,10 @@ export default function CommissionsPage() {
                 </div>
               </SelectTrigger>
               <SelectContent>
-                {session?.user.role === "ADMIN" && (
+                {(session?.user.role === "ADMIN" || commissionAccess === "ALL_EDIT") && (
                   <SelectItem value="all">Todos os Colaboradores</SelectItem>
                 )}
-                {users.map((u) => (
+                {((commissionAccess === "OWN_READ" || commissionAccess === "OWN_EDIT") ? users.filter(u => u.userId === session?.user.id) : users).map((u) => (
                   <SelectItem key={u.userId} value={u.userId}>
                     {u.name}
                   </SelectItem>
@@ -440,6 +460,11 @@ export default function CommissionsPage() {
                   key={user.userId} 
                   user={user} 
                   onUpdate={loadUsers} 
+                  canEdit={
+                    session?.user.role === "ADMIN" ||
+                    commissionAccess === "ALL_EDIT" ||
+                    (commissionAccess === "OWN_EDIT" && user.userId === session?.user.id)
+                  }
                 />
               ))}
             </div>
@@ -591,7 +616,7 @@ export default function CommissionsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={saveConfig} size="lg">
+                <Button onClick={saveConfig} size="lg" disabled={!(session?.user.role === "ADMIN" || commissionAccess === "ALL_EDIT" || (commissionAccess === "OWN_EDIT" && selectedUserId === session?.user.id))}>
                   Salvar Alterações
                 </Button>
               </div>

@@ -3,10 +3,28 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
-function canView(session: any, targetUserId: string): boolean {
-  if (!session?.user) return false
-  if (session.user.role === "ADMIN") return true
-  return session.user.id === targetUserId
+function normalizeAccess(input: string | undefined, role?: string): "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" {
+  if (!input) return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
+  switch (input) {
+    case "OWN_READ":
+    case "OWN_EDIT":
+    case "ALL_EDIT":
+      return input
+    case "OWN":
+      return "OWN_READ"
+    case "ALL":
+    case "EDIT":
+      return "ALL_EDIT"
+    default:
+      return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
+  }
+}
+
+async function getCommissionsAccess(userId: string) {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, skillsInterests: true } } as any)
+  if (!u) return "OWN_READ" as const
+  const stored = (u.skillsInterests as any) || {}
+  return normalizeAccess(stored.commissionsAccess, u.role)
 }
 
 export async function GET(
@@ -20,7 +38,12 @@ export async function GET(
     }
 
     const { userId } = await params
-    if (!canView(session, userId)) {
+    const access = await getCommissionsAccess(session.user.id)
+    const canView =
+      session.user.role === "ADMIN" ||
+      session.user.id === userId ||
+      access === "ALL_EDIT"
+    if (!canView) {
       return NextResponse.json({ error: "Permissão insuficiente" }, { status: 403 })
     }
     const url = new URL(request.url)
@@ -126,7 +149,12 @@ export async function PUT(
     }
 
     const { userId } = await params
-    if (session.user.role !== "ADMIN" && session.user.id !== userId) {
+    const access = await getCommissionsAccess(session.user.id)
+    const canEdit =
+      session.user.role === "ADMIN" ||
+      access === "ALL_EDIT" ||
+      (session.user.id === userId && access === "OWN_EDIT")
+    if (!canEdit) {
       return NextResponse.json({ error: "Permissão insuficiente" }, { status: 403 })
     }
     const body = await request.json()

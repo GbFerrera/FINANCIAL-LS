@@ -102,7 +102,7 @@ export default function ProjectsPage() {
   })
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list')
 
   const openOrCreateSprint = async (projectId: string) => {
     try {
