@@ -21,9 +21,11 @@ import {
   Presentation,
   Telescope,
   LayoutGrid,
-  List
+  List,
+  GitBranch
 } from "lucide-react"
 import { StatsCard } from "@/components/ui/stats-card"
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import {
   Dialog,
   DialogContent,
@@ -984,7 +986,7 @@ export default function ProjectsPage() {
                           className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
                           title="Sprints"
                         >
-                           <Clock className="h-4 w-4" />
+                           <GitBranch className="h-4 w-4" />
                         </button>
                         <button 
                           onClick={() => router.push(`/projects/${linkSystemProject.id}/canvas`)}
@@ -1202,54 +1204,80 @@ export default function ProjectsPage() {
 
                       {/* Ações Simplificadas */}
                       <div className="flex items-center gap-2 ml-auto">
-                        <button 
-                          onClick={() => router.push(`/projects/${project.id}`)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Ver Detalhes"
-                        >
-                          <Telescope className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => router.push(`/projects/notes?projectId=${project.id}`)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Docs"
-                        >
-                          <FolderOpen className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => openOrCreateSprint(project.id)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Sprints"
-                        >
-                           <Clock className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => router.push(`/projects/${project.id}/canvas`)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Canvas"
-                        >
-                           <Presentation className="h-4 w-4" />
-                        </button>
-                        
-                        {session?.user.role === 'ADMIN' && (
-                            <>
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <button 
-                                onClick={() => handleEditProject(project)}
+                                onClick={() => router.push(`/projects/${project.id}`)}
                                 className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                                title="Editar"
                               >
-                                <Edit className="h-4 w-4" />
+                                <Telescope className="h-4 w-4" />
                               </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ver detalhes</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
                               <button 
-                                onClick={() => handleDeleteProject(project.id)}
-                                disabled={deletingProjectId === project.id}
-                                className="p-2 rounded-md hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-colors"
-                                title="Excluir"
+                                onClick={() => router.push(`/projects/notes?projectId=${project.id}`)}
+                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <FolderOpen className="h-4 w-4" />
                               </button>
-                            </>
-                        )}
+                            </TooltipTrigger>
+                            <TooltipContent>Notas e docs</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button 
+                                onClick={() => openOrCreateSprint(project.id)}
+                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                 <GitBranch className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Abrir sprints</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button 
+                                onClick={() => router.push(`/projects/${project.id}/canvas`)}
+                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                 <Presentation className="h-4 w-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Canvas do projeto</TooltipContent>
+                          </Tooltip>
+                          
+                          {session?.user.role === 'ADMIN' && (
+                              <>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button 
+                                      onClick={() => handleEditProject(project)}
+                                      className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Editar projeto</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <button 
+                                      onClick={() => handleDeleteProject(project.id)}
+                                      disabled={deletingProjectId === project.id}
+                                      className="p-2 rounded-md hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-colors"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Excluir projeto</TooltipContent>
+                                </Tooltip>
+                              </>
+                          )}
+                        </TooltipProvider>
                       </div>
                     </div>
                   )

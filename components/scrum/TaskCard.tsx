@@ -60,6 +60,7 @@ interface TaskCardProps {
   onClick?: () => void
   onEdit?: (task: Task) => void
   onDelete?: (taskId: string) => void
+  size?: 'default' | 'compact'
 }
 
 // Função para formatar data sem problemas de fuso horário
@@ -78,10 +79,12 @@ const formatDateSafe = (dateString: string) => {
   return date.toLocaleDateString('pt-BR')
 }
 
-export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
+export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: TaskCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [showAttachments, setShowAttachments] = useState(false)
   const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string }>>([])
+
+  const limitChars = (s: string, max: number) => (s.length > max ? `${s.slice(0, max).trim()}…` : s)
 
   const isOverdue = () => {
     if (!task.dueDate) return false
@@ -323,9 +326,10 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
     }
   }
 
+
   return (
     <Card 
-      className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800' : getStatusColor()} border-l-4`}
+      className={`flex flex-col cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800' : getStatusColor()} border-l-4`}
       onClick={onClick}
     >
       <CardHeader className="pb-2">
@@ -405,16 +409,22 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
         </div>
       </CardHeader>
       
-      <CardContent className="pt-0">
-        <div className="space-y-3">
+      <CardContent className="pt-0 flex-1 overflow-hidden">
+        <div className="space-y-3 h-full">
           {/* Título */}
-          <h3 className="font-medium text-sm leading-tight line-clamp-2 text-foreground">
-            {task.title}
+          <h3
+            className="font-medium text-sm leading-tight text-foreground break-words"
+            style={{ display: '-webkit-box', WebkitLineClamp: 2 as any, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          >
+            {limitChars(task.title, 120)}
           </h3>
 
           {/* Descrição */}
           {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">
+            <p
+              className="text-xs text-muted-foreground break-words"
+              style={{ display: '-webkit-box', WebkitLineClamp: 3 as any, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+            >
               {(() => {
                 const lines = task.description?.split('\n') || []
                 const clean: string[] = []
@@ -429,7 +439,8 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
                   }
                   if (!skip) clean.push(line)
                 }
-                return clean.join(' ').trim()
+                const txt = clean.join(' ').trim()
+                return limitChars(txt, 220)
               })()}
             </p>
           )}
@@ -501,7 +512,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete }: TaskCardProps) {
 
           {/* Lista de Anexos */}
           {showAttachments && hasAttachments() && (
-            <div className="pt-3 border-t border-muted">
+            <div className="pt-3 border-t border-muted max-h-20 overflow-y-auto">
               <h4 className="text-xs font-medium text-gray-700 mb-2">
                 Anexos ({getAttachmentsCount()})
               </h4>

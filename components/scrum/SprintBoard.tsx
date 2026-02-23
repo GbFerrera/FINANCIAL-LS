@@ -1016,12 +1016,13 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                     )}
                                   </div>
                                 )}
-                                <div className={`${selectionMode && selectedTasks.includes(task.id) ? 'ring-2 ring-blue-500 ring-offset-2' : ''} rounded-lg`}>
+                                <div className={`${selectionMode && selectedTasks.includes(task.id) ? 'ring-2 ring-blue-500 ring-offset-2' : ''} rounded-lg w-80 shrink-0`}>
                                   <TaskCard 
                                     task={task} 
                                     onEdit={handleEditTask}
                                     onDelete={handleDeleteTask}
                                     onClick={!selectionMode ? () => handleEditTask(task) : undefined}
+                                    size="compact"
                                   />
                                 </div>
                               </div>
