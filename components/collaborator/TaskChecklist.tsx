@@ -271,8 +271,15 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
           placeholder="Nome do novo grupo..."
           value={newGroupTitle}
           onChange={(e) => setNewGroupTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.stopPropagation()
+              addGroup()
+            }
+          }}
         />
-        <Button size="sm" className="gap-2" onClick={addGroup}>
+        <Button type="button" size="sm" className="gap-2" onClick={addGroup}>
           <Plus className="w-4 h-4" />
           {isMinimal ? 'Grupo' : 'Adicionar grupo'}
         </Button>
@@ -296,6 +303,7 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                     {/* Header do Grupo */}
                     <div className="flex items-center gap-2 group">
                       <Button
+                        type="button"
                         variant="ghost"
                         size="sm"
                         className="h-6 w-6 p-0"
@@ -310,9 +318,16 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                             value={editingGroupTitle}
                             onChange={(e) => setEditingGroupTitle(e.target.value)}
                             className="h-7 text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                saveEditGroup()
+                              }
+                            }}
                             autoFocus
                           />
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveEditGroup}>
+                          <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveEditGroup}>
                             <CheckCircle2 className="w-4 h-4 text-green-500" />
                           </Button>
                         </div>
@@ -321,10 +336,10 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                           <span className="font-medium text-sm">{group.title}</span>
                           <span className="text-xs text-muted-foreground">({groupDone}/{groupTotal})</span>
                           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditGroup(group)}>
+                            <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditGroup(group)}>
                               <Pencil className="w-3 h-3 text-muted-foreground" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteGroup(group.id)}>
+                            <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteGroup(group.id)}>
                               <Trash2 className="w-3 h-3 text-destructive" />
                             </Button>
                           </div>
@@ -355,9 +370,16 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                                       value={editingItemTitle}
                                       onChange={(e) => setEditingItemTitle(e.target.value)}
                                       className="h-7 text-sm"
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        saveEditItem()
+                                      }
+                                    }}
                                       autoFocus
                                     />
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveEditItem}>
+                                  <Button type="button" size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={saveEditItem}>
                                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                                     </Button>
                                   </div>
@@ -368,10 +390,10 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                                 )}
 
                                 <div className="opacity-0 group-hover/item:opacity-100 flex items-center gap-1">
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditItem(item)}>
+                                  <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditItem(item)}>
                                     <Pencil className="w-3 h-3 text-muted-foreground" />
                                   </Button>
-                                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteItem(item.id)}>
+                                  <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteItem(item.id)}>
                                     <Trash2 className="w-3 h-3 text-destructive" />
                                   </Button>
                                 </div>
@@ -387,11 +409,15 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                             value={newItemTitleByGroup[group.id] || ''}
                             onChange={(e) => setNewItemTitleByGroup(prev => ({ ...prev, [group.id]: e.target.value }))}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') addItem(group.id)
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                addItem(group.id)
+                              }
                             }}
                             className="h-8 text-sm"
                           />
-                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => addItem(group.id)}>
+                          <Button type="button" size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => addItem(group.id)}>
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
