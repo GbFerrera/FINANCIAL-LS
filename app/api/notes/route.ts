@@ -32,13 +32,11 @@ export async function GET(req: NextRequest) {
         : {}),
     }
 
-    if (session.user.role === "ADMIN") {
-      // admins see all filtered by project
-    } else {
+    if (session.user.role !== "ADMIN") {
+      // Apenas criador ou explicitamente concedido
       where.OR = [
         { createdById: session.user.id },
-        { access: { some: { userId: session.user.id } } },
-        { project: { team: { some: { userId: session.user.id } } } },
+        { access: { some: { userId: session.user.id } } }
       ]
     }
 
@@ -77,7 +75,10 @@ export async function POST(req: NextRequest) {
     })
     const teamSet = new Set(teamUsers.map((t) => t.userId))
 
-    const accessIds = (body.accessUserIds || []).filter((id) => teamSet.has(id))
+    // Sempre incluir o criador como acesso padrão
+    const accessIds = Array.from(
+      new Set([session.user.id, ...(body.accessUserIds || []).filter((id) => teamSet.has(id))])
+    )
 
     const base = await prisma.note.create({
       data: {

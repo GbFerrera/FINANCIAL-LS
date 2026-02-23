@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const note = await prisma.note.findUnique({
       where: { id: params.id },
       include: {
-        project: { select: { id: true, name: true, team: { select: { userId: true } } } },
+        project: { select: { id: true, name: true } },
         createdBy: { select: { id: true, name: true, email: true } },
         access: { include: { user: { select: { id: true, name: true, email: true } } } },
       },
@@ -34,8 +34,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     const canView =
       isAdmin ||
       note.createdById === session.user.id ||
-      note.access.some((a) => a.userId === session.user.id) ||
-      note.project.team.some((t) => t.userId === session.user.id)
+      note.access.some((a) => a.userId === session.user.id)
 
     if (!canView) return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
 

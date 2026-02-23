@@ -170,9 +170,26 @@ function ProjectNotesPage() {
     setEditing(null)
     setIsCreating(true)
     setActiveTab("content")
-    setNewNote({ title: "", content: "", projectId: projectFilter === "all" ? "" : projectFilter, accessUserIds: [] })
+    // Pré-selecionar o criador como acesso padrão
+    setNewNote({ 
+      title: "", 
+      content: "", 
+      projectId: projectFilter === "all" ? "" : projectFilter, 
+      accessUserIds: session?.user?.id ? [session.user.id] : [] 
+    })
     setNewAttachments([])
   }
+
+  // Ao carregar o time do projeto durante criação, garantir criador pré-selecionado se fizer parte do time
+  useEffect(() => {
+    if (isCreating && session?.user?.id) {
+      const isInTeam = team.some(m => m.user.id === session.user.id)
+      const alreadySelected = newNote.accessUserIds.includes(session.user.id)
+      if (isInTeam && !alreadySelected) {
+        setNewNote(p => ({ ...p, accessUserIds: [...p.accessUserIds, session.user!.id] }))
+      }
+    }
+  }, [team, isCreating, session?.user?.id])
 
   const cancelEdit = () => {
     setEditing(null)
@@ -543,11 +560,14 @@ function ProjectNotesPage() {
                             const checked = editing
                               ? editing.access.some((a) => a.user.id === id)
                               : newNote.accessUserIds.includes(id)
+                            const isCreator = editing ? (editing.createdBy.id === id) : (session?.user?.id === id)
                             return (
                               <label key={id} className="flex items-center gap-3 p-3 rounded-lg border border-muted hover:bg-muted/20 transition-colors cursor-pointer">
                                 <Checkbox
                                   checked={checked}
+                                  disabled={isCreator}
                                   onCheckedChange={() => {
+                                    if (isCreator) return
                                     if (editing) {
                                       const exists = editing.access.some((a) => a.user.id === id)
                                       const nextAccess = exists
