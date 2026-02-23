@@ -77,6 +77,16 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
     fetchData()
   }, [projectId, sprintId])
 
+  // Definir sprint destino padrão (prioriza ACTIVE, depois PLANNING) quando carregar sprints
+  useEffect(() => {
+    if (!selectedSprintId && sprints.length > 0) {
+      const active = sprints.find(s => s.status === 'ACTIVE')
+      const planning = sprints.find(s => s.status === 'PLANNING')
+      const fallback = active?.id || planning?.id || null
+      if (fallback) setSelectedSprintId(fallback)
+    }
+  }, [sprints, selectedSprintId])
+
   // Filtrar backlog por milestone
   useEffect(() => {
     if (selectedMilestone === 'all') {
@@ -341,21 +351,41 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
 
       // Mover cada tarefa selecionada para a sprint
       for (const taskId of selectedTasks) {
-        const response = await fetch(`/api/tasks/move`, {
+        // Primeira tentativa: rota dedicada de movimento (reordena no servidor)
+        const moveReq = await fetch(`/api/tasks/move`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             taskId,
             destinationSprintId: targetSprintId,
             destinationIndex: destinationIndex,
-            sourceSprintId: null // Vem do backlog
+            sourceSprintId: null
           })
-        })
+        }).catch(() => null as any)
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error('Erro na API:', errorData)
-          throw new Error(errorData.error || 'Erro ao mover tarefa')
+        if (!moveReq || !moveReq.ok) {
+          // Fallback: atualizar diretamente a tarefa (sprintId, order e status)
+          const fallbackRes = await fetch(`/api/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sprintId: targetSprintId,
+              order: destinationIndex,
+              status: 'TODO'
+            })
+          })
+          if (!fallbackRes.ok) {
+            const errorData = await (fallbackRes.json().catch(() => ({})))
+            console.error('Erro ao mover tarefa (fallback):', errorData)
+            throw new Error(errorData.error || 'Erro ao mover tarefa para a sprint')
+          }
+        } else {
+          // Se movimento OK, ainda garantir status em 'TODO'
+          await fetch(`/api/tasks/${taskId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'TODO' })
+          }).catch(() => undefined)
         }
 
         destinationIndex++ // Incrementar para próxima tarefa
@@ -923,23 +953,40 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                       Limpar Seleção
                     </Button>
 
-                    {selectedTasks.length > 0 && sprints.filter(s => s.status === 'ACTIVE').length > 0 && (
-                      <div className="flex items-center gap-2">
+                    {selectedTasks.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="secondary">
                           {selectedTasks.length} selecionadas
                         </Badge>
+                        <Select
+                          value={selectedSprintId || undefined}
+                          onValueChange={(val) => setSelectedSprintId(val)}
+                        >
+                          <SelectTrigger className="w-[220px]">
+                            <SelectValue placeholder="Escolher Sprint" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sprints
+                              .filter(s => ['ACTIVE', 'PLANNING'].includes(s.status))
+                              .map(s => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name} {s.status === 'ACTIVE' ? '(Ativa)' : '(Planejamento)'}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
                         <Button
                           size="sm"
                           onClick={() => {
-                            const activeSprint = sprints.find(s => s.status === 'ACTIVE')
-                            if (activeSprint) {
-                              moveSelectedTasksToSprint(activeSprint.id)
+                            if (selectedSprintId) {
+                              moveSelectedTasksToSprint(selectedSprintId)
                             }
                           }}
+                          disabled={!selectedSprintId}
                           className="flex items-center gap-2"
                         >
                           <ArrowRight className="w-4 h-4" />
-                          Mover para Sprint Ativa
+                          Mover para Sprint
                         </Button>
                       </div>
                     )}
