@@ -89,8 +89,8 @@ export default function FinancialPage() {
   const [filter, setFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfMonth(subMonths(new Date(), 1)),
-    to: endOfMonth(subMonths(new Date(), 1)),
+    from: startOfMonth(new Date()),
+    to: endOfMonth(new Date()),
   })
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null)
@@ -226,20 +226,24 @@ export default function FinancialPage() {
   const fetchFinancialData = async () => {
     try {
       setLoading(true)
-      let url = `/api/financial?`
-      
+      const params = new URLSearchParams()
+      params.set('page', '1')
+      params.set('limit', '100')
       if (dateRange?.from) {
-        url += `&startDate=${format(dateRange.from, 'yyyy-MM-dd')}`
+        params.set('startDate', format(dateRange.from, 'yyyy-MM-dd'))
       }
       if (dateRange?.to) {
-        url += `&endDate=${format(dateRange.to, 'yyyy-MM-dd')}`
+        params.set('endDate', format(dateRange.to, 'yyyy-MM-dd'))
       }
-      
       if (selectedClientId) {
-        url += `&clientId=${selectedClientId}`
+        params.set('clientId', selectedClientId)
       }
-      
-      const response = await fetch(url)
+      if (filter === 'income') {
+        params.set('type', 'INCOME')
+      } else if (filter === 'expense') {
+        params.set('type', 'EXPENSE')
+      }
+      const response = await fetch(`/api/financial?${params.toString()}`)
       
       if (!response.ok) {
         throw new Error('Falha ao carregar dados financeiros')
