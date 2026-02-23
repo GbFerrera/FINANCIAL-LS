@@ -181,10 +181,26 @@ function SprintsPageContent() {
       }
     })
     
-    return Object.values(groups).map(group => ({
+    const arr = Object.values(groups).map(group => ({
       ...group,
-      sprints: group.sprints.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+      sprints: group.sprints.sort((a, b) => {
+        const now = new Date()
+        const aActive = a.status === 'ACTIVE' || isWithinInterval(now, { start: startOfDay(new Date(a.startDate)), end: endOfDay(new Date(a.endDate)) })
+        const bActive = b.status === 'ACTIVE' || isWithinInterval(now, { start: startOfDay(new Date(b.startDate)), end: endOfDay(new Date(b.endDate)) })
+        if (aActive !== bActive) return aActive ? -1 : 1
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+      })
     }))
+    
+    return arr.sort((ga, gb) => {
+      const now = new Date()
+      const gaActive = ga.sprints.some(s => s.status === 'ACTIVE' || isWithinInterval(now, { start: startOfDay(new Date(s.startDate)), end: endOfDay(new Date(s.endDate)) }))
+      const gbActive = gb.sprints.some(s => s.status === 'ACTIVE' || isWithinInterval(now, { start: startOfDay(new Date(s.startDate)), end: endOfDay(new Date(s.endDate)) }))
+      if (gaActive !== gbActive) return gaActive ? -1 : 1
+      const gaMin = Math.min(...ga.sprints.map(s => new Date(s.startDate).getTime()))
+      const gbMin = Math.min(...gb.sprints.map(s => new Date(s.startDate).getTime()))
+      return gaMin - gbMin
+    })
   }, [filteredSprints])
 
   const sprintEvents = useMemo<SprintEvent[]>(() => {

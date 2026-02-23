@@ -503,7 +503,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
           <p className="text-muted-foreground">Gerencie suas sprints e backlog</p>
         </div>
         <div className="flex gap-2">
-          <Link href={`/projects/notes?projectId=${projectId}`} className="hidden sm:inline-block">
+          <Link href={`/projects/notes?projectId=${projectId}`}>
             <Button variant="outline" className="gap-2">
               <FileText className="w-4 h-4" />
               Documentações
@@ -975,6 +975,14 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                           <SelectContent>
                             {sprints
                               .filter(s => ['ACTIVE', 'PLANNING'].includes(s.status))
+                              .sort((a, b) => {
+                                const rank = (s: Sprint) => (s.status === 'ACTIVE' ? 0 : s.status === 'PLANNING' ? 1 : 2)
+                                const r = rank(a) - rank(b)
+                                if (r !== 0) return r
+                                const ad = new Date(a.startDate).getTime()
+                                const bd = new Date(b.startDate).getTime()
+                                return ad - bd
+                              })
                               .map(s => (
                                 <SelectItem key={s.id} value={s.id}>
                                   {s.name} {s.status === 'ACTIVE' ? '(Ativa)' : '(Planejamento)'}
