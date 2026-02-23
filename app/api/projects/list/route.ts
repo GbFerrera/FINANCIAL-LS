@@ -60,12 +60,14 @@ export async function GET() {
         milestones: {
           select: {
             id: true,
+            status: true,
             completedAt: true
           }
         },
         tasks: {
           select: {
             id: true,
+            status: true,
             completedAt: true
           }
         }
@@ -78,9 +80,13 @@ export async function GET() {
     // Transform projects for frontend
     const transformedProjects = projects.map(project => {
       const totalMilestones = project.milestones.length
-      const completedMilestones = project.milestones.filter(m => m.completedAt).length
+      const completedMilestones = project.milestones.filter(m => m.completedAt || m.status === 'COMPLETED').length
       const totalTasks = project.tasks.length
-      const completedTasks = project.tasks.filter(t => t.completedAt).length
+      const completedTasks = project.tasks.filter(t => {
+        if (t.completedAt) return true
+        const st = (t.status as unknown as string) || ''
+        return st === 'COMPLETED' || st === 'DONE'
+      }).length
       
       // Calculate progress using the standardized utility function
       const progress = calculateBasicProjectProgress(

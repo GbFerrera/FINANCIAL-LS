@@ -639,8 +639,8 @@ export default function ProjectDetailsPage() {
     )
   }
 
-  const completedMilestones = project.milestones.filter(m => m.status === 'COMPLETED').length
-  const completedTasks = project.tasks.filter(t => t.status === 'DONE').length
+  const completedMilestones = project.milestones.filter(m => m.status === 'COMPLETED' || !!m.completedAt).length
+  const completedTasks = project.tasks.filter(t => t.status === 'DONE' || t.status === 'COMPLETED').length
   const progress = calculateBasicProjectProgress(project.milestones, project.tasks)
 
   return (
