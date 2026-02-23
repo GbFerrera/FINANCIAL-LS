@@ -181,6 +181,8 @@ export default function ProjectDetailsPage() {
     }
   }, [activeTab, params.id])
 
+  const isAdmin = session?.user.role === 'ADMIN'
+
   const fetchProjectDetails = async (projectId: string) => {
     try {
       setLoading(true)
@@ -692,10 +694,12 @@ export default function ProjectDetailsPage() {
                       Fim: {formatDate(project.endDate)}
                     </div>
                   )}
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    {formatCurrency(project.budget)}
-                  </div>
+                  {session?.user.role === 'ADMIN' && (
+                    <div className="flex items-center text-sm text-muted-foreground">
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      {formatCurrency(project.budget)}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -787,17 +791,19 @@ export default function ProjectDetailsPage() {
                     </div>
                   </div>
                   
-                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center">
-                      <DollarSign className="h-8 w-8 text-primary" />
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-muted-foreground">Orçamento</p>
-                        <p className="text-lg font-semibold text-foreground">
-                          {formatCurrency(project.budget)}
-                        </p>
+                  {session?.user.role === 'ADMIN' && (
+                    <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
+                      <div className="flex items-center">
+                        <DollarSign className="h-8 w-8 text-primary" />
+                        <div className="ml-3">
+                          <p className="text-sm font-medium text-muted-foreground">Orçamento</p>
+                          <p className="text-lg font-semibold text-foreground">
+                            {formatCurrency(project.budget)}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Progress Bar */}
@@ -1180,15 +1186,13 @@ export default function ProjectDetailsPage() {
                       )}
                     </div>
                   </div>
-                  {session?.user.role === 'ADMIN' && (
-                    <button 
-                      onClick={() => setShowAddTaskModal(true)}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
-                    >
-                      <Plus className="-ml-1 mr-2 h-4 w-4" />
-                      Nova Tarefa
-                    </button>
-                  )}
+                  <button 
+                    onClick={() => setShowAddTaskModal(true)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
+                  >
+                    <Plus className="-ml-1 mr-2 h-4 w-4" />
+                    Nova Tarefa
+                  </button>
                 </div>
                 
                 {viewMode === 'list' ? (
@@ -1266,22 +1270,24 @@ export default function ProjectDetailsPage() {
                             {task.milestone?.name || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            {session?.user.role === 'ADMIN' && (
-                              <div className="flex items-center justify-end space-x-2">
-                                <button 
-                                  onClick={() => handleEditTask(task)}
-                                  className="text-muted-foreground hover:text-foreground transition-colors"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
+                            <div className="flex items-center justify-end space-x-2">
+                              <button 
+                                onClick={() => handleEditTask(task)}
+                                className="text-muted-foreground hover:text-foreground transition-colors"
+                                title="Editar tarefa"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              {isAdmin && (
                                 <button 
                                   onClick={() => handleDeleteTask(task.id)}
                                   className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                                  title="Excluir tarefa"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1294,7 +1300,7 @@ export default function ProjectDetailsPage() {
                     onTaskUpdate={handleTaskStatusChange}
                     onTaskClick={(taskId) => handleViewTaskDetails(taskId)}
                     onTaskEdit={handleEditTask}
-                    onTaskDelete={handleDeleteTask}
+                    onTaskDelete={isAdmin ? handleDeleteTask : undefined}
                   />
                 )}
               </div>
@@ -1524,7 +1530,7 @@ export default function ProjectDetailsPage() {
                 onTaskUpdate={handleTaskStatusChange}
                 onTaskClick={(taskId) => handleViewTaskDetails(taskId)}
                 onTaskEdit={handleEditTask}
-                onTaskDelete={handleDeleteTask}
+                onTaskDelete={isAdmin ? handleDeleteTask : undefined}
               />
             </div>
           </div>

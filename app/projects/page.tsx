@@ -692,16 +692,18 @@ export default function ProjectsPage() {
                 type: 'neutral'
               }}
             />
-            <StatsCard
-              title="Orçamento Total"
-              value={formatCurrency(stats.totalBudget)}
-              icon={Target}
-              color="blue"
-              change={{
-                value: `${stats.totalProjects} projetos`,
-                type: 'neutral'
-              }}
-            />
+            {session?.user.role === 'ADMIN' && (
+              <StatsCard
+                title="Orçamento Total"
+                value={formatCurrency(stats.totalBudget)}
+                icon={Target}
+                color="blue"
+                change={{
+                  value: `${stats.totalProjects} projetos`,
+                  type: 'neutral'
+                }}
+              />
+            )}
   
           </div>
         )}
@@ -860,10 +862,12 @@ export default function ProjectsPage() {
                           </div>
                         </div>
 
-                        {/* Budget */}
-                        <div className="text-sm text-muted-foreground mb-4">
-                          <strong>Orçamento:</strong> {formatCurrency(linkSystemProject.budget)}
-                        </div>
+                        {/* Budget (ADMIN only) */}
+                        {session?.user.role === 'ADMIN' && (
+                          <div className="text-sm text-muted-foreground mb-4">
+                            <strong>Orçamento:</strong> {formatCurrency(linkSystemProject.budget)}
+                          </div>
+                        )}
 
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-4 border-t border-muted">
@@ -1096,10 +1100,12 @@ export default function ProjectsPage() {
                           </div>
                         </div>
 
-                        {/* Budget */}
-                        <div className="text-sm text-muted-foreground mb-4">
-                          <strong>Orçamento:</strong> {formatCurrency(project.budget)}
-                        </div>
+                        {/* Budget (ADMIN only) */}
+                        {session?.user.role === 'ADMIN' && (
+                          <div className="text-sm text-muted-foreground mb-4">
+                            <strong>Orçamento:</strong> {formatCurrency(project.budget)}
+                          </div>
+                        )}
 
                         {/* Actions */}
                         <div className="flex items-center justify-between pt-4 border-t border-muted">
