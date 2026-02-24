@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       })
 
       const totalMinutes = tasks.reduce((sum, t) => {
-        const m = t.actualMinutes ?? t.estimatedMinutes ?? 0
+        const m = t.estimatedMinutes ?? 0
         return sum + m
       }, 0)
       const variablePay = (totalMinutes / 60) * (profile.hourRate || 0)

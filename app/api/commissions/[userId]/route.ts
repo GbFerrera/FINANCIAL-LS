@@ -106,7 +106,7 @@ export async function GET(
     })
 
     const totalMinutes = tasks.reduce((sum, t) => {
-      const m = t.actualMinutes ?? t.estimatedMinutes ?? 0
+      const m = t.estimatedMinutes ?? 0
       return sum + m
     }, 0)
     const variablePay = (totalMinutes / 60) * (profile.hourRate || 0)
@@ -127,7 +127,7 @@ export async function GET(
         id: t.id,
         title: t.title,
         projectName: t.project?.name || null,
-        minutes: t.actualMinutes ?? t.estimatedMinutes ?? 0,
+        minutes: t.estimatedMinutes ?? 0,
         completedAt: t.completedAt,
         date: t.completedAt ?? t.endTime ?? t.updatedAt ?? t.startDate ?? null
       }))
