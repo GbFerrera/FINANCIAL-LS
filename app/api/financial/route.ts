@@ -21,7 +21,12 @@ const financialEntrySchema = z.object({
   amount: z.number().positive('Valor deve ser positivo'),
   date: z.string().datetime('Data inválida'),
   isRecurring: z.boolean().default(false),
-  recurringType: z.nativeEnum(RecurringType).nullable().optional(),
+  recurringType: z.string().nullable().optional().transform(val => {
+    if (!val || val === '') return null;
+    return val as RecurringType;
+  }).refine(val => val === null || Object.values(RecurringType).includes(val as RecurringType), {
+    message: "Tipo de recorrência inválido"
+  }),
   projectId: z.string().nullable().optional(),
   collaboratorId: z.string().nullable().optional(),
   periodStart: z.string().datetime('Data inicial inválida').nullable().optional(),
