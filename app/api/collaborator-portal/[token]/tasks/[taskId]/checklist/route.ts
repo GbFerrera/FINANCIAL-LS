@@ -16,12 +16,20 @@ export async function GET(
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const task = await prisma.task.findFirst({
-      where: { id: taskId, assigneeId: user.id },
-      select: { id: true }
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, projectId: true, assigneeId: true }
     })
     if (!task) {
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 })
+    }
+    const isAssignee = task.assigneeId === user.id
+    const projectMember = await prisma.projectTeam.findFirst({
+      where: { projectId: task.projectId, userId: user.id },
+      select: { id: true }
+    })
+    if (!isAssignee && !projectMember) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     const groups = await prisma.taskChecklistGroup.findMany({
@@ -56,12 +64,20 @@ export async function POST(
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const task = await prisma.task.findFirst({
-      where: { id: taskId, assigneeId: user.id },
-      select: { id: true }
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, projectId: true, assigneeId: true }
     })
     if (!task) {
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 })
+    }
+    const isAssignee = task.assigneeId === user.id
+    const projectMember = await prisma.projectTeam.findFirst({
+      where: { projectId: task.projectId, userId: user.id },
+      select: { id: true }
+    })
+    if (!isAssignee && !projectMember) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (action === 'create_group') {
@@ -112,12 +128,20 @@ export async function PATCH(
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const task = await prisma.task.findFirst({
-      where: { id: taskId, assigneeId: user.id },
-      select: { id: true }
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, projectId: true, assigneeId: true }
     })
     if (!task) {
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 })
+    }
+    const isAssignee = task.assigneeId === user.id
+    const projectMember = await prisma.projectTeam.findFirst({
+      where: { projectId: task.projectId, userId: user.id },
+      select: { id: true }
+    })
+    if (!isAssignee && !projectMember) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (action === 'toggle_item') {
@@ -189,12 +213,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const task = await prisma.task.findFirst({
-      where: { id: taskId, assigneeId: user.id },
-      select: { id: true }
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: { id: true, projectId: true, assigneeId: true }
     })
     if (!task) {
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 })
+    }
+    const isAssignee = task.assigneeId === user.id
+    const projectMember = await prisma.projectTeam.findFirst({
+      where: { projectId: task.projectId, userId: user.id },
+      select: { id: true }
+    })
+    if (!isAssignee && !projectMember) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (action === 'delete_group' && groupId) {

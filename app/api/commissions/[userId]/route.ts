@@ -109,6 +109,7 @@ export async function GET(
       const m = t.estimatedMinutes ?? 0
       return sum + m
     }, 0)
+
     const variablePay = (totalMinutes / 60) * (profile.hourRate || 0)
     const fixed = profile.hasFixedSalary ? (profile.fixedSalary || 0) : 0
     const totalPay = fixed + variablePay
@@ -133,7 +134,6 @@ export async function GET(
       }))
     })
   } catch (error) {
-    console.error("[commissions:user] GET error", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }
@@ -172,7 +172,6 @@ export async function PUT(
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error("[commissions:user] PUT error", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
   }
 }

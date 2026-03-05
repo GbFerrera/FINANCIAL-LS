@@ -16,31 +16,35 @@
    const excludedPrefixes = ["/auth", "/collaborator-portal", "/client-portal"]
    const isExcluded = excludedPrefixes.some(prefix => pathname.startsWith(prefix))
  
-   useEffect(() => {
-     if (isExcluded) return
-     if (status === "loading") return
-     if (!session) return
- 
-     let cancelled = false
-     async function loadPermissions() {
-       try {
-         setChecking(true)
-         const res = await fetch(`/api/users/${session!.user.id}/permissions`)
-         if (!res.ok) {
-           setAllowedPaths([])
-           return
-         }
-         const data = await res.json()
-         if (!cancelled) {
-           setAllowedPaths(data.allowedPaths || [])
-         }
-       } finally {
-         if (!cancelled) setChecking(false)
-       }
-     }
-     loadPermissions()
-     return () => { cancelled = true }
-   }, [session, status, pathname, isExcluded])
+  useEffect(() => {
+    if (isExcluded) return
+    if (status === "loading") return
+    const userId = session?.user?.id
+    if (!userId) return
+
+    let cancelled = false
+    async function loadPermissions() {
+      try {
+        setChecking(true)
+        const res = await fetch(`/api/users/${userId}/permissions`)
+        if (!res.ok) {
+          if (!cancelled) setAllowedPaths([])
+          return
+        }
+        const data = await res.json()
+        if (!cancelled) {
+          setAllowedPaths(data.allowedPaths || [])
+        }
+      } finally {
+        if (!cancelled) setChecking(false)
+      }
+    }
+    // Buscar apenas se ainda não carregado
+    if (allowedPaths === null) {
+      loadPermissions()
+    }
+    return () => { cancelled = true }
+  }, [session?.user?.id, status, isExcluded, allowedPaths])
  
    useEffect(() => {
      if (isExcluded) return
@@ -58,7 +62,8 @@
      return <>{children}</>
    }
  
-   if (status === "loading" || checking || !allowedPaths) {
+  const initialLoading = status === "loading" || (allowedPaths === null && checking)
+  if (initialLoading) {
      return (
        <div className="flex items-center justify-center min-h-[300px]">
          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
