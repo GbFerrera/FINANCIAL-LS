@@ -64,6 +64,42 @@ export default function ProfilePage() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      const toArray = (v: unknown): string[] => {
+        const splitTokens = (s: string) => s.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)
+        if (Array.isArray(v)) {
+          const out: string[] = []
+          for (const item of v) {
+            if (typeof item === 'string') {
+              out.push(...splitTokens(item))
+            } else if (item && typeof item === 'object') {
+              const obj = item as Record<string, unknown>
+              const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value ?? Object.values(obj)) as unknown
+              if (Array.isArray(candidate)) {
+                out.push(...candidate.map(String))
+              } else {
+                out.push(String(item))
+              }
+            } else if (item != null) {
+              out.push(String(item))
+            }
+          }
+          return out
+        }
+        if (typeof v === 'string') {
+          const text = v.trim()
+          try {
+            const parsed = JSON.parse(text)
+            if (Array.isArray(parsed)) return parsed.map(String)
+          } catch {}
+          return splitTokens(text)
+        }
+        if (v && typeof v === 'object') {
+          const obj = v as Record<string, unknown>
+          const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value ?? Object.values(obj)) as unknown
+          return Array.isArray(candidate) ? candidate.map(String) : []
+        }
+        return []
+      }
       const [profileRes, teamRes] = await Promise.all([
         fetch('/api/profile'),
         fetch('/api/team?limit=50')
@@ -76,16 +112,16 @@ export default function ProfilePage() {
           email: u.email,
           role: u.role,
           avatar: u.avatar || undefined,
-          skillsMastered: u.skillsMastered || [],
-          skillsReinforcement: u.skillsReinforcement || [],
-          skillsInterests: u.skillsInterests || [],
+          skillsMastered: toArray(u.skillsMastered),
+          skillsReinforcement: toArray(u.skillsReinforcement),
+          skillsInterests: toArray(u.skillsInterests),
         })
       } else {
         toast.error('Não foi possível carregar seu perfil')
       }
       if (teamRes.ok) {
         const t = await teamRes.json()
-        setMembers(t.users || [])
+        setMembers(Array.isArray(t.users) ? t.users : [])
       }
     } catch {
       toast.error('Erro ao carregar dados')
