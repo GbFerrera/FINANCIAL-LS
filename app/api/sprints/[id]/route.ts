@@ -54,6 +54,7 @@ export async function GET(
         t."startDate",
         t."startTime",
         t."estimatedMinutes",
+        t."hasBonus",
         t."order",
         t."projectId",
         u.id as assignee_id,
@@ -79,6 +80,7 @@ export async function GET(
       startDate: task.startDate,
       startTime: task.startTime,
       estimatedMinutes: task.estimatedMinutes,
+      hasBonus: !!task.hasBonus,
       order: task.order,
       projectId: task.projectId,
       assignee: task.assignee_id ? {

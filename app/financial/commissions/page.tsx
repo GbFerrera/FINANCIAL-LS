@@ -40,6 +40,9 @@ interface AggregatedProfile {
   minutesCompleted: number
   variablePay: number
   totalPay: number
+  bonusPerTask?: number
+  bonusCount?: number
+  bonusTotal?: number
 }
 
 interface UserProfile {
@@ -56,12 +59,16 @@ interface UserProfile {
      hasFixedSalary: boolean
      hourRate: number
      totalPay: number
+     bonusPerTask?: number
+     bonusCount?: number
+     bonusTotal?: number
    }
    tasks: Array<{
      id: string
      title: string
      projectName: string | null
      minutes: number
+     hasBonus?: boolean
     completedAt?: string | null
     date?: string | null
    }>
@@ -79,10 +86,12 @@ function UserCommissionRow({ user, onUpdate, canEdit = true }: UserCommissionRow
   const [hourRate, setHourRate] = useState(user.hourRate.toString())
   const [loading, setLoading] = useState(false)
 
-  const currentHourRate = parseFloat(hourRate.replace(",", ".")) || 0
   const currentFixedSalary = hasFixedSalary ? (parseFloat(fixedSalary.replace(",", ".")) || 0) : 0
-  const variablePay = (user.minutesCompleted / 60) * currentHourRate
-  const totalPay = variablePay + currentFixedSalary
+  const serverVariablePay = (user as any).variablePay ?? 0
+  const bonusPerTask = (user as any).bonusPerTask || 0
+  const bonusCount = (user as any).bonusCount || 0
+  const bonusTotal = (user as any).bonusTotal ?? (bonusPerTask * bonusCount)
+  const totalPay = (user as any).totalPay ?? (serverVariablePay + currentFixedSalary)
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -135,6 +144,9 @@ function UserCommissionRow({ user, onUpdate, canEdit = true }: UserCommissionRow
               <div className="grid gap-0.5">
                 <h3 className="text-lg font-semibold leading-none">{user.name}</h3>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  Bônus/tarefa: {formatCurrency(((user as any).bonusPerTask ?? 0))}
+                </p>
               </div>
             </div>
             
@@ -145,8 +157,12 @@ function UserCommissionRow({ user, onUpdate, canEdit = true }: UserCommissionRow
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Variável (estimada)</p>
-                <p className="text-xl font-bold text-green-500">{formatCurrency(variablePay)}</p>
+                <p className="text-xl font-bold text-green-500">{formatCurrency(serverVariablePay)}</p>
               </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Bônus</p>
+              <p className="text-xl font-bold">{formatCurrency(bonusTotal)}</p>
+            </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Total (estimado)</p>
                 <p className="text-xl font-bold">{formatCurrency(totalPay)}</p>
@@ -219,6 +235,7 @@ export default function CommissionsPage() {
   const [hasFixedSalary, setHasFixedSalary] = useState<boolean>(false)
   const [fixedSalary, setFixedSalary] = useState<string>("")
   const [hourRate, setHourRate] = useState<string>("")
+  const [bonusPerTask, setBonusPerTask] = useState<string>("")
 
   useEffect(() => {
     if (status === "loading") return
@@ -303,6 +320,8 @@ export default function CommissionsPage() {
       setHasFixedSalary(!!data.profile.hasFixedSalary)
       setFixedSalary(data.profile.fixedSalary != null ? String(data.profile.fixedSalary) : "")
       setHourRate(String(data.profile.hourRate || 0))
+      // @ts-ignore
+      setBonusPerTask(String((data as any).summary?.bonusPerTask || 0))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao carregar dados de comissão")
     } finally {
@@ -316,7 +335,8 @@ export default function CommissionsPage() {
       const body = {
         hasFixedSalary,
         fixedSalary: fixedSalary !== "" ? parseFloat(fixedSalary) : null,
-        hourRate: hourRate !== "" ? parseFloat(hourRate) : 0
+        hourRate: hourRate !== "" ? parseFloat(hourRate) : 0,
+        bonusPerTask: bonusPerTask !== "" ? parseFloat(bonusPerTask) : 0
       }
       const res = await fetch(`/api/commissions/${selectedUserId}`, {
         method: "PUT",
@@ -475,7 +495,7 @@ export default function CommissionsPage() {
           ) : (
             userData && (
               <>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   <StatsCard
                     title="Minutos Concluídos"
                     value={userData.summary.minutesCompleted}
@@ -487,6 +507,19 @@ export default function CommissionsPage() {
                     value={formatCurrency(userData.summary.hourRate)}
                     icon={Calculator}
                     color="blue"
+                  />
+                  <StatsCard
+                    title="Bônus/Tarefa"
+                    value={formatCurrency((userData.summary as any).bonusPerTask ?? 0)}
+                    icon={DollarSign}
+                    color="blue"
+                  />
+                  <StatsCard
+                    title="Total em Bônus"
+                    value={formatCurrency((userData.summary as any).bonusTotal ?? 0)}
+                    icon={DollarSign}
+                    color="green"
+                    description={`${(userData.summary as any).bonusCount ?? 0} tarefas com bônus`}
                   />
                   <StatsCard
                     title="Salário Fixo"
@@ -503,7 +536,7 @@ export default function CommissionsPage() {
                     value={formatCurrency(userData.summary.totalPay)}
                     icon={DollarSign}
                     color="blue"
-                    description="Fixo + Variável"
+                    description="Fixo + Variável + Bônus"
                   />
                 </div>
 
@@ -532,6 +565,7 @@ export default function CommissionsPage() {
                             <TableHead>Tarefa</TableHead>
                             <TableHead>Projeto</TableHead>
                             <TableHead>Minutos</TableHead>
+                            <TableHead>Bônus</TableHead>
                             <TableHead>Data</TableHead>
                             <TableHead className="text-right">Valor</TableHead>
                           </TableRow>
@@ -542,9 +576,13 @@ export default function CommissionsPage() {
                               <TableCell className="font-medium">{task.title}</TableCell>
                               <TableCell>{task.projectName || "—"}</TableCell>
                               <TableCell>{task.minutes} min</TableCell>
+                              <TableCell>{task.hasBonus ? 'Sim' : '—'}</TableCell>
                               <TableCell>{formatDate(task.date || task.completedAt)}</TableCell>
                               <TableCell className="text-right">
-                                {formatCurrency((task.minutes / 60) * userData.summary.hourRate)}
+                                {(() => {
+                                  const rate = task.hasBonus ? (userData.summary as any).bonusPerTask ?? 0 : userData.summary.hourRate
+                                  return formatCurrency((task.minutes / 60) * rate)
+                                })()}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -613,6 +651,21 @@ export default function CommissionsPage() {
                       className="pl-9"
                       value={hourRate}
                       onChange={(e) => setHourRate(e.target.value)}
+                      placeholder="0,00"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Valor Bônus por Tarefa</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">R$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      className="pl-9"
+                      value={bonusPerTask}
+                      onChange={(e) => setBonusPerTask(e.target.value)}
                       placeholder="0,00"
                     />
                   </div>

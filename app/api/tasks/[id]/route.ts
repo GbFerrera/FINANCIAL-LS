@@ -52,49 +52,105 @@ export async function PATCH(
     const oldStatus = existingTask.status
     const oldAssigneeId = existingTask.assigneeId
 
+    // Regras de completedAt conforme mudança de status
+    const statusUpdate = updates.status as string | undefined
+    const setCompletedAt =
+      statusUpdate === 'COMPLETED' && !existingTask.completedAt
+        ? new Date()
+        : statusUpdate && statusUpdate !== 'COMPLETED'
+          ? null
+          : undefined
+
     // Atualizar a tarefa
-    const updatedTask = await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        ...(updates.title && { title: updates.title }),
-        ...(updates.description !== undefined && { description: updates.description }),
-        ...(updates.status && { status: updates.status }),
-        ...(updates.priority && { priority: updates.priority }),
-        ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
-        ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
-        ...(updates.startDate && { startDate: new Date(updates.startDate) }),
-        ...(updates.startTime !== undefined && { startTime: updates.startTime }),
-        ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
-        ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
-        // Não alterar o sprintId a menos que seja explicitamente fornecido como valor (não undefined)
-        ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
-        ...(updates.order !== undefined && { order: updates.order }),
-        updatedAt: new Date()
-      },
-      include: {
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            avatar: true
-          }
+    let updatedTask;
+    try {
+      updatedTask = await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          ...(updates.title && { title: updates.title }),
+          ...(updates.description !== undefined && { description: updates.description }),
+          ...(updates.status && { status: updates.status }),
+          ...(updates.priority && { priority: updates.priority }),
+          ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
+          ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
+          ...(updates.startDate && { startDate: new Date(updates.startDate) }),
+          ...(updates.startTime !== undefined && { startTime: updates.startTime }),
+          ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
+          ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
+          ...(updates.hasBonus !== undefined ? ({ hasBonus: !!updates.hasBonus } as any) : {}),
+          ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
+          ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
+          ...(updates.order !== undefined && { order: updates.order }),
+          updatedAt: new Date()
         },
-        project: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        sprint: {
-          select: {
-            id: true,
-            name: true,
-            status: true
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true
+            }
+          },
+          project: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          sprint: {
+            select: {
+              id: true,
+              name: true,
+              status: true
+            }
           }
         }
-      }
-    });
+      });
+    } catch (e) {
+      updatedTask = await prisma.task.update({
+        where: { id: taskId },
+        data: {
+          ...(updates.title && { title: updates.title }),
+          ...(updates.description !== undefined && { description: updates.description }),
+          ...(updates.status && { status: updates.status }),
+          ...(updates.priority && { priority: updates.priority }),
+          ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
+          ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
+          ...(updates.startDate && { startDate: new Date(updates.startDate) }),
+          ...(updates.startTime !== undefined && { startTime: updates.startTime }),
+          ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
+          ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
+          ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
+          ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
+          ...(updates.order !== undefined && { order: updates.order }),
+          updatedAt: new Date()
+        },
+        include: {
+          assignee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true
+            }
+          },
+          project: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          sprint: {
+            select: {
+              id: true,
+              name: true,
+              status: true
+            }
+          }
+        }
+      });
+    }
 
     // Enviar notificações assíncronas
     if (updates.status && updates.status !== oldStatus) {

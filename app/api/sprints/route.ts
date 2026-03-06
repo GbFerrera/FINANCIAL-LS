@@ -27,30 +27,13 @@ export async function GET(request: NextRequest) {
         }
       },
       include: {
+        // Incluir tarefas com relações (assignee, project); deixar campos escalares completos (inclui hasBonus)
         tasks: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            status: true,
-            priority: true,
-            dueDate: true,
-            startDate: true,
-            startTime: true,
-            estimatedMinutes: true,
-            actualMinutes: true,
-            storyPoints: true,
-            order: true,
-            createdAt: true,
-            updatedAt: true,
-            assignee: {
-              select: { id: true, name: true, email: true, avatar: true }
-            },
-            project: {
-              select: { id: true, name: true }
-            }
+          include: {
+            assignee: { select: { id: true, name: true, email: true, avatar: true } },
+            project: { select: { id: true, name: true } }
           }
-        },
+        } as any,
         projects: {
           include: {
             project: {
@@ -121,29 +104,11 @@ export async function POST(request: NextRequest) {
       where: { id: sprint.id },
       include: {
         tasks: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            status: true,
-            priority: true,
-            dueDate: true,
-            startDate: true,
-            startTime: true,
-            estimatedMinutes: true,
-            actualMinutes: true,
-            storyPoints: true,
-            order: true,
-            createdAt: true,
-            updatedAt: true,
-            assignee: {
-              select: { id: true, name: true, email: true, avatar: true }
-            },
-            project: {
-              select: { id: true, name: true }
-            }
+          include: {
+            assignee: { select: { id: true, name: true, email: true, avatar: true } },
+            project: { select: { id: true, name: true } }
           }
-        },
+        } as any,
         projects: {
           include: {
             project: {

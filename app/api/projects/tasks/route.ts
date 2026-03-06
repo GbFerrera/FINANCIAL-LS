@@ -26,7 +26,8 @@ export async function POST(request: NextRequest) {
       dueDate,
       startDate,
       startTime,
-      estimatedMinutes
+      estimatedMinutes,
+      hasBonus
     } = body
 
     if (!title || !projectId) {
@@ -56,35 +57,69 @@ export async function POST(request: NextRequest) {
     const nextOrder = (lastTask?.order || 0) + 1
     console.log('Criando tarefa com order:', nextOrder, 'para projeto:', projectId)
 
-    const task = await prisma.task.create({
-      data: {
-        title,
-        description,
-        projectId,
-        sprintId: sprintId || null,
-        priority: priority || 'MEDIUM',
-        storyPoints,
-        assigneeId: assigneeId || null,
-        milestoneId: milestoneId || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
-        startDate: startDate ? new Date(startDate) : null,
-        startTime: startTime || null,
-        estimatedMinutes: estimatedMinutes || null,
-        order: nextOrder,
-        status: 'TODO'
-      },
-      include: {
-        assignee: {
-          select: { id: true, name: true, email: true, avatar: true }
+    let task
+    try {
+      task = await prisma.task.create({
+        data: {
+          title,
+          description,
+          projectId,
+          sprintId: sprintId || null,
+          priority: priority || 'MEDIUM',
+          storyPoints,
+          assigneeId: assigneeId || null,
+          milestoneId: milestoneId || null,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          startDate: startDate ? new Date(startDate) : null,
+          startTime: startTime || null,
+          estimatedMinutes: estimatedMinutes || null,
+          ...(hasBonus !== undefined ? ({ hasBonus: !!hasBonus } as any) : {}),
+          order: nextOrder,
+          status: 'TODO'
         },
-        project: {
-          select: { id: true, name: true }
-        },
-        sprint: {
-          select: { id: true, name: true, status: true }
+        include: {
+          assignee: {
+            select: { id: true, name: true, email: true, avatar: true }
+          },
+          project: {
+            select: { id: true, name: true }
+          },
+          sprint: {
+            select: { id: true, name: true, status: true }
+          }
         }
-      }
-    })
+      })
+    } catch (e) {
+      task = await prisma.task.create({
+        data: {
+          title,
+          description,
+          projectId,
+          sprintId: sprintId || null,
+          priority: priority || 'MEDIUM',
+          storyPoints,
+          assigneeId: assigneeId || null,
+          milestoneId: milestoneId || null,
+          dueDate: dueDate ? new Date(dueDate) : null,
+          startDate: startDate ? new Date(startDate) : null,
+          startTime: startTime || null,
+          estimatedMinutes: estimatedMinutes || null,
+          order: nextOrder,
+          status: 'TODO'
+        },
+        include: {
+          assignee: {
+            select: { id: true, name: true, email: true, avatar: true }
+          },
+          project: {
+            select: { id: true, name: true }
+          },
+          sprint: {
+            select: { id: true, name: true, status: true }
+          }
+        }
+      })
+    }
 
     console.log('Tarefa criada com sucesso:', task.id, task.title)
     return NextResponse.json(task, { status: 201 })

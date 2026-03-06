@@ -146,6 +146,7 @@ model Task {
   storyPoints      Int?
   actualMinutes    Int?
   estimatedMinutes Int?
+  hasBonus         Boolean      @default(false)
   startDate        DateTime?
   comments         Comment[]
   assignee         User?        @relation(fields: [assigneeId], references: [id])
@@ -427,6 +428,7 @@ model CompensationProfile {
   hasFixedSalary Boolean  @default(false)
   fixedSalary    Float?
   hourRate       Float    @default(0)
+  bonusPerTask   Float    @default(0)
   effectiveFrom  DateTime @default(now())
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

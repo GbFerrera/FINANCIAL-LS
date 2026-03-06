@@ -37,6 +37,7 @@ const taskSchema = z.object({
   startDate: z.string().optional(),
   startTime: z.string().optional(),
   estimatedMinutes: z.number().min(0).max(1440, 'Tempo estimado não pode exceder 24 horas (1440 minutos)').optional(),
+  hasBonus: z.boolean().optional(),
 })
 
 type TaskFormData = z.infer<typeof taskSchema>
@@ -125,7 +126,8 @@ export function CreateTaskModal({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       priority: 'MEDIUM',
-      storyPoints: 1
+      storyPoints: 1,
+      hasBonus: false,
     }
   })
 
@@ -159,6 +161,8 @@ export function CreateTaskModal({
         setValue('startDate', editingTask.startDate ? editingTask.startDate.split('T')[0] : '')
         setValue('startTime', editingTask.startTime || '')
         setValue('estimatedMinutes', editingTask.estimatedMinutes ?? undefined)
+        // @ts-ignore - campo pode não estar no tipo gerado até migrar
+        setValue('hasBonus', (editingTask as any).hasBonus ?? false)
         // Carregar anexos existentes
         ;(async () => {
           try {
@@ -185,7 +189,8 @@ export function CreateTaskModal({
         // Limpar formulário para nova tarefa
         reset({
           priority: 'MEDIUM',
-          storyPoints: 1
+          storyPoints: 1,
+          hasBonus: false,
         })
         setSelectedProjectId(projectId || '')
         setAttachments([])
@@ -303,7 +308,9 @@ export function CreateTaskModal({
         ...(data.dueDate && { dueDate: data.dueDate + 'T12:00:00.000Z' }),
         ...(data.startDate && { startDate: data.startDate + 'T12:00:00.000Z' }),
         ...(data.startTime && { startTime: data.startTime }),
-        ...(data.estimatedMinutes && { estimatedMinutes: data.estimatedMinutes })
+        ...(data.estimatedMinutes && { estimatedMinutes: data.estimatedMinutes }),
+        // @ts-ignore
+        ...(data.hasBonus !== undefined ? { hasBonus: !!data.hasBonus } : {}),
       }
 
       const url = editingTask ? `/api/tasks/${editingTask.id}` : '/api/projects/tasks'
@@ -497,6 +504,25 @@ export function CreateTaskModal({
                       placeholder="1"
                       className="h-9 bg-background"
                     />
+                  </div>
+
+                  {/* Bônus */}
+                  <div className="col-span-2">
+                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                      Preço Bônus
+                    </Label>
+                    <Select
+                      value={(watch('hasBonus') ? 'yes' : 'no')}
+                      onValueChange={(value) => setValue('hasBonus', value === 'yes')}
+                    >
+                      <SelectTrigger className="h-9 bg-background">
+                        <SelectValue placeholder="Aplicar bônus?" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="no">Não</SelectItem>
+                        <SelectItem value="yes">Sim</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Milestone */}
