@@ -35,7 +35,8 @@ import {
   ChartNoAxesCombined,
   FolderGit2,
   Wallet,
-  FilePen
+  FilePen,
+  Megaphone
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { ModeToggle } from "@/components/mode-toggle"
@@ -65,6 +66,7 @@ const navigation: NavItem[] = [
       { name: "Sprints", href: "/projects/sprints", icon: GitBranch },
     ]
   },
+  { name: "Marketing", href: "/mkt", icon: Megaphone },
   { name: "Clientes", href: "/clients", icon: User },
   { 
     name: "Financeiro", 

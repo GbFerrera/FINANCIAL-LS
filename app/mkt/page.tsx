@@ -2,13 +2,15 @@
 
 import { Suspense, useState, useEffect, useMemo } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   AlertDialog,
   AlertDialogContent,
@@ -20,9 +22,6 @@ import {
   AlertDialogCancel
 } from '@/components/ui/alert-dialog'
 import { toast } from 'react-hot-toast'
-import { Calendar as UiCalendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
 import { 
   Target, 
   Calendar as CalendarIcon, 
@@ -36,16 +35,23 @@ import {
   CheckCircle2,
   Plus,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  LayoutGrid
 } from 'lucide-react'
 import Link from 'next/link'
-import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay, isSameDay, eachDayOfInterval, isWeekend, isBefore, isAfter } from 'date-fns'
+import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay, isSameDay, eachDayOfInterval, isWeekend, isBefore, isAfter, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Calendar as UiCalendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+
+// --- Types ---
 
 interface Sprint {
   id: string
@@ -89,6 +95,38 @@ type SprintEvent = {
   projectId: string
 }
 
+interface Project {
+  id: string
+  name: string
+  client: {
+    id: string
+    name: string
+  }
+}
+
+// --- Schemas ---
+
+const sprintSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório'),
+  description: z.string().optional(),
+  startDate: z.string().min(1, 'Data de início é obrigatória'),
+  endDate: z.string().min(1, 'Data de fim é obrigatória'),
+  goal: z.string().optional(),
+  capacity: z.number().min(0).optional(),
+  projectIds: z.array(z.string()).min(1, 'Selecione pelo menos um projeto'),
+}).refine((data) => {
+  const start = new Date(data.startDate)
+  const end = new Date(data.endDate)
+  return end >= start
+}, {
+  message: 'Data de fim deve ser posterior ou igual à data de início',
+  path: ['endDate']
+})
+
+type SprintFormData = z.infer<typeof sprintSchema>
+
+// --- Components ---
+
 const CustomEvent = ({ event }: { event: SprintEvent }) => {
   return (
     <div className="flex flex-col">
@@ -100,7 +138,305 @@ const CustomEvent = ({ event }: { event: SprintEvent }) => {
   )
 }
 
-function SprintsPageContent() {
+function CreateMktSprintModal({
+  isOpen,
+  onClose,
+  onSuccess
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([])
+  const [showCreateProject, setShowCreateProject] = useState(false)
+  const [clients, setClients] = useState<Array<{ id: string; name: string }>>([])
+  
+  // New Project Form State
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectClientId, setNewProjectClientId] = useState('')
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors }
+  } = useForm<SprintFormData>({
+    resolver: zodResolver(sprintSchema),
+    defaultValues: {
+      startDate: format(new Date(), 'yyyy-MM-dd'),
+      endDate: format(addDays(new Date(), 14), 'yyyy-MM-dd'),
+      projectIds: []
+    }
+  })
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchProjects()
+      fetchClients()
+    }
+  }, [isOpen])
+
+  const fetchProjects = async () => {
+    try {
+      const response = await fetch('/api/projects?includeClient=true&limit=1000')
+      if (response.ok) {
+        const data = await response.json()
+        const allProjects = data.projects || []
+        
+        // Filter for MKT projects only
+        const mktProjects = allProjects.filter((p: any) => {
+          const n = p.name.toLowerCase()
+          const c = (p.client?.name || "").toLowerCase()
+          return n.includes("mkt") || c.includes("software house") || c.includes("soft house")
+        })
+        
+        setProjects(mktProjects)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar projetos:', error)
+    }
+  }
+
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/clients")
+      if (res.ok) {
+        const data = await res.json()
+        setClients(data)
+      }
+    } catch (e) {
+      console.error("Erro ao buscar clientes", e)
+    }
+  }
+
+  const handleCreateProject = async () => {
+    if (!newProjectName || !newProjectClientId) {
+      toast.error("Preencha todos os campos do projeto")
+      return
+    }
+
+    try {
+      setLoading(true)
+      const res = await fetch("/api/projects/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newProjectName,
+          clientId: newProjectClientId,
+          status: "ACTIVE",
+          priority: "MEDIUM",
+          startDate: new Date().toISOString(),
+        }),
+      })
+
+      if (res.ok) {
+        toast.success("Projeto criado!")
+        setShowCreateProject(false)
+        setNewProjectName('')
+        setNewProjectClientId('')
+        fetchProjects() // Refresh list
+      } else {
+        toast.error("Erro ao criar projeto")
+      }
+    } catch (e) {
+      toast.error("Erro ao criar projeto")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleProjectToggle = (projectId: string) => {
+    const newSelection = selectedProjects.includes(projectId)
+      ? selectedProjects.filter(id => id !== projectId)
+      : [...selectedProjects, projectId]
+    
+    setSelectedProjects(newSelection)
+    setValue('projectIds', newSelection)
+  }
+
+  const onSubmit = async (data: SprintFormData) => {
+    try {
+      setLoading(true)
+      // Append [MKT] tag if not present
+      let finalName = data.name
+      if (!finalName.includes('[MKT]')) {
+        finalName = `[MKT] ${finalName}`
+      }
+
+      const sprintData = {
+        ...data,
+        name: finalName,
+        startDate: data.startDate ? data.startDate + 'T12:00:00.000Z' : data.startDate,
+        endDate: data.endDate ? data.endDate + 'T12:00:00.000Z' : data.endDate,
+        status: 'PLANNING'
+      }
+
+      const response = await fetch('/api/sprints/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sprintData)
+      })
+
+      if (!response.ok) throw new Error('Erro ao criar sprint')
+
+      toast.success('Sprint MKT criada com sucesso!')
+      reset()
+      setSelectedProjects([])
+      onSuccess()
+      onClose()
+    } catch (error) {
+      console.error('Erro ao criar sprint:', error)
+      toast.error('Erro ao criar sprint')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClose = () => {
+    reset()
+    setSelectedProjects([])
+    setShowCreateProject(false)
+    onClose()
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Nova Sprint de Marketing</DialogTitle>
+          <DialogDescription>
+            Crie sprints para gerenciar campanhas e demandas de marketing.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <Label htmlFor="name">Nome da Sprint *</Label>
+            <Input
+              id="name"
+              {...register('name')}
+              placeholder="Ex: Campanha Black Friday"
+            />
+            {errors.name && (
+              <p className="text-sm text-red-500 mt-1">{errors.name.message}</p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea
+              id="description"
+              {...register('description')}
+              placeholder="Objetivos e detalhes da campanha..."
+              rows={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="startDate">Início *</Label>
+              <Input type="date" id="startDate" {...register('startDate')} />
+            </div>
+            <div>
+              <Label htmlFor="endDate">Fim *</Label>
+              <Input type="date" id="endDate" {...register('endDate')} />
+              {errors.endDate && (
+                 <p className="text-sm text-red-500 mt-1">{errors.endDate.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label>Projetos MKT *</Label>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowCreateProject(!showCreateProject)}
+              >
+                {showCreateProject ? 'Cancelar Novo Projeto' : '+ Novo Projeto MKT'}
+              </Button>
+            </div>
+
+            {showCreateProject && (
+              <div className="p-4 border rounded-md bg-muted/30 mb-4 space-y-3">
+                <h4 className="font-medium text-sm">Criar Novo Projeto MKT</h4>
+                <div className="grid gap-2">
+                  <Label htmlFor="newProjectName" className="text-xs">Nome do Projeto</Label>
+                  <Input 
+                    id="newProjectName"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Ex: Marketing Institucional"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="client" className="text-xs">Cliente</Label>
+                  <Select value={newProjectClientId} onValueChange={setNewProjectClientId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  onClick={handleCreateProject}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  Salvar Projeto
+                </Button>
+              </div>
+            )}
+
+            <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border rounded-md p-3">
+              {projects.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum projeto MKT encontrado.</p>
+              ) : (
+                projects.map((project) => (
+                  <div key={project.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={project.id}
+                      checked={selectedProjects.includes(project.id)}
+                      onCheckedChange={() => handleProjectToggle(project.id)}
+                    />
+                    <Label htmlFor={project.id} className="text-sm cursor-pointer">
+                      {project.name} - {project.client.name}
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
+            {errors.projectIds && (
+              <p className="text-sm text-red-500 mt-1">{errors.projectIds.message}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Criando...' : 'Criar Sprint'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MktPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -119,7 +455,7 @@ function SprintsPageContent() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState((searchParams && searchParams.get('search')) || '')
   const [statusFilter, setStatusFilter] = useState<string>((searchParams && searchParams.get('status')) || 'all')
-  const [viewMode, setViewMode] = useState<'mkt' | 'dev' | 'all'>('dev')
+  const [viewMode, setViewMode] = useState<'mkt' | 'dev' | 'all'>('mkt')
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined)
   const [showCreateSprint, setShowCreateSprint] = useState(false)
   const [showEditSprint, setShowEditSprint] = useState(false)
@@ -145,6 +481,19 @@ function SprintsPageContent() {
         : [...prev, projectId]
     )
   }
+
+  // --- Filtering Logic for MKT ---
+  const isMktSprint = (s: Sprint) => {
+    const byName = s.name.toLowerCase().includes("mkt") || s.name.startsWith("[MKT]")
+    const byProject = (s.projects || []).some((p) => {
+      const n = p.name.toLowerCase()
+      const c = (p.client?.name || "").toLowerCase()
+      return n.includes("mkt") || c.includes("software house") || c.includes("soft house")
+    })
+    return byName || byProject
+  }
+
+  const isDevSprint = (s: Sprint) => !isMktSprint(s)
 
   const groupedSprints = useMemo(() => {
     const groups: Record<string, { project: any, sprints: Sprint[] }> = {}
@@ -324,21 +673,14 @@ function SprintsPageContent() {
       }
     }
   }), [tasksByDate])
+
   useEffect(() => {
     fetchSprints()
   }, [])
 
   useEffect(() => {
     filterSprints()
-    
-    // Atualizar URL com os parâmetros
-    const params = new URLSearchParams()
-    if (searchTerm) params.set('search', searchTerm)
-    if (statusFilter !== 'all') params.set('status', statusFilter)
-    
-    const queryString = params.toString()
-    router.push(`${pathname}${queryString ? `?${queryString}` : ''}`, { scroll: false })
-  }, [sprints, searchTerm, statusFilter])
+  }, [sprints, searchTerm, statusFilter, viewMode])
 
   const fetchSprints = async () => {
     try {
@@ -346,7 +688,6 @@ function SprintsPageContent() {
       const response = await fetch('/api/sprints/all')
       if (response.ok) {
         const data = await response.json()
-        console.log('Sprints carregadas:', data)
         setSprints(data)
       } else {
         console.error('Erro na resposta:', response.status, response.statusText)
@@ -357,19 +698,6 @@ function SprintsPageContent() {
       setLoading(false)
     }
   }
-
-  // --- Filtering Logic for MKT/DEV ---
-  const isMktSprint = (s: Sprint) => {
-    const byName = s.name.toLowerCase().includes("mkt") || s.name.startsWith("[MKT]")
-    const byProject = (s.projects || []).some((p) => {
-      const n = p.name.toLowerCase()
-      const c = (p.client?.name || "").toLowerCase()
-      return n.includes("mkt") || c.includes("software house") || c.includes("soft house")
-    })
-    return byName || byProject
-  }
-
-  const isDevSprint = (s: Sprint) => !isMktSprint(s)
 
   const filterSprints = () => {
     let filtered = sprints || []
@@ -401,22 +729,8 @@ function SprintsPageContent() {
       filtered = filtered.filter(sprint => sprint.status === statusFilter)
     }
 
-    // 4. Filter by Date
-    if (dateFilter) {
-      filtered = filtered.filter(sprint => 
-        isWithinInterval(dateFilter, { 
-          start: startOfDay(new Date(sprint.startDate)), 
-          end: endOfDay(new Date(sprint.endDate)) 
-        })
-      )
-    }
-
     setFilteredSprints(filtered)
   }
-
-  useEffect(() => {
-    filterSprints()
-  }, [sprints, searchTerm, statusFilter, viewMode, dateFilter])
 
   const openEdit = (sprint: Sprint) => {
     setSprintToEdit(sprint)
@@ -503,21 +817,6 @@ function SprintsPageContent() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PLANNING':
-        return <CalendarIcon className="w-4 h-4" />
-      case 'ACTIVE':
-        return <Play className="w-4 h-4" />
-      case 'COMPLETED':
-        return <CheckCircle2 className="w-4 h-4" />
-      case 'CANCELLED':
-        return <Pause className="w-4 h-4" />
-      default:
-        return <CalendarIcon className="w-4 h-4" />
-    }
-  }
-
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'PLANNING':
@@ -533,12 +832,26 @@ function SprintsPageContent() {
     }
   }
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PLANNING':
+        return <CalendarIcon className="w-4 h-4" />
+      case 'ACTIVE':
+        return <Play className="w-4 h-4" />
+      case 'COMPLETED':
+        return <CheckCircle2 className="w-4 h-4" />
+      case 'CANCELLED':
+        return <Pause className="w-4 h-4" />
+      default:
+        return <CalendarIcon className="w-4 h-4" />
+    }
+  }
+
   const getSprintTimeInfo = (sprint: Sprint) => {
     const today = startOfDay(new Date())
     const startDate = startOfDay(new Date(sprint.startDate))
     const endDate = startOfDay(new Date(sprint.endDate))
     
-    // Calculate total duration (inclusive)
     let totalDays = 0
     let totalBusinessDays = 0
     
@@ -569,7 +882,6 @@ function SprintsPageContent() {
       statusText = `Atrasada ${daysOverdue} dia${daysOverdue !== 1 ? 's' : ''}`
       isDelayed = true
     } else {
-      // Active sprint (today is within start and end)
       try {
         const remainingInterval = eachDayOfInterval({ start: today, end: endDate })
         remainingDays = remainingInterval.length
@@ -603,8 +915,8 @@ function SprintsPageContent() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Todas as Sprints</h1>
-          <p className="text-muted-foreground">Visualize e gerencie todas as sprints dos seus projetos</p>
+          <h1 className="text-2xl font-bold text-foreground">Sprints de Marketing</h1>
+          <p className="text-muted-foreground">Visualize e gerencie campanhas e demandas de MKT</p>
         </div>
         <div className="flex gap-2">
           <div className="bg-muted p-1 rounded-lg flex gap-1">
@@ -638,7 +950,7 @@ function SprintsPageContent() {
             className="bg-primary text-primary-foreground hover:bg-primary/90 h-10"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Nova Sprint
+            Nova Sprint MKT
           </Button>
         </div>
       </div>
@@ -863,8 +1175,6 @@ function SprintsPageContent() {
                 onSelectEvent={(event: SprintEvent) => {
                   if (event.projectId) {
                     router.push(`/projects/${event.projectId}/scrum?sprint=${event.id}`)
-                  } else {
-                    toast.error('Sprint sem projeto associado')
                   }
                 }}
                 messages={{
@@ -1048,19 +1358,19 @@ function SprintsPageContent() {
           <CardContent className="p-8 text-center">
             <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
-              {searchTerm || statusFilter !== 'all' ? 'Nenhuma sprint encontrada' : 'Nenhuma sprint criada'}
+              {searchTerm || statusFilter !== 'all' ? 'Nenhuma sprint MKT encontrada' : 'Nenhuma sprint MKT criada'}
             </h3>
             <p className="text-muted-foreground">
               {searchTerm || statusFilter !== 'all' 
                 ? 'Tente ajustar os filtros de busca' 
-                : 'Crie sprints nos seus projetos para vê-las aqui'
+                : 'Crie sprints nos seus projetos de Marketing para vê-las aqui'
               }
             </p>
           </CardContent>
         </Card>
       )}
 
-      <CreateSprintModal
+      <CreateMktSprintModal
         isOpen={showCreateSprint}
         onClose={() => setShowCreateSprint(false)}
         onSuccess={() => {
@@ -1111,7 +1421,7 @@ function SprintsPageContent() {
   )
 }
 
-export default function SprintsPage() {
+export default function MktPage() {
   return (
     <Suspense
       fallback={
@@ -1120,7 +1430,7 @@ export default function SprintsPage() {
         </div>
       }
     >
-      <SprintsPageContent />
+      <MktPageContent />
     </Suspense>
   )
 }
