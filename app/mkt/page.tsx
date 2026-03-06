@@ -590,7 +590,17 @@ function MktPageContent() {
   const tasksByDate = useMemo(() => {
     const tasksPerDate: Record<string, Map<string, any>> = {}
     
-    sprints.forEach(sprint => {
+    // Filter sprints based on viewMode ONLY for calendar dots
+    // This ensures we show dots for all relevant sprints in the month, regardless of search/status filters
+    let sprintsForCalendar = sprints
+
+    if (viewMode === 'mkt') {
+      sprintsForCalendar = sprints.filter(isMktSprint)
+    } else if (viewMode === 'dev') {
+      sprintsForCalendar = sprints.filter(isDevSprint)
+    }
+    
+    sprintsForCalendar.forEach(sprint => {
       if (sprint.tasks) {
         sprint.tasks.forEach(task => {
           if (task.dueDate) {
@@ -611,7 +621,7 @@ function MktPageContent() {
     })
     
     return result
-  }, [sprints])
+  }, [sprints, viewMode])
 
   const { components } = useMemo(() => ({
     components: {
