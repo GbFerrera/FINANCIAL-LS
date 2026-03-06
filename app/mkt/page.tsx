@@ -228,11 +228,15 @@ function CreateMktSprintModal({
 
     try {
       setLoading(true)
+      let projectName = newProjectName
+      if (!projectName.toLowerCase().includes('mkt') && !projectName.startsWith('[MKT]')) {
+        projectName = `[MKT] ${projectName}`
+      }
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newProjectName,
+          name: projectName,
           clientId: newProjectClientId,
           status: "PLANNING",
           startDate: new Date().toISOString(),
