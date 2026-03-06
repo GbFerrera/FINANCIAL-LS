@@ -228,14 +228,13 @@ function CreateMktSprintModal({
 
     try {
       setLoading(true)
-      const res = await fetch("/api/projects/create", {
+      const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newProjectName,
           clientId: newProjectClientId,
-          status: "ACTIVE",
-          priority: "MEDIUM",
+          status: "PLANNING",
           startDate: new Date().toISOString(),
         }),
       })
@@ -247,7 +246,14 @@ function CreateMktSprintModal({
         setNewProjectClientId('')
         fetchProjects() // Refresh list
       } else {
-        toast.error("Erro ao criar projeto")
+        try {
+          const err = await res.json()
+          const msg = err?.error || 'Erro ao criar projeto'
+          toast.error(msg)
+          console.error('Erro ao criar projeto:', err)
+        } catch {
+          toast.error("Erro ao criar projeto")
+        }
       }
     } catch (e) {
       toast.error("Erro ao criar projeto")
