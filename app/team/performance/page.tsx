@@ -345,7 +345,12 @@ export default function TeamPerformancePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={member.avatar} alt={member.name} />
+                      <AvatarImage
+                        src={member.avatar}
+                        alt={member.name}
+                        className="object-cover object-center h-full w-full"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                      />
                       <AvatarFallback>
                         {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                       </AvatarFallback>

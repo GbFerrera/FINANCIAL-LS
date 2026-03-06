@@ -66,6 +66,22 @@ export default function ProfilePage() {
       setLoading(true)
       const toArray = (v: unknown): string[] => {
         const splitTokens = (s: string) => s.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)
+        const clean = (arr: string[]) => {
+          const seen = new Set<string>()
+          const out: string[] = []
+          for (const raw of arr) {
+            const s = String(raw).trim()
+            if (!s) continue
+            // Ignorar caminhos/permissões e marcadores de acesso
+            if (s.startsWith('/')) continue
+            if (/^(ALL_EDIT|OWN_EDIT|OWN_READ)$/i.test(s)) continue
+            if (!seen.has(s)) {
+              seen.add(s)
+              out.push(s)
+            }
+          }
+          return out
+        }
         if (Array.isArray(v)) {
           const out: string[] = []
           for (const item of v) {
@@ -73,30 +89,35 @@ export default function ProfilePage() {
               out.push(...splitTokens(item))
             } else if (item && typeof item === 'object') {
               const obj = item as Record<string, unknown>
-              const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value ?? Object.values(obj)) as unknown
+              const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value) as unknown
               if (Array.isArray(candidate)) {
                 out.push(...candidate.map(String))
-              } else {
-                out.push(String(item))
               }
+              // Se for um objeto genérico (como permissões), ignorar
             } else if (item != null) {
               out.push(String(item))
             }
           }
-          return out
+          return clean(out)
         }
         if (typeof v === 'string') {
           const text = v.trim()
           try {
             const parsed = JSON.parse(text)
-            if (Array.isArray(parsed)) return parsed.map(String)
+            if (Array.isArray(parsed)) return clean(parsed.map(String))
+            // Se JSON é objeto (ex.: { pagePermissions: [...] }), ignorar
+            if (parsed && typeof parsed === 'object') return []
           } catch {}
-          return splitTokens(text)
+          return clean(splitTokens(text))
         }
         if (v && typeof v === 'object') {
           const obj = v as Record<string, unknown>
-          const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value ?? Object.values(obj)) as unknown
-          return Array.isArray(candidate) ? candidate.map(String) : []
+          // Se o objeto aparenta ser estrutura de permissões, ignorar completamente
+          if ('pagePermissions' in obj || 'commissionsAccess' in obj || 'allowedPaths' in obj) {
+            return []
+          }
+          const candidate = (obj.items ?? obj.list ?? obj.skills ?? obj.value) as unknown
+          return Array.isArray(candidate) ? clean(candidate.map(String)) : []
         }
         return []
       }
@@ -188,9 +209,9 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           avatar: dataToUse.avatar,
-          skillsMastered: dataToUse.skillsMastered || [],
-          skillsReinforcement: dataToUse.skillsReinforcement || [],
-          skillsInterests: dataToUse.skillsInterests || [],
+          skillsMastered: (dataToUse.skillsMastered || []).filter(s => !!s && !s.startsWith('/') && !/^(ALL_EDIT|OWN_EDIT|OWN_READ)$/i.test(s)),
+          skillsReinforcement: (dataToUse.skillsReinforcement || []).filter(s => !!s && !s.startsWith('/') && !/^(ALL_EDIT|OWN_EDIT|OWN_READ)$/i.test(s)),
+          skillsInterests: (dataToUse.skillsInterests || []).filter(s => !!s && !s.startsWith('/') && !/^(ALL_EDIT|OWN_EDIT|OWN_READ)$/i.test(s)),
         })
       })
       
@@ -293,7 +314,12 @@ export default function ProfilePage() {
             <CardContent className="relative pt-0 pb-8 px-6 text-center">
               <div className="relative -mt-16 mb-4 inline-block">
                 <Avatar className="h-32 w-32 border-4 border-background shadow-lg">
-                  <AvatarImage src={user?.avatar} alt={user?.name || ''} className="object-cover" />
+                  <AvatarImage
+                    src={user?.avatar}
+                    alt={user?.name || ''}
+                    className="object-cover object-center h-full w-full"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
                   <AvatarFallback className="text-4xl bg-muted">
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                   </AvatarFallback>
@@ -353,8 +379,13 @@ export default function ProfilePage() {
                     onClick={() => router.push(`/profile/${m.id}`)}
                   >
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border">
-                        <AvatarImage src={m.avatar} alt={m.name} />
+                        <Avatar className="h-10 w-10 border">
+                        <AvatarImage
+                          src={m.avatar}
+                          alt={m.name}
+                          className="object-cover object-center h-full w-full"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                        />
                         <AvatarFallback>{m.name ? m.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}</AvatarFallback>
                       </Avatar>
                       <div className="overflow-hidden">

@@ -123,7 +123,11 @@ function UserCommissionRow({ user, onUpdate, canEdit = true }: UserCommissionRow
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
               <Avatar className="h-12 w-12 border-2 border-background">
-                <AvatarImage src={user.avatar || undefined} />
+                <AvatarImage
+                  src={user.avatar || undefined}
+                  className="object-cover object-center h-full w-full"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
                 <AvatarFallback>
                   <UserIcon className="h-6 w-6 text-muted-foreground" />
                 </AvatarFallback>

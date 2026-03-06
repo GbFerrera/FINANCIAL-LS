@@ -172,7 +172,11 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
                 <UserIcon className="h-4 w-4 text-muted-foreground" />
                 <div className="flex items-center gap-2">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={task.assignee.avatar} />
+                    <AvatarImage
+                      src={task.assignee.avatar}
+                      className="object-cover object-center h-full w-full"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    />
                     <AvatarFallback className="text-xs">
                       {task.assignee.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
@@ -273,7 +277,11 @@ export function TaskDrawer({ task, isOpen, onClose, onTaskUpdate }: TaskDrawerPr
               {task.comments.map((comment) => (
                 <div key={comment.id} className="flex gap-3">
                   <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarImage src={comment.author?.avatar} />
+                    <AvatarImage
+                      src={comment.author?.avatar}
+                      className="object-cover object-center h-full w-full"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                    />
                     <AvatarFallback className="text-xs">
                       {comment.author?.name?.charAt(0).toUpperCase() || 'U'}
                     </AvatarFallback>

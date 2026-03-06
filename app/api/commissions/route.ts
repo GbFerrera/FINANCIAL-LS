@@ -86,17 +86,10 @@ export async function GET(request: NextRequest) {
           assigneeId: u.id,
           status: "COMPLETED",
           ...(fromDate && toDate
-            ? {
-                OR: [
-                  { completedAt: { gte: fromDate, lte: toDate } },
-                  { endTime: { gte: fromDate, lte: toDate } },
-                  { updatedAt: { gte: fromDate, lte: toDate } },
-                  { startDate: { gte: fromDate, lte: toDate } }
-                ]
-              }
+            ? { completedAt: { gte: fromDate, lte: toDate } }
             : {})
         },
-        select: { actualMinutes: true, estimatedMinutes: true }
+        select: { estimatedMinutes: true }
       })
 
       const totalMinutes = tasks.reduce((sum, t) => {

@@ -135,7 +135,12 @@ export default function ProfileDetailPage() {
             <CardContent className="relative pt-0 pb-8 px-6 text-center">
               <div className="relative -mt-16 mb-4 inline-block">
                 <Avatar className="h-32 w-32 border-4 border-background shadow-lg">
-                  <AvatarImage src={user?.avatar} alt={user?.name || ''} className="object-cover" />
+                  <AvatarImage
+                    src={user?.avatar}
+                    alt={user?.name || ''}
+                    className="object-cover object-center h-full w-full"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
                   <AvatarFallback className="text-4xl bg-muted">
                     {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                   </AvatarFallback>

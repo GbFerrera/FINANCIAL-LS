@@ -361,7 +361,11 @@ export default function AgendaPage() {
                 resourceHeader: ({ label, resource }: any) => (
                   <div className="flex items-center justify-center py-4 space-x-3">
                     <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
-                      <AvatarImage src={resource.avatar} />
+                      <AvatarImage
+                        src={resource.avatar}
+                        className="object-cover object-center h-full w-full"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                      />
                       <AvatarFallback className="bg-muted text-muted-foreground font-bold">
                         {label.substring(0, 2).toUpperCase()}
                       </AvatarFallback>

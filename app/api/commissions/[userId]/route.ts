@@ -82,12 +82,7 @@ export async function GET(
         status: "COMPLETED",
         ...(fromDate && toDate
           ? {
-              OR: [
-                { completedAt: { gte: fromDate, lte: toDate } },
-                { endTime: { gte: fromDate, lte: toDate } },
-                { updatedAt: { gte: fromDate, lte: toDate } },
-                { startDate: { gte: fromDate, lte: toDate } }
-              ]
+              completedAt: { gte: fromDate, lte: toDate }
             }
           : {})
       },
@@ -96,8 +91,6 @@ export async function GET(
         title: true,
         completedAt: true,
         endTime: true,
-        updatedAt: true,
-        startDate: true,
         actualMinutes: true,
         estimatedMinutes: true,
         project: { select: { name: true } }
@@ -130,7 +123,7 @@ export async function GET(
         projectName: t.project?.name || null,
         minutes: t.estimatedMinutes ?? 0,
         completedAt: t.completedAt,
-        date: t.completedAt ?? t.endTime ?? t.updatedAt ?? t.startDate ?? null
+        date: t.completedAt ?? t.endTime ?? null
       }))
     })
   } catch (error) {

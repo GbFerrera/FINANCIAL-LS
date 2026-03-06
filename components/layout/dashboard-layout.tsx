@@ -453,7 +453,12 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                   className="h-8 w-8 border flex-shrink-0 cursor-pointer hover:opacity-90"
                   onClick={() => handleNavigation('/profile')}
                 >
-                  <AvatarImage src={avatarUrl} alt={session?.user?.name || ""} className="object-cover" />
+                  <AvatarImage
+                    src={avatarUrl}
+                    alt={session?.user?.name || ""}
+                    className="object-cover object-center h-full w-full"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
                   <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
                     {session?.user?.name?.charAt(0).toUpperCase()}
                   </AvatarFallback>

@@ -739,7 +739,12 @@ export default function TeamPage() {
                   <div className="flex items-center space-x-3">
                     <div className="relative">
                       <Avatar className="h-12 w-12">
-                        <AvatarImage src={member.avatar} alt={member.name} />
+                        <AvatarImage
+                          src={member.avatar}
+                          alt={member.name}
+                          className="object-cover object-center h-full w-full"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                        />
                         <AvatarFallback>
                           {member.name ? member.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                         </AvatarFallback>
@@ -772,7 +777,25 @@ export default function TeamPage() {
                         <Edit className="h-4 w-4 mr-2" />
                         Editar
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive focus:text-destructive">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={async () => {
+                          if (!confirm(`Tem certeza que deseja remover ${member.name}? Esta ação não pode ser desfeita.`)) {
+                            return
+                          }
+                          try {
+                            const res = await fetch(`/api/team/${member.id}`, { method: 'DELETE' })
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}))
+                              throw new Error(err.error || 'Falha ao remover usuário')
+                            }
+                            setMembers(prev => prev.filter(m => m.id !== member.id))
+                            toast.success('Usuário removido com sucesso')
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : 'Erro ao remover usuário')
+                          }
+                        }}
+                      >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Remover
                       </DropdownMenuItem>

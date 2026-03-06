@@ -107,3 +107,64 @@ export async function PATCH(
     )
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    if (session.user.role !== UserRole.ADMIN) {
+      return NextResponse.json({ error: 'Apenas administradores podem excluir membros' }, { status: 403 })
+    }
+
+    const userId = params.id
+
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true }
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
+    // Resolver FKs que não têm cascade: tarefas e entradas financeiras
+    await prisma.$transaction(async (tx) => {
+      // Desatribuir tarefas
+      await tx.task.updateMany({
+        where: { assigneeId: userId },
+        data: { assigneeId: null }
+      })
+
+      // Limpar colaborador de entradas financeiras
+      await tx.financialEntry.updateMany({
+        where: { collaboratorId: userId },
+        data: { collaboratorId: null }
+      })
+
+      // Remover relações auxiliares (idempotentes)
+      await tx.projectTeam.deleteMany({ where: { userId } })
+      await tx.userPageAccess.deleteMany({ where: { userId } })
+      await tx.compensationProfile.deleteMany({ where: { userId } })
+      await tx.noteAccess.deleteMany({ where: { userId } })
+      await tx.notification.deleteMany({ where: { userId } })
+      await tx.timeEntry.deleteMany({ where: { userId } })
+      await tx.timerEvent.deleteMany({ where: { userId } })
+
+      // Finalmente, excluir usuário
+      await tx.user.delete({ where: { id: userId } })
+    })
+
+    return NextResponse.json({ message: 'Usuário excluído com sucesso' }, { status: 200 })
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    )
+  }
+}
