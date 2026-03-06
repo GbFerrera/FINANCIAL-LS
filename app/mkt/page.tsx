@@ -39,7 +39,7 @@ import {
   LayoutGrid
 } from 'lucide-react'
 import Link from 'next/link'
-import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay, isSameDay, eachDayOfInterval, isWeekend, isBefore, isAfter, addDays } from 'date-fns'
+import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay, isSameDay, eachDayOfInterval, isWeekend, isBefore, isAfter, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -47,10 +47,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Calendar as UiCalendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-
 // --- Types ---
 
 interface Sprint {
@@ -109,18 +108,13 @@ interface Project {
 const sprintSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório'),
   description: z.string().optional(),
-  startDate: z.string().min(1, 'Data de início é obrigatória'),
-  endDate: z.string().min(1, 'Data de fim é obrigatória'),
+  dateRange: z.object({
+    from: z.date(),
+    to: z.date(),
+  }),
   goal: z.string().optional(),
   capacity: z.number().min(0).optional(),
   projectIds: z.array(z.string()).min(1, 'Selecione pelo menos um projeto'),
-}).refine((data) => {
-  const start = new Date(data.startDate)
-  const end = new Date(data.endDate)
-  return end >= start
-}, {
-  message: 'Data de fim deve ser posterior ou igual à data de início',
-  path: ['endDate']
 })
 
 type SprintFormData = z.infer<typeof sprintSchema>
@@ -162,12 +156,15 @@ function CreateMktSprintModal({
     handleSubmit,
     reset,
     setValue,
+    control,
     formState: { errors }
   } = useForm<SprintFormData>({
     resolver: zodResolver(sprintSchema),
     defaultValues: {
-      startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: format(addDays(new Date(), 14), 'yyyy-MM-dd'),
+      dateRange: {
+        from: new Date(),
+        to: addDays(new Date(), 14)
+      },
       projectIds: []
     }
   })
@@ -202,13 +199,24 @@ function CreateMktSprintModal({
 
   const fetchClients = async () => {
     try {
-      const res = await fetch("/api/clients")
+      const res = await fetch("/api/clients?limit=1000")
       if (res.ok) {
         const data = await res.json()
-        setClients(data)
+        // API returns { clients: [], pagination: {} } or just [] depending on implementation
+        // Adjusting to handle the object response format seen in /api/clients/route.ts
+        if (data.clients && Array.isArray(data.clients)) {
+          setClients(data.clients)
+        } else if (Array.isArray(data)) {
+          setClients(data)
+        } else {
+          setClients([])
+        }
+      } else {
+        setClients([])
       }
     } catch (e) {
       console.error("Erro ao buscar clientes", e)
+      setClients([])
     }
   }
 
@@ -267,10 +275,13 @@ function CreateMktSprintModal({
       }
 
       const sprintData = {
-        ...data,
         name: finalName,
-        startDate: data.startDate ? data.startDate + 'T12:00:00.000Z' : data.startDate,
-        endDate: data.endDate ? data.endDate + 'T12:00:00.000Z' : data.endDate,
+        description: data.description,
+        startDate: format(data.dateRange.from, 'yyyy-MM-dd') + 'T12:00:00.000Z',
+        endDate: format(data.dateRange.to, 'yyyy-MM-dd') + 'T12:00:00.000Z',
+        goal: data.goal,
+        capacity: data.capacity,
+        projectIds: data.projectIds,
         status: 'PLANNING'
       }
 
@@ -335,18 +346,54 @@ function CreateMktSprintModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="startDate">Início *</Label>
-              <Input type="date" id="startDate" {...register('startDate')} />
-            </div>
-            <div>
-              <Label htmlFor="endDate">Fim *</Label>
-              <Input type="date" id="endDate" {...register('endDate')} />
-              {errors.endDate && (
-                 <p className="text-sm text-red-500 mt-1">{errors.endDate.message}</p>
+          <div className="grid gap-2">
+            <Label>Período da Sprint *</Label>
+            <Controller
+              control={control}
+              name="dateRange"
+              render={({ field }) => (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="date"
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !field.value && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {field.value?.from ? (
+                        field.value.to ? (
+                          <>
+                            {format(field.value.from, "dd/MM/yyyy")} -{" "}
+                            {format(field.value.to, "dd/MM/yyyy")}
+                          </>
+                        ) : (
+                          format(field.value.from, "dd/MM/yyyy")
+                        )
+                      ) : (
+                        <span>Selecione o período</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <UiCalendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={field.value?.from}
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      numberOfMonths={2}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
               )}
-            </div>
+            />
+            {errors.dateRange && (
+              <p className="text-sm text-red-500">{errors.dateRange.message}</p>
+            )}
           </div>
 
           <div>
