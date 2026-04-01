@@ -52,11 +52,10 @@ export async function GET(
     let fromDate: Date | undefined
     let toDate: Date | undefined
     if (fromParam && toParam) {
-      // Interpretar datas como locais para evitar off-by-one de fuso
-      const [fy, fm, fd] = fromParam.split("-").map((v) => parseInt(v, 10))
-      const [ty, tm, td] = toParam.split("-").map((v) => parseInt(v, 10))
-      fromDate = new Date(fy, (fm - 1), fd, 0, 0, 0, 0)
-      toDate = new Date(ty, (tm - 1), td, 23, 59, 59, 999)
+      fromDate = new Date(fromParam)
+      fromDate.setHours(0, 0, 0, 0)
+      toDate = new Date(toParam)
+      toDate.setHours(23, 59, 59, 999)
     }
     let rows: any[] = []
     try {

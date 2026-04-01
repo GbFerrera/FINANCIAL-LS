@@ -495,7 +495,7 @@ export default function CommissionsPage() {
           ) : (
             userData && (
               <>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <StatsCard
                     title="Minutos Concluídos"
                     value={userData.summary.minutesCompleted}
@@ -515,13 +515,6 @@ export default function CommissionsPage() {
                     color="blue"
                   />
                   <StatsCard
-                    title="Total em Bônus"
-                    value={formatCurrency((userData.summary as any).bonusTotal ?? 0)}
-                    icon={DollarSign}
-                    color="green"
-                    description={`${(userData.summary as any).bonusCount ?? 0} tarefas com bônus`}
-                  />
-                  <StatsCard
                     title="Salário Fixo"
                     value={
                       userData.summary.hasFixedSalary && userData.summary.fixedSalary !== null
@@ -536,7 +529,7 @@ export default function CommissionsPage() {
                     value={formatCurrency(userData.summary.totalPay)}
                     icon={DollarSign}
                     color="blue"
-                    description="Fixo + Variável + Bônus"
+                    description="Fixo + Variável"
                   />
                 </div>
 

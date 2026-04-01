@@ -39,6 +39,8 @@ import {
   Megaphone
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { isPathAllowed } from "@/lib/access-control"
@@ -67,7 +69,15 @@ const navigation: NavItem[] = [
     ]
   },
   { name: "Marketing", href: "/mkt", icon: Megaphone },
-  { name: "Clientes", href: "/clients", icon: User },
+  { 
+    name: "Clientes", 
+    href: "/clients", 
+    icon: User,
+    submenu: [
+      { name: "Gestão", href: "/clients", icon: User },
+      { name: "Propostas", href: "/clients/proposals", icon: FilePen },
+    ]
+  },
   { 
     name: "Financeiro", 
     href: "/financial", 
@@ -338,30 +348,80 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
               <div key={item.name}>
                 {/* Menu principal */}
                 {collapsed ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <NextLink
-                        href={item.href}
-                        className={`${
-                          isActive
-                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-                            : hasActiveSubmenu
-                            ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                        } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'px-3'} py-2 rounded-xl text-sm font-medium transition-all duration-200`}
-                        aria-label={item.name}
-                      >
-                        <item.icon
+                  hasSubmenu ? (
+                    <HoverCard openDelay={200} closeDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <button
+                          onClick={() => handleNavigation(item.href)}
                           className={`${
-                            isActive ? 'text-sidebar-primary-foreground' : hasActiveSubmenu ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
-                          } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-5 w-5`}
-                        />
-                      </NextLink>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {item.name}
-                    </TooltipContent>
-                  </Tooltip>
+                            isActive || hasActiveSubmenu
+                              ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                              : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                          } w-full flex items-center justify-center px-2 py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                          aria-label={item.name}
+                        >
+                          <item.icon
+                            className={`${
+                              isActive || hasActiveSubmenu ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover/menu:text-sidebar-accent-foreground'
+                            } flex-shrink-0 h-5 w-5`}
+                          />
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent side="right" align="start" sideOffset={10} className="w-48 p-2 bg-sidebar border border-sidebar-border shadow-lg z-50">
+                        <div className="text-sm font-semibold px-2 pb-2 mb-1 border-b border-sidebar-border text-sidebar-foreground">
+                          {item.name}
+                        </div>
+                        <div className="space-y-1">
+                          {item.submenu?.map((subItem) => {
+                            const isSubActive = currentPath === subItem.href || 
+                              (subItem.href !== '/projects' && currentPath.startsWith(subItem.href))
+                            
+                            return (
+                              <button
+                                key={subItem.name}
+                                onClick={() => handleNavigation(subItem.href)}
+                                className={`${
+                                  isSubActive
+                                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium'
+                                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                                } w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200`}
+                              >
+                                <subItem.icon
+                                  className={`${
+                                    isSubActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground'
+                                  } mr-3 flex-shrink-0 h-4 w-4`}
+                                />
+                                {subItem.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <NextLink
+                          href={item.href}
+                          className={`${
+                            isActive
+                              ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                              : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                          } group w-full flex items-center justify-center px-2 py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                          aria-label={item.name}
+                        >
+                          <item.icon
+                            className={`${
+                              isActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
+                            } flex-shrink-0 h-5 w-5`}
+                          />
+                        </NextLink>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        {item.name}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
                 ) : (
                   <button
                     onClick={() => {

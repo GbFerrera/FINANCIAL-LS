@@ -42,6 +42,7 @@ model User {
   compensationProfile CompensationProfile?
   collaboratedEntries FinancialEntry[] @relation("FinancialEntryCollaborator")
   pageAccesses  UserPageAccess[]
+  createdProposals Proposal[]
 
   @@map("users")
 }
@@ -75,6 +76,7 @@ model Client {
   payments     Payment[]
   projectLinks ProjectClient[]
   projects     Project[]
+  proposals    Proposal[]
 
   @@map("clients")
 }
@@ -105,6 +107,7 @@ model Project {
   client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
   sprints         SprintProject[]
   tasks           Task[]
+  proposals       Proposal[]
 
   @@map("projects")
 }
@@ -347,6 +350,26 @@ model ProjectClient {
   @@map("project_clients")
 }
 
+model Proposal {
+  id           String         @id @default(cuid())
+  code         String         @unique
+  title        String
+  status       ProposalStatus @default(DRAFT)
+  issuedAt     DateTime
+  validUntil   DateTime?
+  clientId     String
+  projectId    String?
+  createdById  String?
+  data         Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project      Project?       @relation(fields: [projectId], references: [id])
+  createdBy    User?          @relation(fields: [createdById], references: [id])
+
+  @@map("proposals")
+}
+
 model Note {
   id           String   @id @default(cuid())
   title        String
@@ -554,4 +577,12 @@ enum TimerEventType {
   TIMER_STOP
   TIMER_UPDATE
   TASK_COMPLETE
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  ARCHIVED
 }

@@ -13,7 +13,7 @@
    const [allowedPaths, setAllowedPaths] = useState<string[] | null>(null)
    const [checking, setChecking] = useState(false)
  
-   const excludedPrefixes = ["/auth", "/collaborator-portal", "/client-portal"]
+  const excludedPrefixes = ["/auth", "/collaborator-portal", "/client-portal", "/proposta"]
    const isExcluded = excludedPrefixes.some(prefix => pathname.startsWith(prefix))
  
   useEffect(() => {

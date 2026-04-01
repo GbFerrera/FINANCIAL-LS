@@ -10,9 +10,9 @@ const candidate =
     log: ['query'],
   })
 
-const hasNoteDelegate = 'note' in (candidate as unknown as Record<string, unknown>)
+const hasProposalDelegate = 'proposal' in (candidate as unknown as Record<string, unknown>)
 
-export const prisma = hasNoteDelegate
+export const prisma = hasProposalDelegate
   ? candidate
   : new PrismaClient({
       log: ['query'],
