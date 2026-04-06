@@ -7,7 +7,7 @@ RUN apk add --no-cache libc6-compat python3 make g++ openssl wget
 
 COPY package.json package-lock.json ./
 
-RUN npm ci
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 
