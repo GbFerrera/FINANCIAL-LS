@@ -572,7 +572,7 @@
     "@eslint/core" "^0.15.2"
     levn "^0.4.1"
 
-"@excalidraw/excalidraw@^0.17.6":
+"@excalidraw/excalidraw@^0.17.0":
   version "0.17.6"
   resolved "https://registry.npmjs.org/@excalidraw/excalidraw/-/excalidraw-0.17.6.tgz"
   integrity sha512-fyCl+zG/Z5yhHDh5Fq2ZGmphcrALmuOdtITm8gN4d8w4ntnaopTXcTfnAAaU3VleDC6LhTkoLOTG6P5kgREiIg==

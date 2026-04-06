@@ -14,7 +14,7 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.17.6",
+    "@excalidraw/excalidraw": "^0.17.0",
     "@headlessui/react": "^2.2.8",
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",
