@@ -2,8 +2,7 @@
 
 import React, { useImperativeHandle, useRef, useState, forwardRef, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import "@excalidraw/excalidraw/index.css";
-import type { ExcalidrawImperativeAPI, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawImperativeAPI, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types/types";
 
 // Define uma interface mínima local para a API imperativa do Excalidraw
 type ExcalidrawAPI = ExcalidrawImperativeAPI;
