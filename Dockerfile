@@ -1,28 +1,28 @@
-FROM node:20-alpine
-
+FROM node:20-alpine AS builder
 WORKDIR /app
-
-# Install dependencies for native modules
-RUN apk add --no-cache libc6-compat python3 make g++ openssl wget
-
+RUN apk add --no-cache libc6-compat python3 make g++ openssl
 COPY package.json package-lock.json ./
-
 RUN npm ci --legacy-peer-deps
-
 COPY . .
-
 # Generate Prisma Client
 RUN npx prisma generate
-
 # Build the application
 ARG NEXTAUTH_URL=http://localhost:3000
 ARG NEXTAUTH_SECRET
 RUN NEXT_TELEMETRY_DISABLED=1 SKIP_AUTH_MIDDLEWARE=1 NEXTAUTH_URL=$NEXTAUTH_URL npm run build
 
-# Expose the port
+FROM node:20-alpine AS runner
+WORKDIR /app
+RUN apk add --no-cache libc6-compat wget
+ENV NODE_ENV=production
+# Copy the standalone server and required assets
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+# Ensure node_modules is available for runtime tools like Prisma CLI when compose runs migrations
+COPY --from=builder /app/node_modules ./node_modules
+# Copy any runtime assets like uploads directory placeholder
+RUN mkdir -p /app/uploads
 EXPOSE 3000
-
-# Start the application with Next.js
-ENV NEXTAUTH_URL=$NEXTAUTH_URL
-ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-CMD ["npm", "run", "start"]
+ENV PORT=3000
+CMD ["node", "server.js"]
