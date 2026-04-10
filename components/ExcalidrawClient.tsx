@@ -26,10 +26,16 @@ type Props = {
   onChange?: (data: SceneData) => void;
 };
 
-const ExcalidrawComponent = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).Excalidraw,
-  { ssr: false }
-);
+const ExcalidrawComponent = dynamic(async () => {
+  try {
+    const mod = await import("@excalidraw/excalidraw");
+    return mod.Excalidraw;
+  } catch {
+    await import("@/lib/react-compat");
+    const mod = await import("@excalidraw/excalidraw");
+    return mod.Excalidraw;
+  }
+}, { ssr: false });
 
 function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, ref: React.Ref<ExcalidrawClientHandle>) {
   const apiRef = useRef<ExcalidrawAPI | null>(null);
