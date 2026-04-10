@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Providers } from "@/components/providers/session-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
+import "@excalidraw/excalidraw/dist/excalidraw.min.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
