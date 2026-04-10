@@ -19,6 +19,11 @@ ENV NODE_ENV=production
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
+# Copy Prisma schema and migrations for runtime CLI commands
+COPY --from=builder /app/prisma ./prisma
+# Copy scripts and package.json for npm run db:seed and other scripts
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/package.json ./package.json
 # Ensure node_modules is available for runtime tools like Prisma CLI when compose runs migrations
 COPY --from=builder /app/node_modules ./node_modules
 # Copy any runtime assets like uploads directory placeholder
