@@ -1,7 +1,9 @@
 "use client";
 
+import "path2d-polyfill";
 import React, { useImperativeHandle, useRef, useState, forwardRef, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
+import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawImperativeAPI, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types/types";
 
 // Define uma interface mínima local para a API imperativa do Excalidraw
@@ -26,16 +28,27 @@ type Props = {
   onChange?: (data: SceneData) => void;
 };
 
-const ExcalidrawComponent = dynamic(async () => {
-  try {
-    const mod = await import("@excalidraw/excalidraw");
-    return mod.Excalidraw;
-  } catch {
-    await import("@/lib/react-compat");
-    const mod = await import("@excalidraw/excalidraw");
-    return mod.Excalidraw;
+const ExcalidrawComponent = dynamic(
+  async () => {
+    try {
+      const mod = await import("@excalidraw/excalidraw");
+      return mod.Excalidraw;
+    } catch (error) {
+      // Fallback com react-compat se necessário
+      await import("@/lib/react-compat");
+      const mod = await import("@excalidraw/excalidraw");
+      return mod.Excalidraw;
+    }
+  },
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-full w-full">
+        <div className="text-gray-500">Carregando Excalidraw...</div>
+      </div>
+    )
   }
-}, { ssr: false });
+);
 
 function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, ref: React.Ref<ExcalidrawClientHandle>) {
   const apiRef = useRef<ExcalidrawAPI | null>(null);
@@ -198,9 +211,28 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
   useImperativeHandle(ref, () => ({ getScene, updateScene: updateSceneLocal, save, load }), [projectId]);
 
   return (
-    <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", minHeight: 0, margin: 0, padding: 0, overflowX: "hidden", overflowY: "hidden", position: "relative" }}>
-     
-      <div style={{ flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
+    <div 
+      style={{ 
+        height: "100%", 
+        width: "100%", 
+        display: "flex", 
+        flexDirection: "column", 
+        minHeight: 0, 
+        margin: 0, 
+        padding: 0, 
+        position: "relative",
+        overflow: "hidden"
+      }}
+    >
+      <div 
+        style={{ 
+          flex: 1, 
+          minHeight: 0, 
+          width: "100%", 
+          height: "100%",
+          position: "relative"
+        }}
+      >
         <ExcalidrawComponent
           excalidrawAPI={(api) => {
             apiRef.current = api;
