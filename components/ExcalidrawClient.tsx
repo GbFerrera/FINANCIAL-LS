@@ -58,9 +58,9 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
     ? {
         ...initialData,
         appState: {
+          ...(sanitizeAppState(initialData.appState) ?? {}),
           viewModeEnabled: false,
           zenModeEnabled: false,
-          ...(sanitizeAppState(initialData.appState) ?? {}),
         },
       }
     : {
