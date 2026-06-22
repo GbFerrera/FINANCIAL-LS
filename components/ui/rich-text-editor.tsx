@@ -14,13 +14,22 @@
  }
  
  function isHtmlLike(s: string) {
-   return /<\/?[a-z][\s\S]*>/i.test(s)
+  if (!s) return false
+  if (/<\/?[a-z][\s\S]*>/i.test(s)) return true
+  return /&(?:[a-zA-Z][a-zA-Z0-9]+|#\d+|#x[0-9a-fA-F]+);/.test(s)
  }
  
  function escapeHtml(s: string) {
    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
  }
  
+function normalizeHtmlEntities(html: string) {
+  let out = html
+  out = out.replace(/&amp;(?:amp;)+/g, "&amp;")
+  out = out.replace(/&amp;nbsp;/g, "&nbsp;")
+  return out
+}
+
  export default function RichTextEditor({ value, onChange, placeholder, className, height }: Props) {
    const ref = useRef<HTMLDivElement | null>(null)
    const savedRangeRef = useRef<Range | null>(null)
@@ -28,7 +37,7 @@
  
    const initialHtml = useMemo(() => {
      if (!value) return ""
-     if (isHtmlLike(value)) return value
+    if (isHtmlLike(value)) return normalizeHtmlEntities(value)
      return escapeHtml(value).replace(/\n/g, "<br>")
    }, [value])
  

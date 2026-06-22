@@ -223,6 +223,9 @@ function ProjectNotesPage() {
       } catch {}
     }
     toast.success("Nota criada")
+    setDiagramUnsaved(false)
+    setDiagramFullscreen(false)
+    setActiveTab("content")
     setIsCreating(false)
     setNewNote({ title: "", content: "", projectId: "", accessUserIds: [] })
     setNewAttachments([])
@@ -258,6 +261,7 @@ function ProjectNotesPage() {
       } catch {}
     }
     toast.success("Nota salva")
+    if (activeTab === "diagrams") setDiagramUnsaved(false)
     await fetchNotes()
   }
 
@@ -490,22 +494,25 @@ function ProjectNotesPage() {
                         <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
                           <button
                             onClick={async () => {
-                              if (!editing?.id) return
                               if (!excaliRef.current) return
                               try {
                                 setDiagramSaving(true)
-                                const scene = excaliRef.current.getScene()
-                                const res = await fetch(`/api/notes/${editing.id}`, {
-                                  method: "PUT",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ diagram: scene }),
-                                })
-                                if (res.ok) {
-                                  const updated = await res.json()
-                                  setEditing(updated)
-                                  setDiagramUnsaved(false)
+                                if (!editing?.id) {
+                                  await saveNewNote()
                                 } else {
-                                  toast.error("Falha ao salvar diagrama")
+                                  const scene = excaliRef.current.getScene()
+                                  const res = await fetch(`/api/notes/${editing.id}`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ diagram: scene }),
+                                  })
+                                  if (res.ok) {
+                                    const updated = await res.json()
+                                    setEditing(updated)
+                                    setDiagramUnsaved(false)
+                                  } else {
+                                    toast.error("Falha ao salvar diagrama")
+                                  }
                                 }
                               } catch {
                                 toast.error("Erro ao salvar diagrama")
@@ -513,20 +520,30 @@ function ProjectNotesPage() {
                                 setDiagramSaving(false)
                               }
                             }}
-                            disabled={!editing?.id || diagramSaving}
+                            disabled={diagramSaving || (!editing?.id && !(isCreating && !!newNote.title && !!newNote.projectId))}
                             className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-medium shadow-sm transition-colors ${
-                              !editing?.id
-                                ? "opacity-60 cursor-not-allowed bg-muted"
-                                : diagramSaving
-                                  ? "bg-blue-300 text-white border-blue-300 cursor-not-allowed"
+                              diagramSaving
+                                ? "bg-blue-300 text-white border-blue-300 cursor-not-allowed"
+                                : (!editing?.id && !(isCreating && !!newNote.title && !!newNote.projectId))
+                                  ? "opacity-60 cursor-not-allowed bg-muted"
                                   : diagramUnsaved
                                     ? "bg-yellow-500 text-black border-yellow-600 hover:bg-yellow-600"
                                     : "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
                             }`}
-                            title={!editing?.id ? "Salve a nota antes de salvar o diagrama" : (diagramUnsaved ? "Salvar alterações do diagrama" : "Salvar diagrama")}
+                            title={
+                              diagramSaving
+                                ? "Salvando..."
+                                : !editing?.id
+                                  ? (isCreating && !!newNote.title && !!newNote.projectId)
+                                    ? "Salvar nota e diagrama"
+                                    : "Preencha título e projeto para salvar"
+                                  : diagramUnsaved
+                                    ? "Salvar alterações do diagrama"
+                                    : "Salvar diagrama"
+                            }
                           >
                             <Save className="h-4 w-4" />
-                            {diagramSaving ? "Salvando..." : diagramUnsaved ? "Salvar alterações" : "Salvar diagrama"}
+                            {diagramSaving ? "Salvando..." : !editing?.id ? "Salvar nota" : diagramUnsaved ? "Salvar alterações" : "Salvar diagrama"}
                           </button>
                           <button
                             onClick={() => setDiagramFullscreen((v) => !v)}
