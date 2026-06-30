@@ -85,7 +85,7 @@ const navigation: NavItem[] = [
     icon: Wallet,
     submenu: [
       { name: "Visão", href: "/financial", icon: Wallet },
-      { name: "Calendário financeiro", href: "/financial/calendar", icon: Calendar },
+      { name: "Calendário", href: "/financial/calendar", icon: Calendar },
       { name: "Assinaturas", href: "/subscriptions", icon: CreditCard },
       { name: "Comissões", href: "/financial/commissions", icon: DollarSign },
     ]
