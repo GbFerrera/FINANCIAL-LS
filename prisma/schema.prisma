@@ -77,8 +77,59 @@ model Client {
   projectLinks ProjectClient[]
   projects     Project[]
   proposals    Proposal[]
+  subscriptions ClientSubscription[]
 
   @@map("clients")
+}
+
+model SubscriptionGroup {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  subscriptions Subscription[]
+
+  @@unique([name])
+  @@map("subscription_groups")
+}
+
+model Subscription {
+  id          String                  @id @default(cuid())
+  groupId     String
+  name        String
+  description String?
+  price       Float                   @default(0)
+  billingCycle SubscriptionBillingCycle @default(MONTHLY)
+  isActive    Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  group       SubscriptionGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  clients     ClientSubscription[]
+
+  @@map("subscriptions")
+}
+
+model ClientSubscription {
+  id             String              @id @default(cuid())
+  clientId       String
+  subscriptionId String
+  status         SubscriptionStatus  @default(ACTIVE)
+  startedAt      DateTime            @default(now())
+  dueDay         Int                 @default(1)
+  lastPaidFor    DateTime?
+  paidAt         DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  client         Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  subscription   Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  financialEntries FinancialEntry[]
+
+  @@unique([clientId, subscriptionId])
+  @@index([clientId])
+  @@index([subscriptionId])
+  @@map("client_subscriptions")
 }
 
 model Project {
@@ -98,6 +149,7 @@ model Project {
   excalidrawScene Json?
   comments        Comment[]
   financials      FinancialEntry[]
+  expenseBills    ExpenseBill[]
   milestones      Milestone[]
   paymentProjects PaymentProject[]
   clients         ProjectClient[]
@@ -296,15 +348,41 @@ model FinancialEntry {
   updatedAt     DateTime              @updatedAt
   projectId     String?
   paymentId     String?
+  expenseBillId String?
+  clientSubscriptionId String?
   collaboratorId String?
   periodStart   DateTime?
   periodEnd     DateTime?
   attachments   FinancialAttachment[]
   payment       Payment?              @relation(fields: [paymentId], references: [id])
+  expenseBill   ExpenseBill?          @relation(fields: [expenseBillId], references: [id])
+  clientSubscription ClientSubscription? @relation(fields: [clientSubscriptionId], references: [id])
   project       Project?              @relation(fields: [projectId], references: [id])
   collaborator   User?                 @relation("FinancialEntryCollaborator", fields: [collaboratorId], references: [id])
 
   @@map("financial_entries")
+}
+
+model ExpenseBill {
+  id            String       @id @default(cuid())
+  category      String
+  description   String
+  amount        Float
+  isRecurring   Boolean      @default(false)
+  recurringType RecurringType?
+  dueDay        Int?
+  startDate     DateTime?
+  dueDate       DateTime?
+  isActive      Boolean      @default(true)
+  projectId     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  project       Project?       @relation(fields: [projectId], references: [id])
+  financialEntries FinancialEntry[]
+
+  @@index([projectId])
+  @@map("expense_bills")
 }
 
 model Payment {
@@ -585,4 +663,15 @@ enum ProposalStatus {
   ACCEPTED
   REJECTED
   ARCHIVED
+}
+
+enum SubscriptionBillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
 }

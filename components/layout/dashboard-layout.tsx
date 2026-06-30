@@ -36,7 +36,8 @@ import {
   FolderGit2,
   Wallet,
   FilePen,
-  Megaphone
+  Megaphone,
+  CreditCard
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
@@ -84,6 +85,8 @@ const navigation: NavItem[] = [
     icon: Wallet,
     submenu: [
       { name: "Visão", href: "/financial", icon: Wallet },
+      { name: "Calendário financeiro", href: "/financial/calendar", icon: Calendar },
+      { name: "Assinaturas", href: "/subscriptions", icon: CreditCard },
       { name: "Comissões", href: "/financial/commissions", icon: DollarSign },
     ]
   },

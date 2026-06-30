@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { endOfDay, startOfDay } from 'date-fns'
+import { PaymentStatus } from '@prisma/client'
 
 // GET - Listar pagamentos
 export async function GET(request: NextRequest) {
@@ -13,10 +15,25 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const clientId = searchParams.get('clientId')
+    const status = searchParams.get('status')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
 
-    const whereClause = clientId ? { clientId } : {}
+    const parseLocalDate = (s: string) => {
+      const [y, m, d] = s.split('-').map(Number)
+      return new Date(y, (m || 1) - 1, d || 1)
+    }
+
+    const whereClause: any = {}
+    if (clientId) whereClause.clientId = clientId
+    if (status) whereClause.status = status
+    if (startDate || endDate) {
+      whereClause.paymentDate = {}
+      if (startDate) whereClause.paymentDate.gte = startOfDay(parseLocalDate(startDate))
+      if (endDate) whereClause.paymentDate.lte = endOfDay(parseLocalDate(endDate))
+    }
 
     const payments = await prisma.payment.findMany({
       where: whereClause,
@@ -77,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { clientId, amount, description, paymentDate, method } = body
+    const { clientId, amount, description, paymentDate, method, status } = body
 
     // Validações
     if (!clientId || !amount || !paymentDate) {
@@ -99,17 +116,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Usar transação para garantir consistência entre pagamento e entrada financeira
+    const desiredStatus =
+      status && typeof status === 'string' && Object.values(PaymentStatus).includes(status as PaymentStatus)
+        ? (status as PaymentStatus)
+        : PaymentStatus.COMPLETED
+
     const result = await prisma.$transaction(async (tx) => {
-      // Criar o pagamento
-      const payment = await tx.payment.create({
+      const created = await tx.payment.create({
         data: {
           clientId,
           amount: parseFloat(amount),
           description,
           paymentDate: new Date(paymentDate),
           method: method || 'BANK_TRANSFER',
-          status: 'COMPLETED'
+          status: desiredStatus
         },
         include: {
           client: {
@@ -118,32 +138,98 @@ export async function POST(request: NextRequest) {
               name: true,
               email: true
             }
+          },
+          paymentProjects: {
+            include: {
+              project: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
           }
         }
       })
 
-      // Criar entrada financeira automaticamente para o pagamento
-      const financialEntry = await tx.financialEntry.create({
-        data: {
-          type: 'INCOME',
-          category: 'Pagamento de Cliente',
-          description: description || `Pagamento recebido de ${client.name}`,
-          amount: parseFloat(amount),
-          date: new Date(paymentDate),
-          isRecurring: false,
-          paymentId: payment.id // Vincular entrada financeira ao pagamento
-        }
-      })
+      if (desiredStatus === PaymentStatus.COMPLETED) {
+        await tx.financialEntry.create({
+          data: {
+            type: 'INCOME',
+            category: 'Pagamento de Cliente',
+            description: description || `Pagamento recebido de ${client.name}`,
+            amount: parseFloat(amount),
+            date: new Date(paymentDate),
+            isRecurring: false,
+            paymentId: created.id
+          }
+        })
+      }
 
-      return { payment, financialEntry }
+      return created
     })
 
-    return NextResponse.json(result.payment, { status: 201 })
+    return NextResponse.json(result, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar pagamento:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const paymentId = body?.paymentId as string | undefined
+    const markAsReceived = body?.markAsReceived === true
+
+    if (!paymentId || !markAsReceived) {
+      return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id: paymentId },
+        include: { client: true }
+      })
+      if (!payment) return null
+
+      const updated = await tx.payment.update({
+        where: { id: paymentId },
+        data: { status: PaymentStatus.COMPLETED }
+      })
+
+      const existing = await tx.financialEntry.findFirst({
+        where: { paymentId }
+      })
+      if (!existing) {
+        await tx.financialEntry.create({
+          data: {
+            type: 'INCOME',
+            category: 'Pagamento de Cliente',
+            description: payment.description || `Pagamento recebido de ${payment.client.name}`,
+            amount: payment.amount,
+            date: payment.paymentDate,
+            isRecurring: false,
+            paymentId: payment.id
+          }
+        })
+      }
+
+      return updated
+    })
+
+    if (!result) return NextResponse.json({ error: 'Pagamento não encontrado' }, { status: 404 })
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error('Erro ao atualizar pagamento:', error)
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }

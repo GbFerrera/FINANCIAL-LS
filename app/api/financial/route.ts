@@ -183,6 +183,8 @@ export async function GET(request: NextRequest) {
       projectName: entry.project?.name,
       clientName: entry.project?.client?.name,
       paymentId: entry.paymentId,
+      clientSubscriptionId: (entry as any).clientSubscriptionId ?? null,
+      expenseBillId: (entry as any).expenseBillId ?? null,
       collaboratorName: entry.collaborator?.name || null,
       projectDistributions: entry.payment?.paymentProjects?.map((pp) => ({
         projectId: pp.project.id,
@@ -288,7 +290,7 @@ export async function POST(request: NextRequest) {
             details: zodError.issues.map((err: z.ZodIssue) => ({
               field: err.path.join('.'),
               message: err.message,
-              received: err.received
+              received: (err as any).received
             }))
           },
           { status: 400 }

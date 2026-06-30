@@ -82,6 +82,8 @@ interface AddEntryModalProps {
   onClose: () => void
   onSuccess: () => void
   editingEntry?: FinancialEntry
+  initialDate?: Date
+  defaultType?: 'INCOME' | 'EXPENSE'
 }
 
 // Categorias serão carregadas dinamicamente do banco de dados
@@ -92,7 +94,7 @@ const RECURRING_TYPES = [
   { value: 'YEARLY', label: 'Anual' }
 ]
 
-export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddEntryModalProps) {
+export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry, initialDate, defaultType }: AddEntryModalProps) {
   const [loading, setLoading] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
   const [categories, setCategories] = useState<{INCOME: string[], EXPENSE: string[]}>({INCOME: [], EXPENSE: []})
@@ -124,14 +126,21 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     url: string
   }>>([])
   const [salaryRange, setSalaryRange] = useState<DateRange | undefined>()
-  const [entryDate, setEntryDate] = useState<Date | undefined>(new Date())
+  const [entryDate, setEntryDate] = useState<Date | undefined>()
+  const [recurringDueDay, setRecurringDueDay] = useState<number>(new Date().getDate())
+
+  const daysInMonth = (year: number, monthIndex0: number) => {
+    return new Date(year, monthIndex0 + 1, 0).getDate()
+  }
 
   useEffect(() => {
-    if (salaryRange?.from && salaryRange?.to) {
+    const from = salaryRange?.from
+    const to = salaryRange?.to
+    if (from && to) {
       setFormData(prev => ({
         ...prev,
-        periodStart: format(salaryRange.from, "yyyy-MM-dd"),
-        periodEnd: format(salaryRange.to, "yyyy-MM-dd"),
+        periodStart: format(from, "yyyy-MM-dd"),
+        periodEnd: format(to, "yyyy-MM-dd"),
       }))
     }
   }, [salaryRange])
@@ -172,15 +181,20 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           periodStart: '',
           periodEnd: ''
         })
+        const d = parseISO(editingEntry.date.split('T')[0])
+        setEntryDate(d)
+        setRecurringDueDay(d.getDate())
         setExistingAttachments(editingEntry.attachments || [])
       } else {
         // Reset formulário para nova entrada
+        const d = initialDate instanceof Date ? new Date(initialDate) : new Date()
+        const resolvedType: 'INCOME' | 'EXPENSE' = defaultType === 'EXPENSE' ? 'EXPENSE' : 'INCOME'
         setFormData({
-          type: 'INCOME',
+          type: resolvedType,
           category: '',
           description: '',
           amount: '',
-          date: new Date().toISOString().split('T')[0],
+          date: format(d, "yyyy-MM-dd"),
           isRecurring: false,
           recurringType: '',
           projectId: '',
@@ -189,13 +203,15 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
           periodStart: '',
           periodEnd: ''
         })
+        setEntryDate(d)
+        setRecurringDueDay(d.getDate())
         setSelectedClientId('')
         setClientProjectSummaries([])
         setExistingAttachments([])
       }
       setAttachments([])
     }
-  }, [isOpen, editingEntry])
+  }, [isOpen, editingEntry, initialDate, defaultType])
 
   // Separar useEffect para atualizar projectId quando projects carregarem
   useEffect(() => {
@@ -291,10 +307,19 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       const response = await fetch('/api/clients')
       if (response.ok) {
         const data = await response.json()
-        setClients(data.clients || [])
+        if (Array.isArray(data)) {
+          setClients(data)
+        } else if (data && Array.isArray((data as any).clients)) {
+          setClients((data as any).clients)
+        } else {
+          setClients([])
+        }
+      } else {
+        setClients([])
       }
     } catch (error) {
       console.error('Erro ao buscar clientes:', error)
+      setClients([])
     }
   }
 
@@ -384,6 +409,14 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
       return
     }
 
+    if (formData.isRecurring) {
+      const dd = Number(recurringDueDay)
+      if (!Number.isFinite(dd) || dd < 1 || dd > 31) {
+        toast.error('Selecione o dia de vencimento')
+        return
+      }
+    }
+
     const amount = parseFloat(formData.amount)
     if (isNaN(amount) || amount <= 0) {
       toast.error('Valor deve ser um número positivo')
@@ -447,7 +480,7 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
     const url = editingEntry ? `/api/financial/${editingEntry.id}` : '/api/financial'
     const method = editingEntry ? 'PUT' : 'POST'
 
-    const payload = {
+    const payload: any = {
       type: formData.type,
       category: formData.category,
       description: formData.description,
@@ -1218,6 +1251,37 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry }: AddE
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="mt-4">
+                  <Label className="text-sm font-medium">Dia de vencimento</Label>
+                  <div className="mt-1">
+                    <Select
+                      value={String(recurringDueDay)}
+                      onValueChange={(value) => {
+                        const dd = Math.min(Math.max(1, Number(value)), 31)
+                        setRecurringDueDay(dd)
+                        const base = entryDate instanceof Date ? entryDate : new Date()
+                        const dim = daysInMonth(base.getFullYear(), base.getMonth())
+                        const day = Math.min(dd, dim)
+                        setEntryDate(new Date(base.getFullYear(), base.getMonth(), day, 12, 0, 0, 0))
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Dia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 31 }).map((_, i) => {
+                          const d = i + 1
+                          return (
+                            <SelectItem key={d} value={String(d)}>
+                              {String(d).padStart(2, "0")}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
             )}

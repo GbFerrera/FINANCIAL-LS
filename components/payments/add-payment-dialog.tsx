@@ -33,12 +33,16 @@ interface AddPaymentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onPaymentAdded: () => void
+  mode?: 'PAYMENT' | 'CHARGE'
+  defaultDate?: string
 }
 
 export function AddPaymentDialog({
   open,
   onOpenChange,
   onPaymentAdded,
+  mode = 'PAYMENT',
+  defaultDate,
 }: AddPaymentDialogProps) {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(false)
@@ -46,33 +50,63 @@ export function AddPaymentDialog({
     clientId: '',
     amount: '',
     description: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: defaultDate || new Date().toISOString().split('T')[0],
     method: 'BANK_TRANSFER'
   })
+
+  const formatCurrencyBRFromDigits = (digits: string) => {
+    const cleaned = (digits || '').replace(/\D/g, '')
+    const padded = cleaned.replace(/^0+/, '') || '0'
+    const cents = parseInt(padded, 10)
+    const value = cents / 100
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  }
+
+  const parseCurrencyBRToNumber = (value: string) => {
+    const digits = (value || '').replace(/\D/g, '')
+    if (!digits) return null
+    const cents = parseInt(digits, 10)
+    if (!Number.isFinite(cents)) return null
+    return cents / 100
+  }
 
   useEffect(() => {
     if (open) {
       fetchClients()
+      setFormData(prev => ({
+        ...prev,
+        paymentDate: defaultDate || new Date().toISOString().split('T')[0]
+      }))
     }
-  }, [open])
+  }, [open, defaultDate])
 
   const fetchClients = async () => {
     try {
       const response = await fetch('/api/clients')
       if (response.ok) {
         const data = await response.json()
-        setClients(data)
+        if (Array.isArray(data)) {
+          setClients(data)
+        } else if (data && Array.isArray((data as any).clients)) {
+          setClients((data as any).clients)
+        } else {
+          setClients([])
+        }
+      } else {
+        setClients([])
       }
     } catch (error) {
       console.error('Erro ao carregar clientes:', error)
       toast.error('Erro ao carregar clientes')
+      setClients([])
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.clientId || !formData.amount || !formData.paymentDate) {
+    const amountNumber = parseCurrencyBRToNumber(formData.amount)
+    if (!formData.clientId || !amountNumber || !formData.paymentDate) {
       toast.error('Preencha todos os campos obrigatórios')
       return
     }
@@ -83,7 +117,9 @@ export function AddPaymentDialog({
       // Converter data para ISO com meio-dia UTC para evitar problema de fuso horário
       const paymentData = {
         ...formData,
-        paymentDate: formData.paymentDate + 'T12:00:00.000Z'
+        amount: String(amountNumber.toFixed(2)),
+        paymentDate: formData.paymentDate + 'T12:00:00.000Z',
+        status: mode === 'CHARGE' ? 'PENDING' : 'COMPLETED'
       }
       
       const response = await fetch('/api/payments', {
@@ -95,22 +131,22 @@ export function AddPaymentDialog({
       })
 
       if (response.ok) {
-        toast.success('Pagamento adicionado com sucesso!')
+        toast.success(mode === 'CHARGE' ? 'Cobrança criada com sucesso!' : 'Pagamento adicionado com sucesso!')
         onPaymentAdded()
         setFormData({
           clientId: '',
           amount: '',
           description: '',
-          paymentDate: new Date().toISOString().split('T')[0],
+          paymentDate: defaultDate || new Date().toISOString().split('T')[0],
           method: 'BANK_TRANSFER'
         })
       } else {
         const error = await response.json()
-        toast.error(error.error || 'Erro ao adicionar pagamento')
+        toast.error(error.error || (mode === 'CHARGE' ? 'Erro ao criar cobrança' : 'Erro ao adicionar pagamento'))
       }
     } catch (error) {
       console.error('Erro ao adicionar pagamento:', error)
-      toast.error('Erro ao adicionar pagamento')
+      toast.error(mode === 'CHARGE' ? 'Erro ao criar cobrança' : 'Erro ao adicionar pagamento')
     } finally {
       setLoading(false)
     }
@@ -137,9 +173,11 @@ export function AddPaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Adicionar Pagamento</DialogTitle>
+          <DialogTitle>{mode === 'CHARGE' ? 'Criar cobrança avulsa' : 'Adicionar Pagamento'}</DialogTitle>
           <DialogDescription>
-            Registre um novo pagamento recebido de um cliente.
+            {mode === 'CHARGE'
+              ? 'Crie uma cobrança para receber em um dia específico.'
+              : 'Registre um novo pagamento recebido de um cliente.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -167,18 +205,20 @@ export function AddPaymentDialog({
             <Label htmlFor="amount">Valor *</Label>
             <Input
               id="amount"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0,00"
+              type="text"
+              inputMode="numeric"
+              placeholder="R$ 0,00"
               value={formData.amount}
-              onChange={(e) => handleInputChange('amount', e.target.value)}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '')
+                handleInputChange('amount', formatCurrencyBRFromDigits(digits))
+              }}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="paymentDate">Data do Pagamento *</Label>
+            <Label htmlFor="paymentDate">{mode === 'CHARGE' ? 'Data de vencimento *' : 'Data do Pagamento *'}</Label>
             <Input
               id="paymentDate"
               type="date"
@@ -211,7 +251,7 @@ export function AddPaymentDialog({
             <Label htmlFor="description">Descrição</Label>
             <Textarea
               id="description"
-              placeholder="Descrição opcional do pagamento"
+              placeholder={mode === 'CHARGE' ? 'Descrição opcional da cobrança (ex: Pagamento do projeto X)' : 'Descrição opcional do pagamento'}
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
               rows={3}
@@ -228,7 +268,7 @@ export function AddPaymentDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Salvando...' : 'Salvar Pagamento'}
+              {loading ? 'Salvando...' : mode === 'CHARGE' ? 'Criar cobrança' : 'Salvar Pagamento'}
             </Button>
           </DialogFooter>
         </form>
