@@ -7,19 +7,19 @@ services:
       args:
         NEXTAUTH_URL: ${NEXTAUTH_URL}
         NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-    container_name: financial_app
-    restart: always
-    ports:
-      - "3003:3000"
+    restart: unless-stopped
+    expose:
+      - "3000"
+    labels:
+      - traefik.docker.network=coolify
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/financial_ls?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${COMPOSE_PROJECT_NAME:-financial}-postgres:5432/${POSTGRES_DB:-financial_ls}?schema=public
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - SEED_DB=${SEED_DB:-false}
       - SEED_ADMIN_NAME=${SEED_ADMIN_NAME}
       - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
       - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
-      # Add other env vars here if needed
     volumes:
       - ./uploads:/app/uploads
     command: >
@@ -37,29 +37,34 @@ services:
       start_period: 60s
     networks:
       - app-network
+      - coolify
 
   db:
     image: postgres:15-alpine
-    container_name: financial_db
-    restart: always
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=financial_ls
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-financial_ls}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - app-network
+      app-network:
+        aliases:
+          - ${COMPOSE_PROJECT_NAME:-financial}-postgres
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d financial_ls -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-financial_ls}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
 
 volumes:
+  uploads_data:
   postgres_data:
 
 networks:
   app-network:
+    name: ${COMPOSE_PROJECT_NAME:-financial}-app-network
     driver: bridge
+  coolify:
+    external: true
