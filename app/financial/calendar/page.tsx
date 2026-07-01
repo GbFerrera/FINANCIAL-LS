@@ -830,16 +830,44 @@ export default function FinancialCalendarPage() {
   }, [chargeEvents, financialEntries, todayKey])
 
   const monthSummary = useMemo(() => {
-    const income = chargeEvents.filter(e => e.source !== "EXPENSE")
-    const total = income.reduce((acc, e) => acc + e.amount, 0)
-    const received = income.filter(e => e.status === "PAID" || e.status === "RECEIVED").reduce((acc, e) => acc + e.amount, 0)
-    const remaining = total - received
-    const nextDue = income
-      .filter(e => e.status === "PENDING")
-      .map(e => e.dueDate)
-      .sort((a, b) => a.getTime() - b.getTime())[0]
+    const subscriptions = chargeEvents.filter(e => e.source === "SUBSCRIPTION")
+    const subscriptionsTotal = subscriptions.reduce((acc, e) => acc + e.amount, 0)
+    const subscriptionsReceived = subscriptions.filter(e => e.status === "PAID" || e.status === "RECEIVED").reduce((acc, e) => acc + e.amount, 0)
+    
+    const payments = chargeEvents.filter(e => e.source === "PAYMENT")
+    const paymentsTotal = payments.reduce((acc, e) => acc + e.amount, 0)
+    const paymentsReceived = payments.filter(e => e.status === "PAID" || e.status === "RECEIVED").reduce((acc, e) => acc + e.amount, 0)
+    
+    const totalIncome = subscriptionsTotal + paymentsTotal
+    const totalReceived = subscriptionsReceived + paymentsReceived
+    
+    const expenses = chargeEvents.filter(e => e.source === "EXPENSE")
+    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0)
+    const paidExpenses = expenses.filter(e => e.status === "PAID").reduce((acc, e) => acc + e.amount, 0)
+    
+    const balance = totalReceived - paidExpenses
+    const net = totalIncome - totalExpenses
+    
+    const allPending = chargeEvents.filter(e => e.status === "PENDING")
+    const nextDueItem = allPending
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0]
+    const nextDue = nextDueItem?.dueDate
+    const nextDueName = nextDueItem?.clientName || ""
 
-    return { total, received, remaining, nextDue }
+    return {
+      subscriptionsTotal,
+      subscriptionsReceived,
+      paymentsTotal,
+      paymentsReceived,
+      totalIncome,
+      totalReceived,
+      totalExpenses,
+      paidExpenses,
+      balance,
+      net,
+      nextDue,
+      nextDueName,
+    }
   }, [chargeEvents])
 
   const selectedKey = useMemo(() => dateKey(selectedDate), [selectedDate])
@@ -956,30 +984,34 @@ export default function FinancialCalendarPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
-          title="Total (mês)"
-          value={formatBRL2(monthSummary.total)}
-          icon={Wallet}
-          color="blue"
-        />
-        <StatsCard
-          title="Recebido (mês)"
-          value={formatBRL2(monthSummary.received)}
+          title="Entradas"
+          value={formatBRL2(monthSummary.totalIncome)}
           icon={TrendingUp}
           color="green"
+          description={`• Assinaturas: ${formatBRL2(monthSummary.subscriptionsTotal)}\n• Avulsas: ${formatBRL2(monthSummary.paymentsTotal)}`}
         />
         <StatsCard
-          title="Restante (mês)"
-          value={formatBRL2(monthSummary.remaining)}
+          title="Despesas"
+          value={formatBRL2(monthSummary.totalExpenses)}
           icon={TrendingDown}
-          color="yellow"
+          color="red"
+          description={`• Pago: ${formatBRL2(monthSummary.paidExpenses)}\n• Pendente: ${formatBRL2(monthSummary.totalExpenses - monthSummary.paidExpenses)}`}
         />
         <StatsCard
-          title="Próximo vencimento"
-          value={monthSummary.nextDue ? format(monthSummary.nextDue, "dd/MM/yyyy", { locale: ptBR }) : "—"}
+          title="Líquido"
+          value={formatBRL2(monthSummary.net)}
+          icon={Wallet}
+          color={monthSummary.net >= 0 ? "green" : "red"}
+          description={`• Entradas: ${formatBRL2(monthSummary.totalIncome)}\n• Despesas: ${formatBRL2(monthSummary.totalExpenses)}`}
+        />
+        <StatsCard
+          title="Próx. vencimento"
+          value={monthSummary.nextDue ? format(monthSummary.nextDue, "dd/MM", { locale: ptBR }) : "—"}
           icon={CalendarIcon}
           color="purple"
+          description={monthSummary.nextDueName ? `• ${monthSummary.nextDueName}` : "Sem pendências"}
         />
       </div>
 

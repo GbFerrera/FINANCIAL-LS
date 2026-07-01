@@ -45,40 +45,25 @@ export function StatsCard({ title, value, change, icon: Icon, color = 'blue', de
   
   return (
     <div className="bg-card overflow-hidden shadow rounded-lg border border-border">
-      <div className="p-5">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <div className={`${colors.lightBg} rounded-md p-3`}>
-              <Icon className={`h-6 w-6 ${colors.text}`} />
-            </div>
-          </div>
-          <div className="ml-5 w-0 flex-1">
-            <dl>
-              <dt className="text-sm font-medium text-muted-foreground truncate">{title}</dt>
-              <dd className="flex items-baseline">
-                <div className="text-2xl font-semibold text-card-foreground">
-                  {typeof value === 'number' ? value.toLocaleString('pt-BR') : value}
-                </div>
-                {change && (
-                  <div className={`ml-2 flex items-baseline text-sm font-semibold ${
-                    change.type === 'increase' 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : change.type === 'decrease' 
-                      ? 'text-red-600 dark:text-red-400' 
-                      : 'text-muted-foreground'
-                  }`}>
-                    {change.type === 'increase' && '↗'}
-                    {change.type === 'decrease' && '↘'}
-                    {change.value}
-                  </div>
-                )}
-                {description && !change && (
-                  <div className="ml-2 flex items-baseline text-xs font-medium text-muted-foreground">
-                    {description}
-                  </div>
-                )}
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <dt className="text-lg font-bold text-card-foreground">{title}</dt>
+            {description && (
+              <dd className="mt-1 text-xs text-muted-foreground whitespace-pre-line">
+                {description}
               </dd>
-            </dl>
+            )}
+          </div>
+          <div className="ml-4 flex items-center">
+            <div className={`text-right`}>
+              <div className="text-2xl font-bold text-card-foreground">
+                {typeof value === 'number' ? value.toLocaleString('pt-BR') : value}
+              </div>
+            </div>
+            <div className={`ml-3 ${colors.lightBg} rounded-md p-2`}>
+              <Icon className={`h-5 w-5 ${colors.text}`} />
+            </div>
           </div>
         </div>
       </div>
