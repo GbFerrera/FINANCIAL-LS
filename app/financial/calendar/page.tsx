@@ -881,15 +881,36 @@ export default function FinancialCalendarPage() {
   const eventStyleGetter = (event: CalendarDayTotalEvent) => {
     const hasPay = event.payCount > 0
     const hasReceive = event.receiveCount > 0
+    const hasPaid = event.receivedCount > 0 || event.paidExpenseCount > 0
     const overdueReceive = hasReceive && dateKey(event.start) < todayKey
 
-    const borderColor = hasPay
-      ? "rgba(239, 68, 68, 0.95)"
-      : overdueReceive
-        ? "rgba(239, 68, 68, 0.95)"
-        : hasReceive
-          ? "rgba(245, 158, 11, 0.95)"
-          : "rgba(34, 197, 94, 0.95)"
+    let borderColor: string
+    if (hasPay && hasReceive) {
+      borderColor = "transparent"
+    } else if (hasPay) {
+      borderColor = "rgba(239, 68, 68, 0.95)"
+    } else if (hasReceive) {
+      borderColor = overdueReceive ? "rgba(239, 68, 68, 0.95)" : "rgba(245, 158, 11, 0.95)"
+    } else if (hasPaid) {
+      borderColor = "rgba(34, 197, 94, 0.95)"
+    } else {
+      borderColor = "rgba(34, 197, 94, 0.95)"
+    }
+    
+    if (hasPay && hasReceive) {
+      return {
+        style: {
+          backgroundColor: "var(--secondary)",
+          borderRadius: "10px",
+          border: "2px solid transparent",
+          borderImage: "linear-gradient(135deg, rgba(239, 68, 68, 0.95) 50%, rgba(245, 158, 11, 0.95) 50%) 1",
+          color: "var(--secondary-foreground)",
+          padding: "4px 8px",
+          boxShadow: "0 1px 0 rgba(0,0,0,0.08)",
+        },
+      }
+    }
+    
     return {
       style: {
         backgroundColor: "var(--secondary)",
@@ -903,47 +924,6 @@ export default function FinancialCalendarPage() {
   }
 
   const dayStyleGetter = (date: Date) => {
-    const key = dateKey(date)
-    const dayData = calendarEvents.find(e => e.id === `day:${key}`)
-    
-    if (!dayData) return {}
-    
-    const hasPay = dayData.payCount > 0
-    const hasReceive = dayData.receiveCount > 0
-    const hasPaid = dayData.receivedCount > 0 || dayData.paidExpenseCount > 0
-    
-    if (hasPay && hasReceive) {
-      return {
-        style: {
-          background: "linear-gradient(135deg, rgba(239, 68, 68, 0.2) 50%, rgba(245, 158, 11, 0.2) 50%)",
-        },
-      }
-    }
-    
-    if (hasPay) {
-      return {
-        style: {
-          background: "rgba(239, 68, 68, 0.15)",
-        },
-      }
-    }
-    
-    if (hasReceive) {
-      return {
-        style: {
-          background: "rgba(245, 158, 11, 0.15)",
-        },
-      }
-    }
-    
-    if (hasPaid) {
-      return {
-        style: {
-          background: "rgba(34, 197, 94, 0.15)",
-        },
-      }
-    }
-    
     return {}
   }
 
@@ -1089,8 +1069,10 @@ export default function FinancialCalendarPage() {
                       </TooltipProvider>
                     )
                   },
-                  event: ({ event }: { event: any }) => {
-                    const ev = event as CalendarDayTotalEvent
+                  event: (props: any) => {
+                    const ev = props.event as CalendarDayTotalEvent
+                    const style = props.style
+                    const className = props.className
                     const hasPay = ev.payCount > 0
                     const hasReceive = ev.receiveCount > 0
                     const overdueReceive = hasReceive && dateKey(ev.start) < todayKey
@@ -1103,7 +1085,9 @@ export default function FinancialCalendarPage() {
                         : hasReceive
                           ? "h-2 w-2 rounded-full bg-amber-500 flex-shrink-0"
                           : "h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0"
-                    return (
+                    const isSplitBorder = className?.includes("split-border-event")
+                    
+                    const content = (
                       <div className="text-[11px] leading-tight">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className={dotClass} />
@@ -1138,6 +1122,18 @@ export default function FinancialCalendarPage() {
                         </div>
                       </div>
                     )
+                    
+                    if (isSplitBorder) {
+                      return (
+                        <div style={style} className={className}>
+                          <div className="bg-[var(--secondary)] rounded-[8px] p-[4px_8px] text-[var(--secondary-foreground)]">
+                            {content}
+                          </div>
+                        </div>
+                      )
+                    }
+                    
+                    return content
                   },
                 }}
               />
