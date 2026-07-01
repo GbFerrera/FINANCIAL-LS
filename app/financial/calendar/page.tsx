@@ -1005,6 +1005,10 @@ export default function FinancialCalendarPage() {
         <StatsCard
           title="Líquido"
           value={formatBRL2(monthSummary.net)}
+          change={{
+            value: `Previsto ${formatBRL2(monthSummary.totalIncome - monthSummary.totalExpenses)}`,
+            type: 'neutral'
+          }}
           icon={Wallet}
           color={monthSummary.net >= 0 ? "green" : "red"}
           description={`• Entradas: ${formatBRL2(monthSummary.totalIncome)}\n• Despesas: ${formatBRL2(monthSummary.totalExpenses)}`}
