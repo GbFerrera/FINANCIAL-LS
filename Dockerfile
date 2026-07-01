@@ -13,7 +13,7 @@ RUN NEXT_TELEMETRY_DISABLED=1 SKIP_AUTH_MIDDLEWARE=1 NEXTAUTH_URL=$NEXTAUTH_URL 
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-RUN apk add --no-cache libc6-compat wget
+RUN apk add --no-cache libc6-compat wget curl
 ENV NODE_ENV=production
 # Copy the standalone server and required assets
 COPY --from=builder /app/.next/standalone ./
