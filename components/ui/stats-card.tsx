@@ -60,6 +60,11 @@ export function StatsCard({ title, value, change, icon: Icon, color = 'blue', de
               <div className="text-2xl font-bold text-card-foreground">
                 {typeof value === 'number' ? value.toLocaleString('pt-BR') : value}
               </div>
+              {change && (
+                <div className="text-sm text-muted-foreground">
+                  {change.value}
+                </div>
+              )}
             </div>
             <div className={`ml-3 ${colors.lightBg} rounded-md p-2`}>
               <Icon className={`h-5 w-5 ${colors.text}`} />

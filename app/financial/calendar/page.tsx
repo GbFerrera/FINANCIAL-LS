@@ -462,6 +462,7 @@ export default function FinancialCalendarPage() {
       setAddExpenseOpen(false)
       setExpenseToEdit(undefined)
       fetchExpenseOccurrences()
+      fetchFinancialEntries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar despesa")
     } finally {
@@ -483,6 +484,7 @@ export default function FinancialCalendarPage() {
       }
       toast.success("Cobrança marcada como recebida")
       fetchPayments()
+      fetchFinancialEntries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar como recebido")
     } finally {
@@ -504,6 +506,7 @@ export default function FinancialCalendarPage() {
       }
       toast.success("Cobrança excluída")
       fetchPayments()
+      fetchFinancialEntries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao excluir cobrança")
     } finally {
@@ -525,6 +528,7 @@ export default function FinancialCalendarPage() {
       }
       toast.success("Despesa excluída")
       fetchExpenseOccurrences()
+      fetchFinancialEntries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao excluir despesa")
     } finally {
@@ -546,6 +550,7 @@ export default function FinancialCalendarPage() {
       }
       toast.success("Assinatura marcada como paga")
       fetchSubscriptions()
+      fetchFinancialEntries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar como pago")
     } finally {
@@ -568,6 +573,7 @@ export default function FinancialCalendarPage() {
       }
       toast.success("Despesa marcada como paga")
       fetchExpenseOccurrences()
+      fetchFinancialEntries()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar despesa como paga")
     } finally {
@@ -838,15 +844,26 @@ export default function FinancialCalendarPage() {
     const paymentsTotal = payments.reduce((acc, e) => acc + e.amount, 0)
     const paymentsReceived = payments.filter(e => e.status === "PAID" || e.status === "RECEIVED").reduce((acc, e) => acc + e.amount, 0)
     
-    const totalIncome = subscriptionsTotal + paymentsTotal
-    const totalReceived = subscriptionsReceived + paymentsReceived
+    // Incluir financialEntries (entradas/saídas manuais) como na página financeiro
+    // Excluir entradas vinculadas a paymentId ou clientSubscriptionId para evitar duplicação
+    const manualIncome = financialEntries
+      .filter(e => e.type === "INCOME" && !e.paymentId && !e.clientSubscriptionId && !e.expenseBillId)
+      .reduce((acc, e) => acc + e.amount, 0)
+    const manualExpenses = financialEntries
+      .filter(e => e.type === "EXPENSE" && !e.paymentId && !e.clientSubscriptionId && !e.expenseBillId)
+      .reduce((acc, e) => acc + e.amount, 0)
+    
+    const totalIncome = subscriptionsTotal + paymentsTotal + manualIncome
+    const totalReceived = subscriptionsReceived + paymentsReceived + manualIncome
     
     const expenses = chargeEvents.filter(e => e.source === "EXPENSE")
-    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0)
+    const expensesTotal = expenses.reduce((acc, e) => acc + e.amount, 0)
     const paidExpenses = expenses.filter(e => e.status === "PAID").reduce((acc, e) => acc + e.amount, 0)
     
+    const totalExpenses = expensesTotal + manualExpenses
+    
     const balance = totalReceived - paidExpenses
-    const net = totalIncome - totalExpenses
+    const net = balance // Líquido usa apenas valores recebidos/pagos, não previstos
     
     const allPending = chargeEvents.filter(e => e.status === "PENDING")
     const nextDueItem = allPending
@@ -868,7 +885,7 @@ export default function FinancialCalendarPage() {
       nextDue,
       nextDueName,
     }
-  }, [chargeEvents])
+  }, [chargeEvents, financialEntries])
 
   const selectedKey = useMemo(() => dateKey(selectedDate), [selectedDate])
   const dayCharges = useMemo(() => {
@@ -986,6 +1003,13 @@ export default function FinancialCalendarPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
+          title="Líquido"
+          value={formatBRL2(monthSummary.net)}
+          icon={Wallet}
+          color={monthSummary.net >= 0 ? "green" : "red"}
+          description={`• Entradas: ${formatBRL2(monthSummary.totalIncome)}\n• Despesas: ${formatBRL2(monthSummary.totalExpenses)}`}
+        />
+        <StatsCard
           title="Entradas"
           value={formatBRL2(monthSummary.totalIncome)}
           icon={TrendingUp}
@@ -998,13 +1022,6 @@ export default function FinancialCalendarPage() {
           icon={TrendingDown}
           color="red"
           description={`• Pago: ${formatBRL2(monthSummary.paidExpenses)}\n• Pendente: ${formatBRL2(monthSummary.totalExpenses - monthSummary.paidExpenses)}`}
-        />
-        <StatsCard
-          title="Líquido"
-          value={formatBRL2(monthSummary.net)}
-          icon={Wallet}
-          color={monthSummary.net >= 0 ? "green" : "red"}
-          description={`• Entradas: ${formatBRL2(monthSummary.totalIncome)}\n• Despesas: ${formatBRL2(monthSummary.totalExpenses)}`}
         />
         <StatsCard
           title="Próx. vencimento"
@@ -1551,6 +1568,7 @@ export default function FinancialCalendarPage() {
           setAddChargeOpen(false)
           setPaymentToEdit(undefined)
           fetchPayments()
+          fetchFinancialEntries()
         }}
         mode="CHARGE"
         defaultDate={format(selectedDate, "yyyy-MM-dd")}
