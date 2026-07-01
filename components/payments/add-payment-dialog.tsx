@@ -35,6 +35,14 @@ interface AddPaymentDialogProps {
   onPaymentAdded: () => void
   mode?: 'PAYMENT' | 'CHARGE'
   defaultDate?: string
+  paymentToEdit?: {
+    id: string
+    clientId: string
+    amount: number
+    description?: string | null
+    paymentDate: string
+    method?: string | null
+  }
 }
 
 export function AddPaymentDialog({
@@ -43,6 +51,7 @@ export function AddPaymentDialog({
   onPaymentAdded,
   mode = 'PAYMENT',
   defaultDate,
+  paymentToEdit,
 }: AddPaymentDialogProps) {
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(false)
@@ -70,15 +79,41 @@ export function AddPaymentDialog({
     return cents / 100
   }
 
+  const dateOnly = (value: string) => {
+    const s = String(value || '')
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+    const d = new Date(s)
+    if (!Number.isFinite(d.getTime())) return defaultDate || new Date().toISOString().split('T')[0]
+    return d.toISOString().split('T')[0]
+  }
+
+  const formatCurrencyBRFromNumber = (value: number) => {
+    const cents = Math.round((Number(value) || 0) * 100)
+    return formatCurrencyBRFromDigits(String(cents))
+  }
+
   useEffect(() => {
     if (open) {
       fetchClients()
-      setFormData(prev => ({
-        ...prev,
-        paymentDate: defaultDate || new Date().toISOString().split('T')[0]
-      }))
+      if (paymentToEdit) {
+        setFormData({
+          clientId: paymentToEdit.clientId || '',
+          amount: formatCurrencyBRFromNumber(paymentToEdit.amount),
+          description: paymentToEdit.description || '',
+          paymentDate: dateOnly(paymentToEdit.paymentDate),
+          method: paymentToEdit.method || 'BANK_TRANSFER'
+        })
+      } else {
+        setFormData({
+          clientId: '',
+          amount: '',
+          description: '',
+          paymentDate: defaultDate || new Date().toISOString().split('T')[0],
+          method: 'BANK_TRANSFER'
+        })
+      }
     }
-  }, [open, defaultDate])
+  }, [open, defaultDate, paymentToEdit])
 
   const fetchClients = async () => {
     try {
@@ -114,39 +149,72 @@ export function AddPaymentDialog({
     setLoading(true)
 
     try {
-      // Converter data para ISO com meio-dia UTC para evitar problema de fuso horário
-      const paymentData = {
-        ...formData,
-        amount: String(amountNumber.toFixed(2)),
-        paymentDate: formData.paymentDate + 'T12:00:00.000Z',
-        status: mode === 'CHARGE' ? 'PENDING' : 'COMPLETED'
-      }
-      
-      const response = await fetch('/api/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(paymentData),
-      })
+      const payloadDate = formData.paymentDate + 'T12:00:00.000Z'
+
+      const response = paymentToEdit
+        ? await fetch('/api/payments', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              paymentId: paymentToEdit.id,
+              update: {
+                clientId: formData.clientId,
+                amount: String(amountNumber.toFixed(2)),
+                description: formData.description.trim() || null,
+                paymentDate: payloadDate,
+                method: formData.method
+              }
+            })
+          })
+        : await fetch('/api/payments', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ...formData,
+              amount: String(amountNumber.toFixed(2)),
+              paymentDate: payloadDate,
+              status: mode === 'CHARGE' ? 'PENDING' : 'COMPLETED'
+            }),
+          })
 
       if (response.ok) {
-        toast.success(mode === 'CHARGE' ? 'Cobrança criada com sucesso!' : 'Pagamento adicionado com sucesso!')
+        toast.success(
+          paymentToEdit
+            ? mode === 'CHARGE'
+              ? 'Cobrança atualizada com sucesso!'
+              : 'Pagamento atualizado com sucesso!'
+            : mode === 'CHARGE'
+              ? 'Cobrança criada com sucesso!'
+              : 'Pagamento adicionado com sucesso!'
+        )
         onPaymentAdded()
-        setFormData({
-          clientId: '',
-          amount: '',
-          description: '',
-          paymentDate: defaultDate || new Date().toISOString().split('T')[0],
-          method: 'BANK_TRANSFER'
-        })
+        onOpenChange(false)
       } else {
         const error = await response.json()
-        toast.error(error.error || (mode === 'CHARGE' ? 'Erro ao criar cobrança' : 'Erro ao adicionar pagamento'))
+        toast.error(
+          error.error ||
+            (paymentToEdit
+              ? mode === 'CHARGE'
+                ? 'Erro ao atualizar cobrança'
+                : 'Erro ao atualizar pagamento'
+              : mode === 'CHARGE'
+                ? 'Erro ao criar cobrança'
+                : 'Erro ao adicionar pagamento')
+        )
       }
     } catch (error) {
       console.error('Erro ao adicionar pagamento:', error)
-      toast.error(mode === 'CHARGE' ? 'Erro ao criar cobrança' : 'Erro ao adicionar pagamento')
+      toast.error(
+        paymentToEdit
+          ? mode === 'CHARGE'
+            ? 'Erro ao atualizar cobrança'
+            : 'Erro ao atualizar pagamento'
+          : mode === 'CHARGE'
+            ? 'Erro ao criar cobrança'
+            : 'Erro ao adicionar pagamento'
+      )
     } finally {
       setLoading(false)
     }
@@ -173,11 +241,23 @@ export function AddPaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{mode === 'CHARGE' ? 'Criar cobrança avulsa' : 'Adicionar Pagamento'}</DialogTitle>
+          <DialogTitle>
+            {paymentToEdit
+              ? mode === 'CHARGE'
+                ? 'Editar cobrança avulsa'
+                : 'Editar Pagamento'
+              : mode === 'CHARGE'
+                ? 'Criar cobrança avulsa'
+                : 'Adicionar Pagamento'}
+          </DialogTitle>
           <DialogDescription>
-            {mode === 'CHARGE'
-              ? 'Crie uma cobrança para receber em um dia específico.'
-              : 'Registre um novo pagamento recebido de um cliente.'}
+            {paymentToEdit
+              ? mode === 'CHARGE'
+                ? 'Atualize os dados da cobrança.'
+                : 'Atualize os dados do pagamento.'
+              : mode === 'CHARGE'
+                ? 'Crie uma cobrança para receber em um dia específico.'
+                : 'Registre um novo pagamento recebido de um cliente.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -268,7 +348,15 @@ export function AddPaymentDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Salvando...' : mode === 'CHARGE' ? 'Criar cobrança' : 'Salvar Pagamento'}
+              {loading
+                ? 'Salvando...'
+                : paymentToEdit
+                  ? mode === 'CHARGE'
+                    ? 'Salvar cobrança'
+                    : 'Salvar alterações'
+                  : mode === 'CHARGE'
+                    ? 'Criar cobrança'
+                    : 'Salvar Pagamento'}
             </Button>
           </DialogFooter>
         </form>

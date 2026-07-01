@@ -17,7 +17,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar as CalendarIcon, Plus, TrendingDown, TrendingUp, Wallet } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Calendar as CalendarIcon, Plus, TrendingDown, TrendingUp, Wallet, MoreHorizontal } from "lucide-react"
 import { AddPaymentDialog } from "@/components/payments/add-payment-dialog"
 
 const locales = {
@@ -123,6 +125,11 @@ function formatCurrencyBRFromDigits(digits: string) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
 }
 
+function formatCurrencyBRFromNumber(value: number) {
+  const cents = Math.round((Number(value) || 0) * 100)
+  return formatCurrencyBRFromDigits(String(cents))
+}
+
 function parseCurrencyBRToNumber(value: string) {
   const digits = (value || "").replace(/\D/g, "")
   if (!digits) return null
@@ -199,6 +206,7 @@ export default function FinancialCalendarPage() {
     description?: string | null
     paymentDate: string
     status: string
+    method?: string | null
     client: { id: string; name: string; email: string; company?: string | null }
     paymentProjects?: Array<{ id: string; amount: number; project: { id: string; name: string } }>
   }>>([])
@@ -227,6 +235,26 @@ export default function FinancialCalendarPage() {
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
   const [markingExpensePaidId, setMarkingExpensePaidId] = useState<string | null>(null)
   const [creatingExpense, setCreatingExpense] = useState(false)
+  const [paymentToEdit, setPaymentToEdit] = useState<{
+    id: string
+    clientId: string
+    amount: number
+    description?: string | null
+    paymentDate: string
+    method?: string | null
+  } | undefined>(undefined)
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null)
+  const [expenseToEdit, setExpenseToEdit] = useState<{
+    id: string
+    category: string
+    description: string
+    amount: number
+    dueDate: string
+    isRecurring: boolean
+    recurringType?: "MONTHLY" | "QUARTERLY" | "YEARLY"
+    dueDay?: string
+  } | undefined>(undefined)
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null)
   const [expenseForm, setExpenseForm] = useState({
     category: "",
     description: "",
@@ -239,16 +267,28 @@ export default function FinancialCalendarPage() {
 
   useEffect(() => {
     if (!addExpenseOpen) return
-    setExpenseForm({
-      category: "",
-      description: "",
-      amount: "",
-      dueDate: format(selectedDate, "yyyy-MM-dd"),
-      isRecurring: false,
-      recurringType: "MONTHLY",
-      dueDay: String(selectedDate.getDate()).padStart(2, "0"),
-    })
-  }, [addExpenseOpen, selectedDate])
+    if (expenseToEdit) {
+      setExpenseForm({
+        category: expenseToEdit.category,
+        description: expenseToEdit.description,
+        amount: formatCurrencyBRFromNumber(expenseToEdit.amount),
+        dueDate: expenseToEdit.dueDate.split('T')[0],
+        isRecurring: expenseToEdit.isRecurring,
+        recurringType: expenseToEdit.recurringType || "MONTHLY",
+        dueDay: expenseToEdit.dueDay || String(selectedDate.getDate()).padStart(2, "0"),
+      })
+    } else {
+      setExpenseForm({
+        category: "",
+        description: "",
+        amount: "",
+        dueDate: format(selectedDate, "yyyy-MM-dd"),
+        isRecurring: false,
+        recurringType: "MONTHLY",
+        dueDay: String(selectedDate.getDate()).padStart(2, "0"),
+      })
+    }
+  }, [addExpenseOpen, selectedDate, expenseToEdit])
 
   useEffect(() => {
     if (status === "loading") return
@@ -399,21 +439,31 @@ export default function FinancialCalendarPage() {
       }
 
       setCreatingExpense(true)
-      const res = await fetch("/api/expenses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+      const res = expenseToEdit
+        ? await fetch("/api/expenses", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              billId: expenseToEdit.id,
+              ...payload,
+            }),
+          })
+        : await fetch("/api/expenses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
       if (!res.ok) {
         const err = await res.json().catch(() => ({} as { error?: string }))
-        throw new Error(err.error || "Falha ao criar despesa")
+        throw new Error(err.error || "Falha ao salvar despesa")
       }
 
-      toast.success("Despesa cadastrada")
+      toast.success(expenseToEdit ? "Despesa atualizada" : "Despesa cadastrada")
       setAddExpenseOpen(false)
+      setExpenseToEdit(undefined)
       fetchExpenseOccurrences()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao criar despesa")
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar despesa")
     } finally {
       setCreatingExpense(false)
     }
@@ -437,6 +487,48 @@ export default function FinancialCalendarPage() {
       toast.error(e instanceof Error ? e.message : "Erro ao marcar como recebido")
     } finally {
       setMarkingReceivedId(null)
+    }
+  }
+
+  const deletePayment = async (paymentId: string) => {
+    try {
+      setDeletingPaymentId(paymentId)
+      const res = await fetch("/api/payments", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }))
+        throw new Error(err.error || "Falha ao excluir cobrança")
+      }
+      toast.success("Cobrança excluída")
+      fetchPayments()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir cobrança")
+    } finally {
+      setDeletingPaymentId(null)
+    }
+  }
+
+  const deleteExpense = async (billId: string) => {
+    try {
+      setDeletingExpenseId(billId)
+      const res = await fetch("/api/expenses", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }))
+        throw new Error(err.error || "Falha ao excluir despesa")
+      }
+      toast.success("Despesa excluída")
+      fetchExpenseOccurrences()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir despesa")
+    } finally {
+      setDeletingExpenseId(null)
     }
   }
 
@@ -810,6 +902,52 @@ export default function FinancialCalendarPage() {
     }
   }
 
+  const dayStyleGetter = (date: Date) => {
+    const key = dateKey(date)
+    const dayData = calendarEvents.find(e => e.id === `day:${key}`)
+    
+    if (!dayData) return {}
+    
+    const hasPay = dayData.payCount > 0
+    const hasReceive = dayData.receiveCount > 0
+    const hasPaid = dayData.receivedCount > 0 || dayData.paidExpenseCount > 0
+    
+    if (hasPay && hasReceive) {
+      return {
+        style: {
+          background: "linear-gradient(135deg, rgba(239, 68, 68, 0.2) 50%, rgba(245, 158, 11, 0.2) 50%)",
+        },
+      }
+    }
+    
+    if (hasPay) {
+      return {
+        style: {
+          background: "rgba(239, 68, 68, 0.15)",
+        },
+      }
+    }
+    
+    if (hasReceive) {
+      return {
+        style: {
+          background: "rgba(245, 158, 11, 0.15)",
+        },
+      }
+    }
+    
+    if (hasPaid) {
+      return {
+        style: {
+          background: "rgba(34, 197, 94, 0.15)",
+        },
+      }
+    }
+    
+    return {}
+  }
+
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -900,7 +1038,57 @@ export default function FinancialCalendarPage() {
                 onSelectSlot={({ start }: { start: Date }) => setSelectedDate(start)}
                 onSelectEvent={(event) => setSelectedDate((event as CalendarDayTotalEvent).start)}
                 eventPropGetter={(event) => eventStyleGetter(event as CalendarDayTotalEvent)}
+                dayPropGetter={dayStyleGetter}
                 components={{
+                  dateCellWrapper: ({ children }: { children: React.ReactNode }) => {
+                    return <>{children}</>
+                  },
+                  eventWrapper: (props: any) => {
+                    const ev = props.event as CalendarDayTotalEvent
+                    const key = dateKey(ev.start)
+                    const dayData = calendarEvents.find(e => e.id === `day:${key}`)
+                    
+                    if (!dayData) return <>{props.children}</>
+                    
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="cursor-pointer">{props.children}</div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs">
+                            <div className="space-y-2">
+                              <div className="font-semibold">{format(ev.start, "dd/MM/yyyy", { locale: ptBR })}</div>
+                              {dayData.receiveCount > 0 && (
+                                <div className="text-amber-600">
+                                  <div className="font-medium">A receber:</div>
+                                  <div>{formatBRL2(dayData.receiveAmount)} ({dayData.receiveCount})</div>
+                                </div>
+                              )}
+                              {dayData.receivedCount > 0 && (
+                                <div className="text-green-600">
+                                  <div className="font-medium">Recebido:</div>
+                                  <div>{formatBRL2(dayData.receivedAmount)} ({dayData.receivedCount})</div>
+                                </div>
+                              )}
+                              {dayData.payCount > 0 && (
+                                <div className="text-red-600">
+                                  <div className="font-medium">A pagar:</div>
+                                  <div>{formatBRL2(dayData.payAmount)} ({dayData.payCount})</div>
+                                </div>
+                              )}
+                              {dayData.paidExpenseCount > 0 && (
+                                <div className="text-green-600">
+                                  <div className="font-medium">Pago:</div>
+                                  <div>{formatBRL2(dayData.paidExpenseAmount)} ({dayData.paidExpenseCount})</div>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )
+                  },
                   event: ({ event }: { event: any }) => {
                     const ev = event as CalendarDayTotalEvent
                     const hasPay = ev.payCount > 0
@@ -1054,15 +1242,57 @@ export default function FinancialCalendarPage() {
 
                           return <Badge className={badgeClass}>{label}</Badge>
                         })()}
-                        {c.source === "PAYMENT" && c.status === "PENDING" && c.paymentId ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={markingReceivedId === c.paymentId}
-                            onClick={() => markPaymentAsReceived(c.paymentId!)}
-                          >
-                            {markingReceivedId === c.paymentId ? "Marcando..." : "Marcar recebido"}
-                          </Button>
+                        {c.source === "PAYMENT" && c.paymentId ? (
+                          <>
+                            {c.status === "PENDING" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={markingReceivedId === c.paymentId}
+                                onClick={() => markPaymentAsReceived(c.paymentId!)}
+                              >
+                                {markingReceivedId === c.paymentId ? "Marcando..." : "Marcar recebido"}
+                              </Button>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const payment = payments.find(p => p.id === c.paymentId)
+                                    if (payment) {
+                                      setPaymentToEdit({
+                                        id: payment.id,
+                                        clientId: payment.client.id,
+                                        amount: payment.amount,
+                                        description: payment.description,
+                                        paymentDate: payment.paymentDate,
+                                        method: payment.method || 'BANK_TRANSFER'
+                                      })
+                                      setAddChargeOpen(true)
+                                    }
+                                  }}
+                                >
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  disabled={deletingPaymentId === c.paymentId}
+                                  onClick={() => {
+                                    if (confirm("Tem certeza que deseja excluir esta cobrança?")) {
+                                      deletePayment(c.paymentId!)
+                                    }
+                                  }}
+                                >
+                                  {deletingPaymentId === c.paymentId ? "Excluindo..." : "Excluir"}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
                         ) : null}
                         {c.source === "SUBSCRIPTION" && c.status === "PENDING" && c.clientSubscriptionId ? (
                           <Button
@@ -1074,15 +1304,59 @@ export default function FinancialCalendarPage() {
                             {markingPaidId === c.clientSubscriptionId ? "Marcando..." : "Marcar pago"}
                           </Button>
                         ) : null}
-                        {c.source === "EXPENSE" && c.status === "PENDING" && c.expenseBillId ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}`}
-                            onClick={() => markExpenseAsPaid(c.expenseBillId!, c.dueDate)}
-                          >
-                            {markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}` ? "Marcando..." : "Marcar pago"}
-                          </Button>
+                        {c.source === "EXPENSE" && c.expenseBillId ? (
+                          <>
+                            {c.status === "PENDING" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}`}
+                                onClick={() => markExpenseAsPaid(c.expenseBillId!, c.dueDate)}
+                              >
+                                {markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}` ? "Marcando..." : "Marcar pago"}
+                              </Button>
+                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    const expense = expenseOccurrences.find(e => e.billId === c.expenseBillId)
+                                    if (expense) {
+                                      setExpenseToEdit({
+                                        id: expense.billId,
+                                        category: expense.category,
+                                        description: expense.description,
+                                        amount: expense.amount,
+                                        dueDate: expense.dueDate,
+                                        isRecurring: expense.isRecurring,
+                                        recurringType: expense.recurringType as any,
+                                        dueDay: String(expense.dueDay).padStart(2, "0")
+                                      })
+                                      setAddExpenseOpen(true)
+                                    }
+                                  }}
+                                >
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  disabled={deletingExpenseId === c.expenseBillId}
+                                  onClick={() => {
+                                    if (confirm("Tem certeza que deseja excluir esta despesa?")) {
+                                      deleteExpense(c.expenseBillId!)
+                                    }
+                                  }}
+                                >
+                                  {deletingExpenseId === c.expenseBillId ? "Excluindo..." : "Excluir"}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </>
                         ) : null}
                       </div>
                     </div>
@@ -1119,12 +1393,15 @@ export default function FinancialCalendarPage() {
         </Card>
       </div>
 
-      <Dialog open={addExpenseOpen} onOpenChange={setAddExpenseOpen}>
+      <Dialog open={addExpenseOpen} onOpenChange={(open) => {
+        setAddExpenseOpen(open)
+        if (!open) setExpenseToEdit(undefined)
+      }}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Cadastrar despesa</DialogTitle>
+            <DialogTitle>{expenseToEdit ? "Editar despesa" : "Cadastrar despesa"}</DialogTitle>
             <DialogDescription>
-              Crie uma despesa para aparecer no calendário e poder marcar como paga depois.
+              {expenseToEdit ? "Atualize os dados da despesa." : "Crie uma despesa para aparecer no calendário e poder marcar como paga depois."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1223,11 +1500,14 @@ export default function FinancialCalendarPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddExpenseOpen(false)} disabled={creatingExpense}>
+            <Button variant="outline" onClick={() => {
+              setAddExpenseOpen(false)
+              setExpenseToEdit(undefined)
+            }} disabled={creatingExpense}>
               Cancelar
             </Button>
             <Button onClick={createExpenseBill} disabled={creatingExpense}>
-              {creatingExpense ? "Salvando..." : "Salvar despesa"}
+              {creatingExpense ? "Salvando..." : expenseToEdit ? "Salvar alterações" : "Salvar despesa"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1235,13 +1515,18 @@ export default function FinancialCalendarPage() {
 
       <AddPaymentDialog
         open={addChargeOpen}
-        onOpenChange={setAddChargeOpen}
+        onOpenChange={(open) => {
+          setAddChargeOpen(open)
+          if (!open) setPaymentToEdit(undefined)
+        }}
         onPaymentAdded={() => {
           setAddChargeOpen(false)
+          setPaymentToEdit(undefined)
           fetchPayments()
         }}
         mode="CHARGE"
         defaultDate={format(selectedDate, "yyyy-MM-dd")}
+        paymentToEdit={paymentToEdit}
       />
 
       <style jsx global>{`

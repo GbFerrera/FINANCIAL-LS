@@ -38,6 +38,23 @@ const markExpensePaidSchema = z.object({
   dueDate: z.string().datetime(),
 })
 
+const updateExpenseBillSchema = z.object({
+  billId: z.string().min(1),
+  category: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  amount: z.number().positive().optional(),
+  projectId: z.string().min(1).optional().nullable(),
+  isRecurring: z.boolean().optional(),
+  recurringType: z.enum(["MONTHLY", "QUARTERLY", "YEARLY"]).optional().nullable(),
+  dueDay: z.number().int().min(1).max(31).optional().nullable(),
+  startDate: z.string().datetime().optional().nullable(),
+  dueDate: z.string().datetime().optional().nullable(),
+})
+
+const deleteExpenseBillSchema = z.object({
+  billId: z.string().min(1),
+})
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -268,6 +285,82 @@ export async function PATCH(req: NextRequest) {
     })
 
     return NextResponse.json({ ok: true, financialEntryId: created.id })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Dados inválidos", details: error.issues }, { status: 400 })
+    }
+    console.error(error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
+    const json = await req.json()
+    const body = updateExpenseBillSchema.parse(json)
+
+    const db = prisma as any
+    if (!db.expenseBill) {
+      return NextResponse.json(
+        { error: "Modelo ExpenseBill não está disponível no Prisma Client. Rode `yarn prisma generate` e aplique as migrations." },
+        { status: 500 }
+      )
+    }
+
+    const bill = await db.expenseBill.findUnique({ where: { id: body.billId } })
+    if (!bill) return NextResponse.json({ error: "Despesa não encontrada" }, { status: 404 })
+
+    const updateData: any = {}
+    if (body.category !== undefined) updateData.category = body.category
+    if (body.description !== undefined) updateData.description = body.description
+    if (body.amount !== undefined) updateData.amount = body.amount
+    if (body.projectId !== undefined) updateData.projectId = body.projectId
+    if (body.isRecurring !== undefined) updateData.isRecurring = body.isRecurring
+    if (body.recurringType !== undefined) updateData.recurringType = body.recurringType
+    if (body.dueDay !== undefined) updateData.dueDay = body.dueDay
+    if (body.startDate !== undefined) updateData.startDate = body.startDate ? new Date(body.startDate) : null
+    if (body.dueDate !== undefined) updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null
+
+    const updated = await db.expenseBill.update({
+      where: { id: body.billId },
+      data: updateData,
+    })
+
+    return NextResponse.json(updated)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Dados inválidos", details: error.issues }, { status: 400 })
+    }
+    console.error(error)
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+
+    const json = await req.json()
+    const body = deleteExpenseBillSchema.parse(json)
+
+    const db = prisma as any
+    if (!db.expenseBill) {
+      return NextResponse.json(
+        { error: "Modelo ExpenseBill não está disponível no Prisma Client. Rode `yarn prisma generate` e aplique as migrations." },
+        { status: 500 }
+      )
+    }
+
+    await db.$transaction(async (tx: any) => {
+      await tx.financialEntry.deleteMany({ where: { expenseBillId: body.billId } })
+      await tx.expenseBill.delete({ where: { id: body.billId } })
+    })
+
+    return NextResponse.json({ ok: true })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: "Dados inválidos", details: error.issues }, { status: 400 })

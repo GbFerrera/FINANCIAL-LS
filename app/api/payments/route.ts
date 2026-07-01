@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { endOfDay, startOfDay } from 'date-fns'
-import { PaymentStatus } from '@prisma/client'
+import { PaymentMethod, PaymentStatus } from '@prisma/client'
 
 // GET - Listar pagamentos
 export async function GET(request: NextRequest) {
@@ -189,9 +189,71 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json()
     const paymentId = body?.paymentId as string | undefined
     const markAsReceived = body?.markAsReceived === true
+    const update = body?.update as
+      | {
+          clientId?: string
+          amount?: string | number
+          description?: string | null
+          paymentDate?: string
+          method?: string
+        }
+      | undefined
 
-    if (!paymentId || !markAsReceived) {
-      return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
+    if (!paymentId) return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
+
+    if (markAsReceived) {
+      const result = await prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.findUnique({
+          where: { id: paymentId },
+          include: { client: true }
+        })
+        if (!payment) return null
+
+        const updated = await tx.payment.update({
+          where: { id: paymentId },
+          data: { status: PaymentStatus.COMPLETED }
+        })
+
+        const existing = await tx.financialEntry.findFirst({
+          where: { paymentId }
+        })
+        if (!existing) {
+          await tx.financialEntry.create({
+            data: {
+              type: 'INCOME',
+              category: 'Pagamento de Cliente',
+              description: payment.description || `Pagamento recebido de ${payment.client.name}`,
+              amount: payment.amount,
+              date: payment.paymentDate,
+              isRecurring: false,
+              paymentId: payment.id
+            }
+          })
+        }
+
+        return updated
+      })
+
+      if (!result) return NextResponse.json({ error: 'Pagamento não encontrado' }, { status: 404 })
+      return NextResponse.json(result)
+    }
+
+    if (!update) return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
+    if (!update.clientId || update.amount === undefined || update.amount === null || !update.paymentDate) {
+      return NextResponse.json(
+        { error: 'Campos obrigatórios: clientId, amount, paymentDate' },
+        { status: 400 }
+      )
+    }
+
+    const amountNumber = typeof update.amount === 'number' ? update.amount : parseFloat(String(update.amount))
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+      return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
+    }
+
+    const parsedDate = new Date(update.paymentDate)
+    if (!Number.isFinite(parsedDate.getTime())) {
+      return NextResponse.json({ error: 'Data inválida' }, { status: 400 })
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -201,24 +263,47 @@ export async function PATCH(request: NextRequest) {
       })
       if (!payment) return null
 
+      const client = await tx.client.findUnique({ where: { id: update.clientId! } })
+      if (!client) return { error: 'Cliente não encontrado' as const }
+
+      const nextMethod =
+        update.method &&
+        typeof update.method === 'string' &&
+        Object.values(PaymentMethod).includes(update.method as PaymentMethod)
+          ? (update.method as PaymentMethod)
+          : payment.method
+
       const updated = await tx.payment.update({
         where: { id: paymentId },
-        data: { status: PaymentStatus.COMPLETED }
+        data: {
+          clientId: update.clientId,
+          amount: amountNumber,
+          description: update.description ?? null,
+          paymentDate: parsedDate,
+          method: nextMethod
+        }
       })
 
-      const existing = await tx.financialEntry.findFirst({
-        where: { paymentId }
-      })
-      if (!existing) {
+      const entry = await tx.financialEntry.findFirst({ where: { paymentId } })
+      if (entry) {
+        await tx.financialEntry.update({
+          where: { id: entry.id },
+          data: {
+            amount: updated.amount,
+            date: updated.paymentDate,
+            description: updated.description || entry.description
+          }
+        })
+      } else if (String(updated.status || '').toUpperCase() === 'COMPLETED') {
         await tx.financialEntry.create({
           data: {
             type: 'INCOME',
             category: 'Pagamento de Cliente',
-            description: payment.description || `Pagamento recebido de ${payment.client.name}`,
-            amount: payment.amount,
-            date: payment.paymentDate,
+            description: updated.description || `Pagamento recebido de ${client.name}`,
+            amount: updated.amount,
+            date: updated.paymentDate,
             isRecurring: false,
-            paymentId: payment.id
+            paymentId: updated.id
           }
         })
       }
@@ -227,9 +312,34 @@ export async function PATCH(request: NextRequest) {
     })
 
     if (!result) return NextResponse.json({ error: 'Pagamento não encontrado' }, { status: 404 })
+    if ((result as any).error) return NextResponse.json({ error: (result as any).error }, { status: 404 })
     return NextResponse.json(result)
   } catch (error) {
     console.error('Erro ao atualizar pagamento:', error)
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const body = await request.json().catch(() => ({}))
+    const paymentId = body?.paymentId as string | undefined
+    if (!paymentId) return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
+
+    await prisma.$transaction(async (tx) => {
+      await tx.financialEntry.deleteMany({ where: { paymentId } })
+      await tx.paymentProject.deleteMany({ where: { paymentId } })
+      await tx.payment.delete({ where: { id: paymentId } })
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Erro ao excluir pagamento:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }
