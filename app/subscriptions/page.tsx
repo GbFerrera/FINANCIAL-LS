@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { Calendar, CheckCircle2, CreditCard, Wallet } from "lucide-react"
+import { Calendar, CheckCircle2, CreditCard, Edit, MoreVertical, Trash2, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { StatsCard } from "@/components/ui/stats-card"
 import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 type Group = {
   id: string
@@ -184,6 +185,7 @@ export default function SubscriptionsPage() {
   const [loading, setLoading] = useState(false)
   const [selectClientOpen, setSelectClientOpen] = useState(false)
   const [createSubscriptionOpen, setCreateSubscriptionOpen] = useState(false)
+  const [editSubscriptionOpen, setEditSubscriptionOpen] = useState(false)
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
   const [groupDrawerOpen, setGroupDrawerOpen] = useState(false)
@@ -204,6 +206,15 @@ export default function SubscriptionsPage() {
   const [subDueDay, setSubDueDay] = useState("10")
   const [clientSearch, setClientSearch] = useState("")
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+
+  const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null)
+  const [editGroupId, setEditGroupId] = useState("")
+  const [editName, setEditName] = useState("")
+  const [editDescription, setEditDescription] = useState("")
+  const [editPrice, setEditPrice] = useState("0,00")
+  const [editCycle, setEditCycle] = useState<"MONTHLY" | "YEARLY">("MONTHLY")
+  const [editDueDay, setEditDueDay] = useState("10")
+  const [editClientId, setEditClientId] = useState<string | null>(null)
 
   const filteredClients = useMemo(() => {
     const q = clientSearch.trim().toLowerCase()
@@ -326,6 +337,108 @@ export default function SubscriptionsPage() {
     await Promise.all([fetchSubscriptions(), fetchGroups()])
     setActiveTab("subscriptions")
     setCreateSubscriptionOpen(false)
+  }
+
+  const openEditSubscription = (s: Subscription) => {
+    const firstLink = (s.clients || [])[0] || null
+    const dueDay = typeof firstLink?.dueDay === "number" ? firstLink.dueDay : 10
+    setEditingSubscriptionId(s.id)
+    setEditGroupId(s.groupId)
+    setEditName(s.name)
+    setEditDescription(s.description || "")
+    setEditPrice(formatCurrencyBRFromDigits(String(Math.round(Number(s.price || 0) * 100))))
+    setEditCycle(s.billingCycle)
+    setEditDueDay(String(dueDay))
+    setEditClientId(firstLink?.client?.id || null)
+    setEditSubscriptionOpen(true)
+  }
+
+  const updateSubscription = async () => {
+    const subscriptionId = editingSubscriptionId
+    if (!subscriptionId) return
+    const groupId = editGroupId
+    if (!groupId) {
+      toast.error("Selecione um grupo")
+      return
+    }
+    const name = editName.trim()
+    if (!name) {
+      toast.error("Informe o nome da assinatura")
+      return
+    }
+    const parsed = parseCurrencyBRToNumber(editPrice)
+    const price = typeof parsed === "number" && Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+    if (price === null) {
+      toast.error("Preço inválido")
+      return
+    }
+    const dueDay = parseInt(editDueDay, 10)
+    if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 31) {
+      toast.error("Informe o dia de vencimento (1 a 31)")
+      return
+    }
+    if (!editClientId) {
+      toast.error("Selecione o cliente")
+      return
+    }
+
+    try {
+      setLoading(true)
+      const res = await fetch("/api/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriptionId,
+          groupId,
+          name,
+          description: editDescription.trim() || null,
+          price,
+          billingCycle: editCycle,
+          dueDay,
+          clientId: editClientId,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }))
+        throw new Error(err.error || "Erro ao atualizar assinatura")
+      }
+      const updated = (await res.json().catch(() => null)) as Subscription | null
+      if (updated?.id) {
+        setSubscriptions((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+      } else {
+        await fetchSubscriptions()
+      }
+      toast.success("Assinatura atualizada")
+      setEditSubscriptionOpen(false)
+      setEditingSubscriptionId(null)
+      await fetchGroups()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao atualizar assinatura")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteSubscription = async (s: Subscription) => {
+    if (!confirm(`Excluir a assinatura "${s.name}"?`)) return
+    try {
+      setLoading(true)
+      const res = await fetch("/api/subscriptions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId: s.id }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }))
+        throw new Error(err.error || "Erro ao excluir assinatura")
+      }
+      setSubscriptions((prev) => prev.filter((p) => p.id !== s.id))
+      toast.success("Assinatura excluída")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir assinatura")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const selectedClient = useMemo(() => {
@@ -721,6 +834,125 @@ export default function SubscriptionsPage() {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+
+                <Dialog open={editSubscriptionOpen} onOpenChange={setEditSubscriptionOpen}>
+                  <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Editar assinatura</DialogTitle>
+                      <DialogDescription>Atualize os dados da assinatura e o dia de vencimento.</DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Grupo</Label>
+                          <Select value={editGroupId} onValueChange={setEditGroupId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um grupo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {groups.map((g) => (
+                                <SelectItem key={g.id} value={g.id}>
+                                  {g.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Ciclo</Label>
+                          <Select value={editCycle} onValueChange={(v) => setEditCycle(v as any)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="MONTHLY">Mensal</SelectItem>
+                              <SelectItem value="YEARLY">Anual</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Cliente</Label>
+                          <Select value={editClientId || ""} onValueChange={(v) => setEditClientId(v || null)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione um cliente" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {clients.map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.name} ({c.email})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Nome</Label>
+                          <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ex: Suporte Premium" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Preço</Label>
+                          <Input
+                            value={editPrice}
+                            inputMode="numeric"
+                            onChange={(e) => setEditPrice(formatCurrencyBRFromDigits(e.target.value))}
+                            placeholder="0,00"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Dia de vencimento</Label>
+                          <Select value={editDueDay} onValueChange={setEditDueDay}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 31 }).map((_, i) => {
+                                const v = String(i + 1)
+                                return (
+                                  <SelectItem key={v} value={v}>
+                                    {v}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Descrição (opcional)</Label>
+                          <Input
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                            placeholder="Detalhes da assinatura"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditSubscriptionOpen(false)
+                          setEditingSubscriptionId(null)
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button onClick={updateSubscription} disabled={loading || !editingSubscriptionId}>
+                        Salvar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
             </CardHeader>
             <CardContent>
@@ -779,7 +1011,7 @@ export default function SubscriptionsPage() {
                               <div className="text-xs text-muted-foreground">Próx. cobrança</div>
                               <div className="text-sm font-medium">{nextCharge}</div>
                             </div>
-                            <div className="flex items-center">
+                            <div className="flex items-center gap-2">
                               <Button
                                 variant={isPaid ? "outline" : "secondary"}
                                 disabled={!link?.id || isPaid || (!dueThisMonth && !currentDue) || markingPaidId === link?.id}
@@ -792,6 +1024,26 @@ export default function SubscriptionsPage() {
                               >
                                 {isPaid ? "Pago" : markingPaidId === link?.id ? "Marcando..." : "Marcar como pago"}
                               </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditSubscription(s)}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => void deleteSubscription(s)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         </div>
