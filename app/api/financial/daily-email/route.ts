@@ -369,29 +369,50 @@ function clampList<T>(items: T[], max: number) {
   return { items: items.slice(0, max), remaining: items.length - max }
 }
 
-async function ensureCronOrAdmin(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  const headerSecret = req.headers.get("x-cron-secret") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
-  if (secret && headerSecret && headerSecret === secret) return { ok: true as const, mode: "cron" as const }
-
-  const session = await getServerSession(authOptions)
-  if (!session) return { ok: false as const, status: 401, error: "Não autorizado" }
-  if (session.user.role !== UserRole.ADMIN) return { ok: false as const, status: 403, error: "Sem permissão" }
-  return { ok: true as const, mode: "user" as const }
-}
-
 const requestSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().email().optional(),
+  cronSecret: z.string().min(1).optional(),
 })
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await ensureCronOrAdmin(req)
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
+    const url = new URL(req.url)
     const json = await req.json().catch(() => ({}))
     const body = requestSchema.parse(json)
+
+    const xCronSecret = req.headers.get("x-cron-secret")
+    const authorization = req.headers.get("authorization")
+    const querySecret = url.searchParams.get("cronSecret")
+
+    const headerSecret = xCronSecret || authorization?.replace(/^Bearer\s+/i, "") || querySecret || null
+
+    const providedSecret = headerSecret || (body.cronSecret ? body.cronSecret : null)
+
+    if (providedSecret) {
+      const secret = process.env.CRON_SECRET
+      if (!secret) return NextResponse.json({ error: "CRON_SECRET não está configurado no ambiente do servidor" }, { status: 500 })
+      if (providedSecret !== secret) return NextResponse.json({ error: "x-cron-secret inválido" }, { status: 401 })
+    } else {
+      const session = await getServerSession(authOptions)
+      if (!session) {
+        return NextResponse.json(
+          {
+            error: "Não autorizado",
+            hint: "Envie x-cron-secret (header), Authorization: Bearer <secret>, cronSecret (query) ou cronSecret no body JSON.",
+            received: {
+              hasXCronSecretHeader: Boolean(xCronSecret),
+              hasAuthorizationHeader: Boolean(authorization),
+              hasCronSecretQuery: Boolean(querySecret),
+              hasCronSecretInBody: Boolean(body.cronSecret),
+              hasContentTypeHeader: Boolean(req.headers.get("content-type")),
+            },
+          },
+          { status: 401 }
+        )
+      }
+      if (session.user.role !== UserRole.ADMIN) return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    }
 
     const now = new Date()
     const target = body.date ? new Date(`${body.date}T12:00:00`) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0)
