@@ -32,6 +32,21 @@ const shareTech = Share_Tech({
 export const metadata: Metadata = {
   title: "Link System - Administrativo",
   description: "Gerenciador administrativo LS - projetos, finanças e equipe",
+  manifest: "/manifest.json",
+  themeColor: "#000000",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Link System",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+  },
 };
 
 export default function RootLayout({
