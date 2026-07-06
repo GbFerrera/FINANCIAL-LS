@@ -69,7 +69,8 @@ export async function GET(
       "/sprints": "/projects/sprints",
       "/tasks": "/projects/backlog",
     }
-    const allowedRaw = storedPaths.length > 0 ? storedPaths : getDefaultAllowedPaths(user.role)
+    const defaults = getDefaultAllowedPaths(user.role)
+    const allowedRaw = storedPaths.length > 0 ? Array.from(new Set([...defaults, ...storedPaths])) : defaults
     const allowedPaths = allowedRaw.map((p: string) => ALIASES[p] ?? p)
 
     return NextResponse.json({ allowedPaths, commissionsAccess })

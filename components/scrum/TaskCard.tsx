@@ -36,6 +36,10 @@ interface Task {
   status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   storyPoints?: number
+  project?: {
+    id: string
+    name: string
+  }
   assignee?: {
     id: string
     name: string
@@ -339,6 +343,11 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
             <Badge variant="secondary" className="text-xs">
               {getStatusLabel()}
             </Badge>
+            {task.project?.name && (
+              <Badge variant="outline" className="text-xs bg-muted/40 text-foreground border-border">
+                {task.project.name}
+              </Badge>
+            )}
             {isReportedTask() && (
               <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                 <MessageSquare className="w-3 h-3 mr-1" />

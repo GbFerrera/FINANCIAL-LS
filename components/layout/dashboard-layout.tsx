@@ -69,6 +69,7 @@ const navigation: NavItem[] = [
       { name: "Sprints", href: "/projects/sprints", icon: GitBranch },
     ]
   },
+  { name: "Pipeline", href: "/pipeline", icon: Kanban },
   { name: "Marketing", href: "/mkt", icon: Megaphone },
   { 
     name: "Clientes", 
@@ -114,6 +115,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter()
   const pathname = usePathname() || ""
   const isFullBleed = pathname.startsWith("/projects/") && pathname.includes("/canvas")
+  const isAdmin = session?.user?.role === "ADMIN"
 
   // Carregar estado da sidebar do localStorage sem flicker
   useLayoutEffect(() => {
@@ -178,18 +180,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     router.push("/auth/signin")
   }
 
-  const filteredNavigation = (allowedPaths || []).length > 0
+  const filteredNavigation = isAdmin
     ? navigation
-        .map(item => ({
-          ...item,
-          submenu: item.submenu?.filter(s => isPathAllowed(s.href, allowedPaths!))
-        }))
-        .filter(item => {
-          const allowTop = isPathAllowed(item.href, allowedPaths!)
-          const allowSub = (item.submenu?.length ?? 0) > 0
-          return allowTop || allowSub
-        })
-    : navigation
+    : (allowedPaths || []).length > 0
+      ? navigation
+          .map(item => ({
+            ...item,
+            submenu: item.submenu?.filter(s => isPathAllowed(s.href, allowedPaths!))
+          }))
+          .filter(item => {
+            const allowTop = isPathAllowed(item.href, allowedPaths!)
+            const allowSub = (item.submenu?.length ?? 0) > 0
+            return allowTop || allowSub
+          })
+      : navigation
 
   return (
     <TooltipProvider>

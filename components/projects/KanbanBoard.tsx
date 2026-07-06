@@ -28,6 +28,10 @@ interface ProjectTask {
     name: string;
     status: string;
   } | null;
+  project?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface KanbanBoardProps {
@@ -121,6 +125,7 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
       status: task.status as 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED',
       priority: task.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT',
       storyPoints: undefined,
+      project: task.project ? { id: task.project.id, name: task.project.name } : undefined,
       assignee: task.assignee ? {
         id: task.assignee.id,
         name: task.assignee.name,
