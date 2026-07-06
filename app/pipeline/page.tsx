@@ -48,6 +48,13 @@ export default function PipelinePage() {
   const [createTaskOpen, setCreateTaskOpen] = useState(false)
   const [createProjectId, setCreateProjectId] = useState("")
   const [createMilestones, setCreateMilestones] = useState<MilestoneOption[]>([])
+  const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<any>(null)
+  const [loadingTaskDetails, setLoadingTaskDetails] = useState(false)
+  const [editTaskOpen, setEditTaskOpen] = useState(false)
+  const [editProjectId, setEditProjectId] = useState("")
+  const [editMilestones, setEditMilestones] = useState<MilestoneOption[]>([])
+  const [editingTask, setEditingTask] = useState<any>(null)
 
   useEffect(() => {
     const rawIds = searchParams?.get("projectIds")
@@ -217,10 +224,91 @@ export default function PipelinePage() {
   }
 
   const handleTaskClick = (taskId: string) => {
-    const task = tasks.find((t) => t.id === taskId)
-    if (!task) return
-    router.push(`/projects/${task.project.id}`)
+    const local = tasks.find((t) => t.id === taskId) || null
+    setSelectedTask(local)
+    setShowTaskDetailsModal(true)
+    ;(async () => {
+      try {
+        setLoadingTaskDetails(true)
+        const res = await fetch(`/api/tasks/${taskId}`, { method: "GET" })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({} as { error?: string }))
+          throw new Error(err.error || "Falha ao buscar detalhes da tarefa")
+        }
+        const full = await res.json().catch(() => null)
+        if (full) setSelectedTask(full)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Erro ao buscar detalhes da tarefa")
+      } finally {
+        setLoadingTaskDetails(false)
+      }
+    })()
   }
+
+  const openEditTask = async () => {
+    if (!selectedTask?.id) return
+
+    try {
+      const taskId = String(selectedTask.id)
+      const projectId = String(selectedTask.project?.id || "")
+      if (!projectId) {
+        toast.error("Projeto da tarefa não encontrado")
+        return
+      }
+
+      setEditProjectId(projectId)
+      setEditMilestones([])
+      setEditingTask(null)
+      setEditTaskOpen(true)
+
+      const [taskRes, milestones] = await Promise.all([
+        fetch(`/api/tasks/${taskId}`, { method: "GET" }),
+        fetchMilestones(projectId).catch(() => []),
+      ])
+
+      if (!taskRes.ok) {
+        const err = await taskRes.json().catch(() => ({} as { error?: string }))
+        throw new Error(err.error || "Falha ao buscar detalhes da tarefa")
+      }
+
+      const full = await taskRes.json().catch(() => null)
+      if (full) {
+        setSelectedTask(full)
+        setEditingTask({
+          id: full.id,
+          title: full.title,
+          description: full.description ?? null,
+          status: full.status,
+          priority: full.priority,
+          storyPoints: full.storyPoints ?? null,
+          assigneeId: full.assignee?.id ?? full.assigneeId ?? null,
+          milestoneId: full.milestoneId ?? full.milestone?.id ?? null,
+          dueDate: full.dueDate ? new Date(full.dueDate).toISOString().split("T")[0] : null,
+          startDate: full.startDate ? new Date(full.startDate).toISOString().split("T")[0] : null,
+          startTime: full.startTime ?? null,
+          estimatedMinutes: full.estimatedMinutes ?? null,
+          hasBonus: (full as any).hasBonus ?? undefined,
+        } as any)
+      }
+      setEditMilestones(milestones)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao abrir edição")
+      setEditTaskOpen(false)
+    }
+  }
+
+  const formatDateSafe = (dateString: string) => {
+    const raw = dateString.includes("T") ? dateString.split("T")[0] : dateString
+    const [y, m, d] = raw.split("-").map(Number)
+    const dt = new Date(y, (m as number) - 1, d as number)
+    return Number.isFinite(dt.getTime()) ? dt.toLocaleDateString("pt-BR") : raw
+  }
+
+  const statusLabel = (s: string) =>
+    s === "TODO" ? "A Fazer" : s === "IN_PROGRESS" ? "Em Andamento" : s === "IN_REVIEW" ? "Em Teste" : s === "COMPLETED" ? "Concluído" : s
+
+  const priorityLabel = (p: string) =>
+    p === "LOW" ? "Baixa" : p === "MEDIUM" ? "Média" : p === "HIGH" ? "Alta" : p === "URGENT" ? "Urgente" : p
 
   if (status === "loading" || initialLoading) {
     return (
@@ -330,6 +418,89 @@ export default function PipelinePage() {
           milestones={createMilestones}
           onSuccess={async () => {
             setCreateTaskOpen(false)
+            await fetchTasks(selectedProjectIds)
+          }}
+        />
+      )}
+
+      <Dialog open={showTaskDetailsModal} onOpenChange={setShowTaskDetailsModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Tarefa</DialogTitle>
+          </DialogHeader>
+          {loadingTaskDetails && !selectedTask && (
+            <div className="text-sm text-muted-foreground">Carregando...</div>
+          )}
+          {selectedTask && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="text-sm font-medium text-muted-foreground">Projeto</label>
+                  <p className="text-foreground">{selectedTask.project?.name || "—"}</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Título</label>
+                <p className="text-foreground">{selectedTask.title}</p>
+              </div>
+              {selectedTask.description && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Descrição</label>
+                  <p className="text-foreground whitespace-pre-wrap">{selectedTask.description}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Status</label>
+                  <p className="text-foreground">{statusLabel(String(selectedTask.status || ""))}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Prioridade</label>
+                  <p className="text-foreground">{priorityLabel(String(selectedTask.priority || ""))}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Responsável</label>
+                  <p className="text-foreground">{selectedTask.assignee?.name || "Não atribuído"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Prazo</label>
+                  <p className="text-foreground">
+                    {selectedTask.dueDate ? formatDateSafe(String(selectedTask.dueDate)) : "Não definido"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTaskDetailsModal(false)}>
+              Fechar
+            </Button>
+            <Button onClick={openEditTask} disabled={!selectedTask?.id}>
+              Editar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {editProjectId && (
+        <ProjectCreateTaskModal
+          isOpen={editTaskOpen}
+          onClose={() => setEditTaskOpen(false)}
+          projectId={editProjectId}
+          milestones={editMilestones}
+          editingTask={editingTask}
+          onSuccess={async () => {
+            setEditTaskOpen(false)
+            if (selectedTask?.id) {
+              fetch(`/api/tasks/${selectedTask.id}`, { method: "GET" })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((t) => {
+                  if (t) setSelectedTask(t)
+                })
+                .catch(() => {})
+            }
             await fetchTasks(selectedProjectIds)
           }}
         />
