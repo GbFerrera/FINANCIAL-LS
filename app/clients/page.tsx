@@ -89,7 +89,7 @@ export default function ClientsPage() {
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const response = await fetch('/api/clients')
+        const response = await fetch('/api/clients?limit=all')
         if (response.ok) {
           const data = await response.json()
           const transformedClients = data.clients.map((client: any) => ({

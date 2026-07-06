@@ -24,8 +24,11 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
     const status = searchParams.get('status')
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-    const skip = (page - 1) * limit
+    const limitParam = searchParams.get('limit') || '10'
+    const fetchAll = limitParam === 'all'
+    const parsedLimit = fetchAll ? 0 : parseInt(limitParam)
+    const limit = fetchAll ? undefined : parsedLimit
+    const skip = fetchAll ? undefined : (page - 1) * parsedLimit
 
     const where: any = {}
     
@@ -69,9 +72,9 @@ export async function GET(request: NextRequest) {
       clients,
       pagination: {
         page,
-        limit,
+        limit: fetchAll ? total : parsedLimit,
         total,
-        pages: Math.ceil(total / limit)
+        pages: fetchAll ? 1 : Math.ceil(total / parsedLimit)
       }
     })
   } catch (error) {

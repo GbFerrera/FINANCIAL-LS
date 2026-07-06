@@ -180,7 +180,7 @@ export default function ProjectsPage() {
 
   const fetchClients = async () => {
     try {
-      const response = await fetch('/api/clients')
+      const response = await fetch('/api/clients?limit=all')
       if (response.ok) {
         const data = await response.json()
         setClients(data.clients.map((client: { id: string; name: string; email: string; company?: string }) => ({
