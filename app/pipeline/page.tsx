@@ -424,56 +424,60 @@ export default function PipelinePage() {
       )}
 
       <Dialog open={showTaskDetailsModal} onOpenChange={setShowTaskDetailsModal}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[85vh] w-[calc(100vw-2rem)] max-w-[720px] flex-col overflow-hidden sm:max-w-[720px]">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Detalhes da Tarefa</DialogTitle>
           </DialogHeader>
-          {loadingTaskDetails && !selectedTask && (
-            <div className="text-sm text-muted-foreground">Carregando...</div>
-          )}
-          {selectedTask && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="text-sm font-medium text-muted-foreground">Projeto</label>
-                  <p className="text-foreground">{selectedTask.project?.name || "—"}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-2">
+            {loadingTaskDetails && !selectedTask && (
+              <div className="text-sm text-muted-foreground">Carregando...</div>
+            )}
+            {selectedTask && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="text-sm font-medium text-muted-foreground">Projeto</label>
+                    <p className="text-foreground">{selectedTask.project?.name || "—"}</p>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Título</label>
-                <p className="text-foreground">{selectedTask.title}</p>
-              </div>
-              {selectedTask.description && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Título</label>
+                  <p className="text-foreground">{selectedTask.title}</p>
+                </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Descrição</label>
-                  <p className="text-foreground whitespace-pre-wrap">{selectedTask.description}</p>
+                  <div className="max-h-[40vh] overflow-y-auto rounded-md border border-border/50 bg-muted/10 p-3">
+                    <p className="text-foreground whitespace-pre-wrap break-words">
+                      {selectedTask.description || "Sem descrição"}
+                    </p>
+                  </div>
                 </div>
-              )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Status</label>
-                  <p className="text-foreground">{statusLabel(String(selectedTask.status || ""))}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Status</label>
+                    <p className="text-foreground">{statusLabel(String(selectedTask.status || ""))}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Prioridade</label>
+                    <p className="text-foreground">{priorityLabel(String(selectedTask.priority || ""))}</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Prioridade</label>
-                  <p className="text-foreground">{priorityLabel(String(selectedTask.priority || ""))}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Responsável</label>
+                    <p className="text-foreground">{selectedTask.assignee?.name || "Não atribuído"}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Prazo</label>
+                    <p className="text-foreground">
+                      {selectedTask.dueDate ? formatDateSafe(String(selectedTask.dueDate)) : "Não definido"}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Responsável</label>
-                  <p className="text-foreground">{selectedTask.assignee?.name || "Não atribuído"}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Prazo</label>
-                  <p className="text-foreground">
-                    {selectedTask.dueDate ? formatDateSafe(String(selectedTask.dueDate)) : "Não definido"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
+            )}
+          </div>
+          <DialogFooter className="shrink-0 pt-4">
             <Button variant="outline" onClick={() => setShowTaskDetailsModal(false)}>
               Fechar
             </Button>
