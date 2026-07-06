@@ -181,6 +181,10 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                            }}
                             style={{
                               ...provided.draggableProps.style,
                             }}

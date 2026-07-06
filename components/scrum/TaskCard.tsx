@@ -87,6 +87,12 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
   const [showMenu, setShowMenu] = useState(false)
   const [showAttachments, setShowAttachments] = useState(false)
   const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string }>>([])
+  
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onClick?.()
+  }
 
   const limitChars = (s: string, max: number) => (s.length > max ? `${s.slice(0, max).trim()}…` : s)
 
@@ -334,7 +340,8 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
   return (
     <Card 
       className={`flex flex-col cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800' : getStatusColor()} border-l-4`}
-      onClick={onClick}
+      onClick={handleCardClick}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">

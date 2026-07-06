@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ProjectCreateTaskModal } from "@/components/projects/ProjectCreateTaskModal"
 
 type ProjectOption = { id: string; name: string }
-type ProjectForCreate = { id: string; name: string; client: { name: string } }
 type MilestoneOption = { id: string; name: string }
 
 type BoardTask = {
@@ -40,7 +39,6 @@ export default function PipelinePage() {
   const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [projectsForCreate, setProjectsForCreate] = useState<ProjectForCreate[]>([])
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
   const [tasks, setTasks] = useState<BoardTask[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
@@ -48,9 +46,6 @@ export default function PipelinePage() {
   const [createTaskOpen, setCreateTaskOpen] = useState(false)
   const [createProjectId, setCreateProjectId] = useState("")
   const [createMilestones, setCreateMilestones] = useState<MilestoneOption[]>([])
-  const [showTaskDetailsModal, setShowTaskDetailsModal] = useState(false)
-  const [selectedTask, setSelectedTask] = useState<any>(null)
-  const [loadingTaskDetails, setLoadingTaskDetails] = useState(false)
   const [editTaskOpen, setEditTaskOpen] = useState(false)
   const [editProjectId, setEditProjectId] = useState("")
   const [editMilestones, setEditMilestones] = useState<MilestoneOption[]>([])
@@ -79,13 +74,6 @@ export default function PipelinePage() {
     const data = await res.json().catch(() => ({} as { projects?: unknown }))
     const list: any[] = Array.isArray((data as any).projects) ? ((data as any).projects as any[]) : []
     setProjects(list.map((p: any) => ({ id: String(p.id), name: String(p.name) })))
-    setProjectsForCreate(
-      list.map((p: any) => ({
-        id: String(p.id),
-        name: String(p.name),
-        client: { name: String(p.client?.name || "") },
-      }))
-    )
   }
 
   const fetchTasks = async (projectIds: string[]) => {
@@ -223,34 +211,8 @@ export default function PipelinePage() {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)))
   }
 
-  const handleTaskClick = (taskId: string) => {
-    const local = tasks.find((t) => t.id === taskId) || null
-    setSelectedTask(local)
-    setShowTaskDetailsModal(true)
-    ;(async () => {
-      try {
-        setLoadingTaskDetails(true)
-        const res = await fetch(`/api/tasks/${taskId}`, { method: "GET" })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({} as { error?: string }))
-          throw new Error(err.error || "Falha ao buscar detalhes da tarefa")
-        }
-        const full = await res.json().catch(() => null)
-        if (full) setSelectedTask(full)
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro ao buscar detalhes da tarefa")
-      } finally {
-        setLoadingTaskDetails(false)
-      }
-    })()
-  }
-
-  const openEditTask = async () => {
-    if (!selectedTask?.id) return
-
+  const openEditTask = async (taskId: string, projectId: string) => {
     try {
-      const taskId = String(selectedTask.id)
-      const projectId = String(selectedTask.project?.id || "")
       if (!projectId) {
         toast.error("Projeto da tarefa não encontrado")
         return
@@ -273,7 +235,6 @@ export default function PipelinePage() {
 
       const full = await taskRes.json().catch(() => null)
       if (full) {
-        setSelectedTask(full)
         setEditingTask({
           id: full.id,
           title: full.title,
@@ -297,18 +258,14 @@ export default function PipelinePage() {
     }
   }
 
-  const formatDateSafe = (dateString: string) => {
-    const raw = dateString.includes("T") ? dateString.split("T")[0] : dateString
-    const [y, m, d] = raw.split("-").map(Number)
-    const dt = new Date(y, (m as number) - 1, d as number)
-    return Number.isFinite(dt.getTime()) ? dt.toLocaleDateString("pt-BR") : raw
+  const handleTaskClick = (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId)
+    if (!task?.project?.id) {
+      toast.error("Projeto da tarefa não encontrado")
+      return
+    }
+    openEditTask(taskId, task.project.id)
   }
-
-  const statusLabel = (s: string) =>
-    s === "TODO" ? "A Fazer" : s === "IN_PROGRESS" ? "Em Andamento" : s === "IN_REVIEW" ? "Em Teste" : s === "COMPLETED" ? "Concluído" : s
-
-  const priorityLabel = (p: string) =>
-    p === "LOW" ? "Baixa" : p === "MEDIUM" ? "Média" : p === "HIGH" ? "Alta" : p === "URGENT" ? "Urgente" : p
 
   if (status === "loading" || initialLoading) {
     return (
@@ -423,71 +380,6 @@ export default function PipelinePage() {
         />
       )}
 
-      <Dialog open={showTaskDetailsModal} onOpenChange={setShowTaskDetailsModal}>
-        <DialogContent className="flex max-h-[85vh] w-[calc(100vw-2rem)] max-w-[720px] flex-col overflow-hidden sm:max-w-[720px]">
-          <DialogHeader className="shrink-0">
-            <DialogTitle>Detalhes da Tarefa</DialogTitle>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-            {loadingTaskDetails && !selectedTask && (
-              <div className="text-sm text-muted-foreground">Carregando...</div>
-            )}
-            {selectedTask && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="text-sm font-medium text-muted-foreground">Projeto</label>
-                    <p className="text-foreground">{selectedTask.project?.name || "—"}</p>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Título</label>
-                  <p className="text-foreground">{selectedTask.title}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Descrição</label>
-                  <div className="max-h-[40vh] overflow-y-auto rounded-md border border-border/50 bg-muted/10 p-3">
-                    <p className="text-foreground whitespace-pre-wrap break-words">
-                      {selectedTask.description || "Sem descrição"}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Status</label>
-                    <p className="text-foreground">{statusLabel(String(selectedTask.status || ""))}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Prioridade</label>
-                    <p className="text-foreground">{priorityLabel(String(selectedTask.priority || ""))}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Responsável</label>
-                    <p className="text-foreground">{selectedTask.assignee?.name || "Não atribuído"}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Prazo</label>
-                    <p className="text-foreground">
-                      {selectedTask.dueDate ? formatDateSafe(String(selectedTask.dueDate)) : "Não definido"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="shrink-0 pt-4">
-            <Button variant="outline" onClick={() => setShowTaskDetailsModal(false)}>
-              Fechar
-            </Button>
-            <Button onClick={openEditTask} disabled={!selectedTask?.id}>
-              Editar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {editProjectId && (
         <ProjectCreateTaskModal
           isOpen={editTaskOpen}
@@ -497,14 +389,6 @@ export default function PipelinePage() {
           editingTask={editingTask}
           onSuccess={async () => {
             setEditTaskOpen(false)
-            if (selectedTask?.id) {
-              fetch(`/api/tasks/${selectedTask.id}`, { method: "GET" })
-                .then((r) => (r.ok ? r.json() : null))
-                .then((t) => {
-                  if (t) setSelectedTask(t)
-                })
-                .catch(() => {})
-            }
             await fetchTasks(selectedProjectIds)
           }}
         />
