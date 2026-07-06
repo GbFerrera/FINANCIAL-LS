@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import toast from "react-hot-toast"
-import { Plus } from "lucide-react"
+import { Archive, ArchiveRestore, Plus } from "lucide-react"
 import { KanbanBoard } from "@/components/projects/KanbanBoard"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -50,6 +51,10 @@ export default function PipelinePage() {
   const [editProjectId, setEditProjectId] = useState("")
   const [editMilestones, setEditMilestones] = useState<MilestoneOption[]>([])
   const [editingTask, setEditingTask] = useState<any>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
+  const [showArchived, setShowArchived] = useState(false)
+  const [archiveLoading, setArchiveLoading] = useState(false)
 
   useEffect(() => {
     const rawIds = searchParams?.get("projectIds")
@@ -77,10 +82,14 @@ export default function PipelinePage() {
   }
 
   const fetchTasks = async (projectIds: string[]) => {
-    const qs =
-      projectIds.length > 0
-        ? `?projectIds=${encodeURIComponent(projectIds.join(","))}`
-        : ""
+    const params = new URLSearchParams()
+    if (projectIds.length > 0) {
+      params.set("projectIds", projectIds.join(","))
+    }
+    if (showArchived) {
+      params.set("archivedOnly", "true")
+    }
+    const qs = params.toString() ? `?${params.toString()}` : ""
     const res = await fetch(`/api/tasks${qs}`, { method: "GET" })
     if (!res.ok) {
       const err = await res.json().catch(() => ({} as { error?: string }))
@@ -132,7 +141,7 @@ export default function PipelinePage() {
     return () => {
       cancelled = true
     }
-  }, [selectedProjectIds, status, initialLoading])
+  }, [selectedProjectIds, status, initialLoading, showArchived])
 
   const mappedTasks = useMemo(() => {
     return tasks.map((t) => ({
@@ -173,6 +182,50 @@ export default function PipelinePage() {
   const clearProjects = () => {
     setSelectedProjectIds([])
     router.replace("/pipeline")
+  }
+
+  const clearSelection = () => {
+    setSelectedTaskIds([])
+  }
+
+  const toggleSelectionMode = () => {
+    setSelectionMode((prev) => {
+      const next = !prev
+      if (!next) {
+        setSelectedTaskIds([])
+      }
+      return next
+    })
+  }
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds((prev) => (prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]))
+  }
+
+  const isSelectableTask = (taskId: string) => {
+    const task = tasks.find((item) => item.id === taskId)
+    if (!task) return false
+    if (showArchived) return true
+    return task.status === "COMPLETED" || task.status === "DONE"
+  }
+
+  const toggleArchivedView = () => {
+    setShowArchived((prev) => !prev)
+    setSelectionMode(false)
+    setSelectedTaskIds([])
+  }
+
+  const selectAllVisibleTasks = () => {
+    setSelectedTaskIds(
+      tasks
+        .filter((task) => (showArchived ? true : task.status === "COMPLETED" || task.status === "DONE"))
+        .map((task) => task.id)
+    )
+  }
+
+  const startArchiveSelection = () => {
+    setSelectionMode(true)
+    setSelectedTaskIds([])
   }
 
   const fetchMilestones = async (projectId: string) => {
@@ -259,12 +312,71 @@ export default function PipelinePage() {
   }
 
   const handleTaskClick = (taskId: string) => {
+    if (selectionMode) {
+      if (isSelectableTask(taskId)) {
+        toggleTaskSelection(taskId)
+      }
+      return
+    }
     const task = tasks.find((t) => t.id === taskId)
     if (!task?.project?.id) {
       toast.error("Projeto da tarefa não encontrado")
       return
     }
     openEditTask(taskId, task.project.id)
+  }
+
+  const handleArchiveTasks = async (scope: "selected" | "completed", archived: boolean) => {
+    if (scope === "selected" && selectedTaskIds.length === 0) {
+      toast.error("Selecione ao menos uma tarefa")
+      return
+    }
+
+    try {
+      setArchiveLoading(true)
+      const response = await fetch("/api/tasks/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope,
+          archived,
+          taskIds: scope === "selected" ? selectedTaskIds : undefined,
+          projectIds: selectedProjectIds,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({} as { error?: string; updatedCount?: number; skippedCount?: number }))
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao atualizar arquivamento das tarefas")
+      }
+
+      clearSelection()
+      if (scope === "selected") {
+        setSelectionMode(false)
+      }
+
+      const updatedCount = Number(data.updatedCount || 0)
+      const skippedCount = Number(data.skippedCount || 0)
+      if (updatedCount > 0) {
+        toast.success(
+          archived
+            ? `${updatedCount} tarefa(s) arquivada(s) com sucesso`
+            : `${updatedCount} tarefa(s) restaurada(s) com sucesso`
+        )
+      } else {
+        toast(data.message || "Nenhuma tarefa elegível encontrada")
+      }
+
+      if (skippedCount > 0) {
+        toast(`${skippedCount} tarefa(s) não puderam ser processadas`)
+      }
+
+      await fetchTasks(selectedProjectIds)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao arquivar tarefas")
+    } finally {
+      setArchiveLoading(false)
+    }
   }
 
   if (status === "loading" || initialLoading) {
@@ -281,9 +393,11 @@ export default function PipelinePage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Pipeline</h1>
-            <p className="text-sm text-muted-foreground">Kanban geral de todas as tarefas</p>
+            <p className="text-sm text-muted-foreground">
+              {showArchived ? "Tarefas concluídas arquivadas" : "Kanban geral de todas as tarefas"}
+            </p>
           </div>
-          <div className="w-full sm:w-auto flex items-center gap-2">
+          <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap justify-end">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-full sm:w-[360px] justify-between">
@@ -323,9 +437,51 @@ export default function PipelinePage() {
             </Button>
           </div>
         </div>
+        {selectionMode && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectAllVisibleTasks}
+              disabled={tasks.length === 0 || selectedTaskIds.length === tasks.length}
+            >
+              Selecionar todas
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearSelection} disabled={selectedTaskIds.length === 0}>
+              Limpar seleção
+            </Button>
+            <Badge variant="secondary">{selectedTaskIds.length} selecionada(s)</Badge>
+            <Button variant="outline" size="sm" onClick={toggleSelectionMode}>
+              Cancelar seleção
+            </Button>
+            {selectedTaskIds.length > 0 && (
+              <Button
+                size="sm"
+                onClick={() => handleArchiveTasks("selected", !showArchived)}
+                disabled={archiveLoading}
+              >
+                {showArchived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
+                {showArchived ? "Restaurar selecionadas" : "Arquivar selecionadas"}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      <KanbanBoard tasks={mappedTasks as any} onTaskUpdate={handleTaskUpdate} onTaskClick={handleTaskClick} />
+      <KanbanBoard
+        tasks={mappedTasks as any}
+        onTaskUpdate={handleTaskUpdate}
+        onTaskClick={handleTaskClick}
+        selectionMode={selectionMode}
+        selectedTaskIds={selectedTaskIds}
+        onToggleTaskSelection={toggleTaskSelection}
+        disableDrag={selectionMode || showArchived}
+        showArchived={showArchived}
+        archiveLoading={archiveLoading}
+        onArchiveCompleted={() => handleArchiveTasks("completed", true)}
+        onStartArchiveSelection={startArchiveSelection}
+        onToggleArchivedView={toggleArchivedView}
+      />
 
       <Dialog open={createPickOpen} onOpenChange={setCreatePickOpen}>
         <DialogContent className="sm:max-w-[480px]">

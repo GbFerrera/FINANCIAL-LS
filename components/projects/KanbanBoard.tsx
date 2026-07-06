@@ -1,8 +1,16 @@
 
 import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { Archive, ArchiveRestore, CheckSquare, MoreVertical, Square } from "lucide-react";
 import { TaskCard } from "../scrum/TaskCard";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +48,15 @@ interface KanbanBoardProps {
   onTaskClick: (taskId: string) => void;
   onTaskEdit?: (task: any) => void;
   onTaskDelete?: (taskId: string) => void;
+  selectionMode?: boolean;
+  selectedTaskIds?: string[];
+  onToggleTaskSelection?: (taskId: string) => void;
+  disableDrag?: boolean;
+  showArchived?: boolean;
+  archiveLoading?: boolean;
+  onArchiveCompleted?: () => void;
+  onStartArchiveSelection?: () => void;
+  onToggleArchivedView?: () => void;
 }
 
 const COLUMNS = [
@@ -69,16 +86,29 @@ const COLUMNS = [
   },
 ];
 
-export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTaskDelete }: KanbanBoardProps) {
+export function KanbanBoard({
+  tasks,
+  onTaskUpdate,
+  onTaskClick,
+  onTaskEdit,
+  onTaskDelete,
+  selectionMode = false,
+  selectedTaskIds = [],
+  onToggleTaskSelection,
+  disableDrag = false,
+  showArchived = false,
+  archiveLoading = false,
+  onArchiveCompleted,
+  onStartArchiveSelection,
+  onToggleArchivedView,
+}: KanbanBoardProps) {
   const [boardTasks, setBoardTasks] = useState<ProjectTask[]>(tasks);
-  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     setBoardTasks(tasks);
   }, [tasks]);
 
   const onDragEnd = async (result: DropResult) => {
-    setIsDragging(false);
     const { destination, source, draggableId } = result;
 
     if (!destination) return;
@@ -112,10 +142,6 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
     }
   };
 
-  const onDragStart = () => {
-    setIsDragging(true);
-  };
-
   // Helper to map ProjectTask to TaskCard's Task interface
   const mapToCardTask = (task: ProjectTask, index: number) => {
     return {
@@ -141,7 +167,7 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
   };
 
   return (
-    <DragDropContext onDragEnd={onDragEnd} onDragStart={onDragStart}>
+    <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-240px)] min-h-[500px] px-1 snap-x">
         {COLUMNS.map((column) => {
           const columnTasks = boardTasks.filter((task) => {
@@ -159,9 +185,45 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
             >
               <div className={cn("px-3 py-3 flex items-center justify-between mb-2 rounded-lg", column.headerColor)}>
                 <span className="text-sm font-bold">{column.title}</span>
-                <Badge variant="secondary" className="text-xs font-mono bg-background/50 backdrop-blur-sm shadow-sm border-0">
-                  {columnTasks.length}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-xs font-mono bg-background/50 backdrop-blur-sm shadow-sm border-0">
+                    {columnTasks.length}
+                  </Badge>
+                  {column.id === "COMPLETED" && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-current hover:bg-background/20"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        {!showArchived && (
+                          <DropdownMenuItem onClick={onArchiveCompleted} disabled={archiveLoading}>
+                            <Archive className="mr-2 h-4 w-4" />
+                            Arquivar todas concluídas
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={onStartArchiveSelection}>
+                          <CheckSquare className="mr-2 h-4 w-4" />
+                          {showArchived ? "Selecionar para restaurar" : "Selecionar para arquivar"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={onToggleArchivedView}>
+                          {showArchived ? (
+                            <ArchiveRestore className="mr-2 h-4 w-4" />
+                          ) : (
+                            <Archive className="mr-2 h-4 w-4" />
+                          )}
+                          {showArchived ? "Voltar para ativas" : "Ver todas arquivadas"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </div>
               
               <Droppable droppableId={column.id}>
@@ -175,16 +237,12 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
                     )}
                   >
                     {columnTasks.map((task, index) => (
-                      <Draggable key={task.id} draggableId={task.id} index={index}>
+                      <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={disableDrag}>
                         {(provided, snapshot) => (
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                            }}
                             style={{
                               ...provided.draggableProps.style,
                             }}
@@ -192,13 +250,40 @@ export function KanbanBoard({ tasks, onTaskUpdate, onTaskClick, onTaskEdit, onTa
                               "outline-none transition-transform",
                               snapshot.isDragging ? "rotate-2 z-50 scale-105 shadow-2xl" : ""
                             )}
+                            onClick={(e) => {
+                              if (selectionMode && column.id === "COMPLETED") {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                onToggleTaskSelection?.(task.id)
+                              }
+                            }}
                           >
-                            <TaskCard 
-                              task={mapToCardTask(task, index)}
-                              onClick={() => onTaskClick(task.id)}
-                              onEdit={onTaskEdit ? () => onTaskEdit(task) : undefined}
-                              onDelete={onTaskDelete ? () => onTaskDelete(task.id) : undefined}
-                            />
+                            <div className="relative">
+                              {selectionMode && column.id === "COMPLETED" && (
+                                <div className="absolute top-2 left-2 z-10">
+                                  {selectedTaskIds.includes(task.id) ? (
+                                    <CheckSquare className="w-5 h-5 text-blue-600 bg-card rounded border-2 border-blue-600" />
+                                  ) : (
+                                    <Square className="w-5 h-5 text-gray-400 bg-card rounded border-2 border-gray-300" />
+                                  )}
+                                </div>
+                              )}
+                              <div
+                                className={cn(
+                                  "rounded-lg",
+                                  selectionMode && column.id === "COMPLETED" && selectedTaskIds.includes(task.id)
+                                    ? "ring-2 ring-blue-500 ring-offset-2"
+                                    : ""
+                                )}
+                              >
+                                <TaskCard 
+                                  task={mapToCardTask(task, index)}
+                                  onClick={() => onTaskClick(task.id)}
+                                  onEdit={selectionMode ? undefined : onTaskEdit ? () => onTaskEdit(task) : undefined}
+                                  onDelete={selectionMode ? undefined : onTaskDelete ? () => onTaskDelete(task.id) : undefined}
+                                />
+                              </div>
+                            </div>
                           </div>
                         )}
                       </Draggable>

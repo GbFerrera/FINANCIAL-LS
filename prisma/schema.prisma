@@ -187,6 +187,8 @@ model Task {
   description      String?
   status           TaskStatus   @default(TODO)
   priority         Priority     @default(MEDIUM)
+  isArchived       Boolean      @default(false)
+  archivedAt       DateTime?
   dueDate          DateTime?
   completedAt      DateTime?
   createdAt        DateTime     @default(now())

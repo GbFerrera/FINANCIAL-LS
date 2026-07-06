@@ -66,6 +66,9 @@ export async function GET(
           orderBy: { order: 'asc' }
         },
         tasks: {
+          where: {
+            isArchived: false,
+          } as any,
           select: {
             id: true,
             title: true,

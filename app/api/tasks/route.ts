@@ -7,6 +7,8 @@ import { z } from "zod"
 const querySchema = z.object({
   projectId: z.string().min(1).optional(),
   projectIds: z.string().min(1).optional(),
+  includeArchived: z.enum(["true", "false"]).optional(),
+  archivedOnly: z.enum(["true", "false"]).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -20,6 +22,8 @@ export async function GET(request: NextRequest) {
     const parsed = querySchema.safeParse({
       projectId: searchParams.get("projectId") || undefined,
       projectIds: searchParams.get("projectIds") || undefined,
+      includeArchived: searchParams.get("includeArchived") || undefined,
+      archivedOnly: searchParams.get("archivedOnly") || undefined,
     })
 
     if (!parsed.success) {
@@ -44,8 +48,18 @@ export async function GET(request: NextRequest) {
 
     const where: any = {}
     if (projectIds.length > 0) where.projectId = { in: projectIds }
+    const includeArchived = parsed.data.includeArchived === "true"
+    const archivedOnly = parsed.data.archivedOnly === "true"
+    if (archivedOnly) {
+      where.isArchived = true
+    } else if (!includeArchived) {
+      where.isArchived = false
+    }
     if (!isAdmin) {
-      where.project = { team: { some: { userId: session.user.id } } }
+      where.project = {
+        ...(where.project || {}),
+        team: { some: { userId: session.user.id } },
+      }
     }
 
     const tasks = await prisma.task.findMany({

@@ -151,7 +151,7 @@ export async function GET(
     }
 
     const tasks = await prisma.task.findMany({
-      where: { projectId: params.id },
+      where: { projectId: params.id, isArchived: false } as any,
       include: {
         assignee: {
           select: {

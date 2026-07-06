@@ -61,6 +61,17 @@ export async function PATCH(
           ? null
           : undefined
 
+    if (updates.isArchived === true && existingTask.status !== 'COMPLETED') {
+      return NextResponse.json({ error: 'Apenas tarefas concluídas podem ser arquivadas' }, { status: 400 });
+    }
+
+    const setArchivedAt =
+      updates.isArchived === true
+        ? new Date()
+        : updates.isArchived === false
+          ? null
+          : undefined
+
     // Atualizar a tarefa
     let updatedTask;
     try {
@@ -71,6 +82,7 @@ export async function PATCH(
           ...(updates.description !== undefined && { description: updates.description }),
           ...(updates.status && { status: updates.status }),
           ...(updates.priority && { priority: updates.priority }),
+          ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
           ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
           ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
           ...(updates.startDate && { startDate: new Date(updates.startDate) }),
@@ -79,6 +91,7 @@ export async function PATCH(
           ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
           ...(updates.hasBonus !== undefined ? ({ hasBonus: !!updates.hasBonus } as any) : {}),
           ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
+          ...(setArchivedAt !== undefined ? { archivedAt: setArchivedAt as Date | null } : {}),
           ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
           ...(updates.order !== undefined && { order: updates.order }),
           updatedAt: new Date()
@@ -115,6 +128,7 @@ export async function PATCH(
           ...(updates.description !== undefined && { description: updates.description }),
           ...(updates.status && { status: updates.status }),
           ...(updates.priority && { priority: updates.priority }),
+          ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
           ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
           ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
           ...(updates.startDate && { startDate: new Date(updates.startDate) }),
@@ -122,6 +136,7 @@ export async function PATCH(
           ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
           ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
           ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
+          ...(setArchivedAt !== undefined ? { archivedAt: setArchivedAt as Date | null } : {}),
           ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
           ...(updates.order !== undefined && { order: updates.order }),
           updatedAt: new Date()
