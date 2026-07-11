@@ -5,9 +5,14 @@ import { authOptions } from "@/lib/auth"
 
 const prisma = new PrismaClient()
 
-function parseLocalDate(value: string) {
+function parseBrazilDateStart(value: string) {
   const [year, month, day] = value.split("-").map(Number)
-  return new Date(year, (month || 1) - 1, day || 1)
+  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, 3, 0, 0, 0))
+}
+
+function parseBrazilDateEnd(value: string) {
+  const [year, month, day] = value.split("-").map(Number)
+  return new Date(Date.UTC(year, (month || 1) - 1, day || 1, 26, 59, 59, 999))
 }
 
 function getExpandedRange(from?: Date, to?: Date) {
@@ -77,10 +82,8 @@ export async function GET(request: NextRequest) {
     let fromDate: Date | undefined
     let toDate: Date | undefined
     if (fromParam && toParam) {
-      fromDate = parseLocalDate(fromParam)
-      fromDate.setHours(0, 0, 0, 0)
-      toDate = parseLocalDate(toParam)
-      toDate.setHours(23, 59, 59, 999)
+      fromDate = parseBrazilDateStart(fromParam)
+      toDate = parseBrazilDateEnd(toParam)
     }
     const { queryFrom, queryTo } = getExpandedRange(fromDate, toDate)
 
