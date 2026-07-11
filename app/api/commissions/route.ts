@@ -10,6 +10,36 @@ function parseLocalDate(value: string) {
   return new Date(year, (month || 1) - 1, day || 1)
 }
 
+function getExpandedRange(from?: Date, to?: Date) {
+  if (!from || !to) {
+    return { queryFrom: undefined, queryTo: undefined }
+  }
+
+  const queryFrom = new Date(from)
+  queryFrom.setDate(queryFrom.getDate() - 1)
+  queryFrom.setHours(0, 0, 0, 0)
+
+  const queryTo = new Date(to)
+  queryTo.setDate(queryTo.getDate() + 1)
+  queryTo.setHours(23, 59, 59, 999)
+
+  return { queryFrom, queryTo }
+}
+
+function getTaskDeliveryDate(task: {
+  completedAt?: Date | null
+  endTime?: Date | null
+  updatedAt?: Date | null
+}) {
+  return task.completedAt ?? task.endTime ?? task.updatedAt ?? null
+}
+
+function isWithinRange(date: Date | null | undefined, from?: Date, to?: Date) {
+  if (!from || !to) return true
+  if (!date) return false
+  return date >= from && date <= to
+}
+
 function normalizeAccess(input: string | undefined, role?: string): "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" {
   if (!input) return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
   switch (input) {
@@ -52,6 +82,7 @@ export async function GET(request: NextRequest) {
       toDate = parseLocalDate(toParam)
       toDate.setHours(23, 59, 59, 999)
     }
+    const { queryFrom, queryTo } = getExpandedRange(fromDate, toDate)
 
     const access = await getCommissionsAccess(session.user.id, prisma)
     const users = await prisma.user.findMany({
@@ -118,12 +149,12 @@ export async function GET(request: NextRequest) {
           where: {
             assigneeId: u.id,
             status: "COMPLETED",
-            ...(fromDate && toDate
+            ...(queryFrom && queryTo
               ? {
                   OR: [
-                    { completedAt: { gte: fromDate, lte: toDate } as any },
-                    { AND: [{ completedAt: null }, { endTime: { gte: fromDate, lte: toDate } as any }] as any },
-                    { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: fromDate, lte: toDate } as any }] as any }
+                    { completedAt: { gte: queryFrom, lte: queryTo } as any },
+                    { AND: [{ completedAt: null }, { endTime: { gte: queryFrom, lte: queryTo } as any }] as any },
+                    { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: queryFrom, lte: queryTo } as any }] as any }
                   ]
                 }
               : {})
@@ -137,12 +168,12 @@ export async function GET(request: NextRequest) {
           where: {
             assigneeId: u.id,
             status: "COMPLETED",
-            ...(fromDate && toDate
+            ...(queryFrom && queryTo
               ? {
                   OR: [
-                    { completedAt: { gte: fromDate, lte: toDate } as any },
-                    { AND: [{ completedAt: null }, { endTime: { gte: fromDate, lte: toDate } as any }] as any },
-                    { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: fromDate, lte: toDate } as any }] as any }
+                    { completedAt: { gte: queryFrom, lte: queryTo } as any },
+                    { AND: [{ completedAt: null }, { endTime: { gte: queryFrom, lte: queryTo } as any }] as any },
+                    { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: queryFrom, lte: queryTo } as any }] as any }
                   ]
                 }
               : {})
@@ -152,13 +183,15 @@ export async function GET(request: NextRequest) {
         tasks = rows.map((r: any) => ({ estimatedMinutes: r.estimatedMinutes ?? 0, actualMinutes: r.actualMinutes ?? null, hasBonus: false, completedAt: r.completedAt, endTime: r.endTime, updatedAt: r.updatedAt }))
       }
 
-      const variablePay = tasks.reduce((sum, t) => {
+      const filteredTasks = tasks.filter((task) => isWithinRange(getTaskDeliveryDate(task), fromDate, toDate))
+
+      const variablePay = filteredTasks.reduce((sum, t) => {
         const minutes = (t.actualMinutes ?? t.estimatedMinutes ?? 0)
         const rate = t.hasBonus ? (profile.bonusPerTask ?? 0) : (profile.hourRate || 0)
         return sum + (minutes / 60) * rate
       }, 0)
-      const bonusCount = tasks.filter((t) => !!t.hasBonus).length
-      const bonusTotal = tasks.reduce((sum, t) => {
+      const bonusCount = filteredTasks.filter((t) => !!t.hasBonus).length
+      const bonusTotal = filteredTasks.reduce((sum, t) => {
         const minutes = (t.actualMinutes ?? t.estimatedMinutes ?? 0)
         return sum + (t.hasBonus ? (minutes / 60) * (profile.bonusPerTask ?? 0) : 0)
       }, 0)
@@ -175,7 +208,7 @@ export async function GET(request: NextRequest) {
         fixedSalary: profile.fixedSalary ?? null,
         hourRate: profile.hourRate || 0,
         bonusPerTask: profile.bonusPerTask || 0,
-        minutesCompleted: tasks.reduce((s, t) => s + (t.actualMinutes ?? t.estimatedMinutes ?? 0), 0),
+        minutesCompleted: filteredTasks.reduce((s, t) => s + (t.actualMinutes ?? t.estimatedMinutes ?? 0), 0),
         variablePay,
         bonusCount,
         bonusTotal,

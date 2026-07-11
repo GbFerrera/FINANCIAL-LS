@@ -8,6 +8,42 @@ function parseLocalDate(value: string) {
   return new Date(year, (month || 1) - 1, day || 1)
 }
 
+function getExpandedRange(from?: Date, to?: Date) {
+  if (!from || !to) {
+    return { queryFrom: undefined, queryTo: undefined }
+  }
+
+  const queryFrom = new Date(from)
+  queryFrom.setDate(queryFrom.getDate() - 1)
+  queryFrom.setHours(0, 0, 0, 0)
+
+  const queryTo = new Date(to)
+  queryTo.setDate(queryTo.getDate() + 1)
+  queryTo.setHours(23, 59, 59, 999)
+
+  return { queryFrom, queryTo }
+}
+
+function getTaskDeliveryDate(task: {
+  completedAt?: Date | null
+  endTime?: Date | null
+  updatedAt?: Date | null
+}) {
+  return task.completedAt ?? task.endTime ?? task.updatedAt ?? null
+}
+
+function isWithinRange(date: Date | null | undefined, from?: Date, to?: Date) {
+  if (!from || !to) return true
+  if (!date) return false
+  return date >= from && date <= to
+}
+
+function getDueDateEnd(date: Date) {
+  const dueEnd = new Date(date)
+  dueEnd.setHours(23, 59, 59, 999)
+  return dueEnd
+}
+
 function normalizeAccess(input: string | undefined, role?: string): "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" {
   if (!input) return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
   switch (input) {
@@ -62,6 +98,7 @@ export async function GET(
       toDate = parseLocalDate(toParam)
       toDate.setHours(23, 59, 59, 999)
     }
+    const { queryFrom, queryTo } = getExpandedRange(fromDate, toDate)
     let rows: any[] = []
     try {
       rows = await prisma.$queryRaw`
@@ -91,7 +128,7 @@ export async function GET(
       rows = raw.map((r: any) => ({ ...r, bonusPerTask: 0 }))
     }
 
-    let profile = rows[0] || {
+    const profile = rows[0] || {
       userId,
       hasFixedSalary: false,
       fixedSalary: null,
@@ -122,12 +159,12 @@ export async function GET(
         where: {
           assigneeId: userId,
           status: "COMPLETED",
-          ...(fromDate && toDate
+          ...(queryFrom && queryTo
             ? {
                 OR: [
-                  { completedAt: { gte: fromDate, lte: toDate } as any },
-                  { AND: [{ completedAt: null }, { endTime: { gte: fromDate, lte: toDate } as any }] as any },
-                  { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: fromDate, lte: toDate } as any }] as any }
+                  { completedAt: { gte: queryFrom, lte: queryTo } as any },
+                  { AND: [{ completedAt: null }, { endTime: { gte: queryFrom, lte: queryTo } as any }] as any },
+                  { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: queryFrom, lte: queryTo } as any }] as any }
                 ]
               }
             : {})
@@ -138,6 +175,8 @@ export async function GET(
           title: true,
           completedAt: true,
           endTime: true,
+          updatedAt: true,
+          dueDate: true,
           actualMinutes: true,
           estimatedMinutes: true,
           hasBonus: true,
@@ -150,12 +189,12 @@ export async function GET(
         where: {
           assigneeId: userId,
           status: "COMPLETED",
-          ...(fromDate && toDate
+          ...(queryFrom && queryTo
             ? {
                 OR: [
-                  { completedAt: { gte: fromDate, lte: toDate } as any },
-                  { AND: [{ completedAt: null }, { endTime: { gte: fromDate, lte: toDate } as any }] as any },
-                  { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: fromDate, lte: toDate } as any }] as any }
+                  { completedAt: { gte: queryFrom, lte: queryTo } as any },
+                  { AND: [{ completedAt: null }, { endTime: { gte: queryFrom, lte: queryTo } as any }] as any },
+                  { AND: [{ completedAt: null }, { endTime: null }, { updatedAt: { gte: queryFrom, lte: queryTo } as any }] as any }
                 ]
               }
             : {})
@@ -165,6 +204,8 @@ export async function GET(
           title: true,
           completedAt: true,
           endTime: true,
+          updatedAt: true,
+          dueDate: true,
           actualMinutes: true,
           estimatedMinutes: true,
           project: { select: { name: true } }
@@ -174,14 +215,22 @@ export async function GET(
       tasks = rowsTasks.map((t: any) => ({ ...t, hasBonus: false }))
     }
 
-    const totalMinutes = tasks.reduce((sum: number, t: any) => sum + (t.actualMinutes ?? t.estimatedMinutes ?? 0), 0)
-    const variablePay = tasks.reduce((sum: number, t: any) => {
+    const filteredTasks = tasks
+      .filter((task: any) => isWithinRange(getTaskDeliveryDate(task), fromDate, toDate))
+      .sort((a: any, b: any) => {
+        const first = getTaskDeliveryDate(a)?.getTime() ?? 0
+        const second = getTaskDeliveryDate(b)?.getTime() ?? 0
+        return second - first
+      })
+
+    const totalMinutes = filteredTasks.reduce((sum: number, t: any) => sum + (t.actualMinutes ?? t.estimatedMinutes ?? 0), 0)
+    const variablePay = filteredTasks.reduce((sum: number, t: any) => {
       const minutes = (t.actualMinutes ?? t.estimatedMinutes ?? 0)
       const rate = t.hasBonus ? (profile.bonusPerTask ?? 0) : (profile.hourRate || 0)
       return sum + (minutes / 60) * rate
     }, 0)
-    const bonusCount = tasks.filter((t: any) => t.hasBonus).length
-    const bonusTotal = tasks.reduce((sum: number, t: any) => {
+    const bonusCount = filteredTasks.filter((t: any) => t.hasBonus).length
+    const bonusTotal = filteredTasks.reduce((sum: number, t: any) => {
       const minutes = (t.actualMinutes ?? t.estimatedMinutes ?? 0)
       return sum + (t.hasBonus ? (minutes / 60) * (profile.bonusPerTask ?? 0) : 0)
     }, 0)
@@ -201,15 +250,25 @@ export async function GET(
         bonusTotal,
         totalPay
       },
-      tasks: tasks.map((t: any) => ({
-        id: t.id,
-        title: t.title,
-        projectName: t.project?.name || null,
-        minutes: (t.actualMinutes ?? t.estimatedMinutes) ?? 0,
-        hasBonus: !!t.hasBonus,
-        completedAt: t.completedAt,
-        date: t.completedAt ?? t.endTime ?? null
-      }))
+      tasks: filteredTasks.map((t: any) => {
+        const deliveryDate = getTaskDeliveryDate(t)
+        const deliveredOnTime =
+          t.dueDate && deliveryDate
+            ? deliveryDate.getTime() <= getDueDateEnd(new Date(t.dueDate)).getTime()
+            : null
+
+        return {
+          id: t.id,
+          title: t.title,
+          projectName: t.project?.name || null,
+          minutes: (t.actualMinutes ?? t.estimatedMinutes) ?? 0,
+          hasBonus: !!t.hasBonus,
+          completedAt: t.completedAt,
+          date: deliveryDate,
+          dueDate: t.dueDate ?? null,
+          deliveredOnTime
+        }
+      })
     })
   } catch (error) {
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
