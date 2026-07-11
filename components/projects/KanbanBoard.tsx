@@ -57,6 +57,7 @@ interface KanbanBoardProps {
   onArchiveCompleted?: () => void;
   onStartArchiveSelection?: () => void;
   onToggleArchivedView?: () => void;
+  canCompleteTasks?: boolean;
 }
 
 const COLUMNS = [
@@ -101,6 +102,7 @@ export function KanbanBoard({
   onArchiveCompleted,
   onStartArchiveSelection,
   onToggleArchivedView,
+  canCompleteTasks = true,
 }: KanbanBoardProps) {
   const [boardTasks, setBoardTasks] = useState<ProjectTask[]>(tasks);
 
@@ -121,6 +123,10 @@ export function KanbanBoard({
     }
 
     const newStatus = destination.droppableId;
+    if (newStatus === "COMPLETED" && !canCompleteTasks) {
+      toast.error("Apenas administradores podem marcar tarefas como concluídas");
+      return;
+    }
     const originalTasks = [...boardTasks];
     
     // Atualização otimista

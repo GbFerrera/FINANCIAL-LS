@@ -161,6 +161,8 @@ export default function PipelinePage() {
     }))
   }, [tasks])
 
+  const isAdmin = session?.user?.role === "ADMIN"
+
   const filterLabel = useMemo(() => {
     if (selectedProjectIds.length === 0) return "Todos os projetos"
     if (selectedProjectIds.length === 1) {
@@ -252,6 +254,10 @@ export default function PipelinePage() {
   }
 
   const handleTaskUpdate = async (taskId: string, newStatus: string) => {
+    if (newStatus === "COMPLETED" && !isAdmin) {
+      toast.error("Apenas administradores podem marcar tarefas como concluídas")
+      return
+    }
     const res = await fetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -481,6 +487,7 @@ export default function PipelinePage() {
         onArchiveCompleted={() => handleArchiveTasks("completed", true)}
         onStartArchiveSelection={startArchiveSelection}
         onToggleArchivedView={toggleArchivedView}
+        canCompleteTasks={isAdmin}
       />
 
       <Dialog open={createPickOpen} onOpenChange={setCreatePickOpen}>

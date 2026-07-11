@@ -5,6 +5,11 @@ import { authOptions } from "@/lib/auth"
 
 const prisma = new PrismaClient()
 
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number)
+  return new Date(year, (month || 1) - 1, day || 1)
+}
+
 function normalizeAccess(input: string | undefined, role?: string): "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" {
   if (!input) return role === "ADMIN" ? "ALL_EDIT" : "OWN_READ"
   switch (input) {
@@ -42,9 +47,9 @@ export async function GET(request: NextRequest) {
     let fromDate: Date | undefined
     let toDate: Date | undefined
     if (fromParam && toParam) {
-      fromDate = new Date(fromParam)
+      fromDate = parseLocalDate(fromParam)
       fromDate.setHours(0, 0, 0, 0)
-      toDate = new Date(toParam)
+      toDate = parseLocalDate(toParam)
       toDate.setHours(23, 59, 59, 999)
     }
 

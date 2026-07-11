@@ -61,6 +61,13 @@ export async function PATCH(
           ? null
           : undefined
 
+    if (!isAdmin && statusUpdate === 'COMPLETED' && existingTask.status !== 'COMPLETED') {
+      return NextResponse.json(
+        { error: 'Apenas administradores podem marcar tarefas como concluídas' },
+        { status: 403 }
+      );
+    }
+
     if (updates.isArchived === true && existingTask.status !== 'COMPLETED') {
       return NextResponse.json({ error: 'Apenas tarefas concluídas podem ser arquivadas' }, { status: 400 });
     }

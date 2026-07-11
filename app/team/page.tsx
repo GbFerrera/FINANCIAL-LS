@@ -902,69 +902,71 @@ export default function TeamPage() {
           <DialogTrigger asChild>
             <div style={{display: 'none'}} />
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[700px]">
+          <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>Permissões de Páginas</DialogTitle>
               <DialogDescription>
                 Selecione quais páginas o usuário pode acessar.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                {ROUTE_REGISTRY.map((route) => (
-                  <div key={route.key} className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={allowedPaths.includes(route.path)}
-                      onCheckedChange={() => togglePath(route.path)}
-                      id={`perm-${route.key}`}
-                    />
-                    <Label htmlFor={`perm-${route.key}`} className="cursor-pointer">
-                      {route.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Ações Rápidas</CardTitle>
-                    <CardDescription>Aplicar configurações pré-definidas</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <Button variant="default" className="w-full" onClick={allowAll}>
-                      Permitir Tudo
-                    </Button>
-                    <Button variant="outline" className="w-full" onClick={applyRoleDefaults}>
-                      Padrões do Cargo
-                    </Button>
-                    <Button variant="outline" className="w-full" onClick={() => setAllowedPaths([])}>
-                      Desmarcar Tudo
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Acesso a Comissões</CardTitle>
-                    <CardDescription>Controle de visualização/edição de comissões</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-2">
-                      <label className="text-sm text-muted-foreground">Permissão</label>
-                      <select
-                        className="border rounded-md px-3 py-2 bg-background"
-                        value={commissionsAccess}
-                        onChange={(e) => setCommissionsAccess(e.target.value as "OWN_READ" | "OWN_EDIT" | "ALL_EDIT")}
-                      >
-                        <option value="OWN_READ">Ver somente a própria</option>
-                        <option value="OWN_EDIT">Ver e editar a própria</option>
-                        <option value="ALL_EDIT">Ver e editar de todos</option>
-                      </select>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  {ROUTE_REGISTRY.map((route) => (
+                    <div key={route.key} className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={allowedPaths.includes(route.path)}
+                        onCheckedChange={() => togglePath(route.path)}
+                        id={`perm-${route.key}`}
+                      />
+                      <Label htmlFor={`perm-${route.key}`} className="cursor-pointer">
+                        {route.label}
+                      </Label>
                     </div>
-                  </CardContent>
-                </Card>
+                  ))}
+                </div>
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Ações Rápidas</CardTitle>
+                      <CardDescription>Aplicar configurações pré-definidas</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <Button variant="default" className="w-full" onClick={allowAll}>
+                        Permitir Tudo
+                      </Button>
+                      <Button variant="outline" className="w-full" onClick={applyRoleDefaults}>
+                        Padrões do Cargo
+                      </Button>
+                      <Button variant="outline" className="w-full" onClick={() => setAllowedPaths([])}>
+                        Desmarcar Tudo
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Acesso a Comissões</CardTitle>
+                      <CardDescription>Controle de visualização/edição de comissões</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-2">
+                        <label className="text-sm text-muted-foreground">Permissão</label>
+                        <select
+                          className="border rounded-md px-3 py-2 bg-background"
+                          value={commissionsAccess}
+                          onChange={(e) => setCommissionsAccess(e.target.value as "OWN_READ" | "OWN_EDIT" | "ALL_EDIT")}
+                        >
+                          <option value="OWN_READ">Ver somente a própria</option>
+                          <option value="OWN_EDIT">Ver e editar a própria</option>
+                          <option value="ALL_EDIT">Ver e editar de todos</option>
+                        </select>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="shrink-0 pt-2">
               <Button
                 variant="outline"
                 onClick={() => setIsPermissionsOpen(false)}

@@ -6,7 +6,7 @@ import { z } from "zod"
 import { getDefaultAllowedPaths, registryPaths } from "@/lib/access-control"
 
 const updateSchema = z.object({
-  allowedPaths: z.array(z.string()).min(1),
+  allowedPaths: z.array(z.string()),
   commissionsAccess: z.enum(["OWN_READ", "OWN_EDIT", "ALL_EDIT", "OWN", "ALL", "EDIT"]).optional(),
 })
 
@@ -37,7 +37,7 @@ async function canManage(session: any, targetUserId: string) {
 }
 
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -70,7 +70,8 @@ export async function GET(
       "/tasks": "/projects/backlog",
     }
     const defaults = getDefaultAllowedPaths(user.role)
-    const allowedRaw = storedPaths.length > 0 ? Array.from(new Set([...defaults, ...storedPaths])) : defaults
+    const hasStoredPermissions = Array.isArray(stored.pagePermissions)
+    const allowedRaw = hasStoredPermissions ? storedPaths : defaults
     const allowedPaths = allowedRaw.map((p: string) => ALIASES[p] ?? p)
 
     return NextResponse.json({ allowedPaths, commissionsAccess })
@@ -97,6 +98,14 @@ export async function PUT(
 
     const body = await req.json()
     const data = updateSchema.parse(body)
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { role: true },
+    } as any)
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
+    }
 
     const ALIASES: Record<string, string> = {
       "/sprints": "/projects/sprints",
@@ -127,7 +136,7 @@ export async function PUT(
       pagePermissions: Array.from(allowedSet),
     }
     if (typeof data.commissionsAccess !== "undefined") {
-      payload.commissionsAccess = normalizeAccess(data.commissionsAccess, session.user.role)
+      payload.commissionsAccess = normalizeAccess(data.commissionsAccess, targetUser.role)
     }
     await prisma.user.update({
       where: { id: targetUserId },
