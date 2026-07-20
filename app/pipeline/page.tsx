@@ -41,6 +41,7 @@ export default function PipelinePage() {
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [tasks, setTasks] = useState<BoardTask[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [createPickOpen, setCreatePickOpen] = useState(false)
@@ -68,6 +69,15 @@ export default function PipelinePage() {
         ? [legacyId]
         : []
     setSelectedProjectIds(ids)
+
+    const rawStatuses = searchParams?.get("statuses")
+    const statuses = rawStatuses
+      ? rawStatuses
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
+    setSelectedStatuses(statuses)
   }, [searchParams])
 
   const fetchProjects = async () => {
@@ -81,10 +91,13 @@ export default function PipelinePage() {
     setProjects(list.map((p: any) => ({ id: String(p.id), name: String(p.name) })))
   }
 
-  const fetchTasks = async (projectIds: string[]) => {
+  const fetchTasks = async (projectIds: string[], statuses: string[] = []) => {
     const params = new URLSearchParams()
     if (projectIds.length > 0) {
       params.set("projectIds", projectIds.join(","))
+    }
+    if (statuses.length > 0) {
+      params.set("statuses", statuses.join(","))
     }
     if (showArchived) {
       params.set("archivedOnly", "true")
@@ -111,7 +124,7 @@ export default function PipelinePage() {
       try {
         setInitialLoading(true)
         await fetchProjects()
-        if (!cancelled) await fetchTasks(selectedProjectIds)
+        if (!cancelled) await fetchTasks(selectedProjectIds, selectedStatuses)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Erro ao carregar pipeline")
       } finally {
@@ -130,7 +143,7 @@ export default function PipelinePage() {
     let cancelled = false
     const run = async () => {
       try {
-        await fetchTasks(selectedProjectIds)
+        await fetchTasks(selectedProjectIds, selectedStatuses)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Erro ao carregar tarefas")
       } finally {
@@ -141,7 +154,7 @@ export default function PipelinePage() {
     return () => {
       cancelled = true
     }
-  }, [selectedProjectIds, status, initialLoading, showArchived])
+  }, [selectedProjectIds, selectedStatuses, status, initialLoading, showArchived])
 
   const mappedTasks = useMemo(() => {
     return tasks.map((t) => ({
@@ -175,15 +188,48 @@ export default function PipelinePage() {
   const toggleProject = (projectId: string) => {
     setSelectedProjectIds((prev) => {
       const next = prev.includes(projectId) ? prev.filter((id) => id !== projectId) : [...prev, projectId]
-      const url = next.length > 0 ? `/pipeline?projectIds=${encodeURIComponent(next.join(","))}` : "/pipeline"
-      router.replace(url)
+      updateURL(selectedStatuses)
       return next
     })
   }
 
   const clearProjects = () => {
     setSelectedProjectIds([])
-    router.replace("/pipeline")
+    updateURL()
+  }
+
+  const statusFilterLabel = useMemo(() => {
+    if (selectedStatuses.length === 0) return "Todos os status"
+    if (selectedStatuses.length === 1) {
+      return selectedStatuses[0]
+    }
+    return `${selectedStatuses.length} status`
+  }, [selectedStatuses])
+
+  const toggleStatus = (status: string) => {
+    setSelectedStatuses((prev) => {
+      const next = prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+      updateURL(next)
+      return next
+    })
+  }
+
+  const clearStatuses = () => {
+    setSelectedStatuses([])
+    updateURL([])
+  }
+
+  const updateURL = (statuses?: string[]) => {
+    const currentStatuses = statuses !== undefined ? statuses : selectedStatuses
+    const params = new URLSearchParams()
+    if (selectedProjectIds.length > 0) {
+      params.set("projectIds", selectedProjectIds.join(","))
+    }
+    if (currentStatuses.length > 0) {
+      params.set("statuses", currentStatuses.join(","))
+    }
+    const qs = params.toString()
+    router.replace(qs ? `/pipeline?${qs}` : "/pipeline")
   }
 
   const clearSelection = () => {
@@ -377,7 +423,7 @@ export default function PipelinePage() {
         toast(`${skippedCount} tarefa(s) não puderam ser processadas`)
       }
 
-      await fetchTasks(selectedProjectIds)
+      await fetchTasks(selectedProjectIds, selectedStatuses)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao arquivar tarefas")
     } finally {
@@ -406,7 +452,7 @@ export default function PipelinePage() {
           <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap justify-end">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-[360px] justify-between">
+                <Button variant="outline" className="w-full sm:w-[200px] justify-between">
                   <span className="truncate">{filterLabel}</span>
                 </Button>
               </PopoverTrigger>
@@ -434,6 +480,41 @@ export default function PipelinePage() {
                     )
                   })}
                   {projects.length === 0 && <div className="text-sm text-muted-foreground">Sem projetos</div>}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-[200px] justify-between">
+                  <span className="truncate">{statusFilterLabel}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[360px] p-2">
+                <div className="flex items-center justify-between px-2 py-1">
+                  <span className="text-sm font-medium">Status</span>
+                  <Button variant="ghost" size="sm" onClick={clearStatuses}>
+                    Limpar
+                  </Button>
+                </div>
+                <div className="max-h-[320px] overflow-y-auto px-2 py-1 space-y-2">
+                  {["TODO", "IN_PROGRESS", "IN_TEST", "COMPLETED", "DONE"].map((status) => {
+                    const checked = selectedStatuses.includes(status)
+                    return (
+                      <div key={status} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleStatus(status)}
+                          id={`status-${status}`}
+                        />
+                        <Label htmlFor={`status-${status}`} className="text-sm cursor-pointer">
+                          {status === "TODO" ? "A Fazer" : 
+                           status === "IN_PROGRESS" ? "Em Andamento" :
+                           status === "IN_TEST" ? "Em Teste" :
+                           status === "COMPLETED" ? "Concluído" : status}
+                        </Label>
+                      </div>
+                    )
+                  })}
                 </div>
               </PopoverContent>
             </Popover>
@@ -538,7 +619,7 @@ export default function PipelinePage() {
           milestones={createMilestones}
           onSuccess={async () => {
             setCreateTaskOpen(false)
-            await fetchTasks(selectedProjectIds)
+            await fetchTasks(selectedProjectIds, selectedStatuses)
           }}
         />
       )}
@@ -552,7 +633,7 @@ export default function PipelinePage() {
           editingTask={editingTask}
           onSuccess={async () => {
             setEditTaskOpen(false)
-            await fetchTasks(selectedProjectIds)
+            await fetchTasks(selectedProjectIds, selectedStatuses)
           }}
         />
       )}
