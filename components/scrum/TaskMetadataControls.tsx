@@ -1,10 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form'
+import { DateRange } from 'react-day-picker'
+import { ptBR } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
@@ -85,6 +88,19 @@ function formatDateLabel(isoDate?: string) {
   const d = new Date(isoDate + (isoDate.includes('T') ? '' : 'T12:00:00'))
   if (Number.isNaN(d.getTime())) return isoDate
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+}
+
+function toIsoDate(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function fromIsoDate(s?: string) {
+  if (!s) return undefined
+  const d = new Date(`${s}T12:00:00`)
+  return Number.isNaN(d.getTime()) ? undefined : d
 }
 
 function ActionChip({
@@ -184,6 +200,13 @@ export function TaskMetadataControls({
   const dueDate = watch('dueDate')
   const startTime = watch('startTime')
   const estimatedMinutes = watch('estimatedMinutes')
+
+  const dateRange = useMemo((): DateRange | undefined => {
+    const from = fromIsoDate(startDate)
+    const to = fromIsoDate(dueDate)
+    if (!from && !to) return undefined
+    return { from, to }
+  }, [startDate, dueDate])
 
   const assignee = teamMembers.find((m) => m.id === assigneeId)
   const milestone = milestones.find((m) => m.id === milestoneId)
@@ -293,15 +316,36 @@ export function TaskMetadataControls({
 
   const datesEditor = (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Início</Label>
-          <Input type="date" className="h-8 text-xs" {...register('startDate')} />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Entrega</Label>
-          <Input type="date" className="h-8 text-xs" {...register('dueDate')} />
-        </div>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+        Início e entrega
+      </p>
+      <Calendar
+        mode="range"
+        locale={ptBR}
+        selected={dateRange}
+        defaultMonth={dateRange?.from ?? dateRange?.to}
+        onSelect={(range) => {
+          setValue('startDate', range?.from ? toIsoDate(range.from) : undefined)
+          setValue('dueDate', range?.to ? toIsoDate(range.to) : undefined)
+        }}
+        numberOfMonths={1}
+        className="rounded-md border bg-background p-2 mx-auto"
+      />
+      {(startDate || dueDate) && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="mt-2 h-7 w-full text-xs text-muted-foreground"
+          onClick={() => {
+            setValue('startDate', undefined)
+            setValue('dueDate', undefined)
+          }}
+        >
+          Limpar datas
+        </Button>
+      )}
+      <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="w-3 h-3" /> Hora
@@ -373,7 +417,7 @@ export function TaskMetadataControls({
             Datas
           </ActionChip>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72" {...popoverFocusHandlers}>
+        <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-3" {...popoverFocusHandlers}>
           {datesEditor}
         </PopoverContent>
       </Popover>

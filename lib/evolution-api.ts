@@ -1,8 +1,12 @@
 const DEFAULT_TIMEOUT_MS = 30_000
 
+/** Mesmo default do `docker-compose.yml` (AUTHENTICATION_API_KEY / EVOLUTION_API_KEY). */
+export const DEFAULT_EVOLUTION_API_URL = "http://evolution-api:8080"
+export const DEFAULT_EVOLUTION_API_KEY = "dev-evolution-key-change-me"
+
 export function getEvolutionConfig() {
-  const baseUrl = (process.env.EVOLUTION_API_URL || "").replace(/\/$/, "")
-  const apiKey = process.env.EVOLUTION_API_KEY || ""
+  const baseUrl = (process.env.EVOLUTION_API_URL || DEFAULT_EVOLUTION_API_URL).replace(/\/$/, "")
+  const apiKey = process.env.EVOLUTION_API_KEY || DEFAULT_EVOLUTION_API_KEY
   if (!baseUrl || !apiKey) return null
   return { baseUrl, apiKey }
 }
