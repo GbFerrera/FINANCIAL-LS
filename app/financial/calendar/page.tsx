@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Calendar as CalendarIcon, Plus, TrendingDown, TrendingUp, Wallet, MoreHorizontal } from "lucide-react"
+import { Calendar as CalendarIcon, Mail, MessageCircle, Plus, TrendingDown, TrendingUp, Wallet, MoreHorizontal } from "lucide-react"
 import { AddPaymentDialog } from "@/components/payments/add-payment-dialog"
 
 const locales = {
@@ -33,6 +33,20 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 })
+
+type CalendarReminderRow = {
+  sendDateKey: string
+  dueDateKey: string
+  daysUntilDue: number
+  channel: "EMAIL" | "WHATSAPP"
+  clientName: string
+  label: string
+  amountLabel: string
+  status: "scheduled" | "sent"
+  source: "SUBSCRIPTION" | "PAYMENT"
+  sourceId: string
+  templateName?: string
+}
 
 type Subscription = {
   id: string
@@ -207,9 +221,15 @@ export default function FinancialCalendarPage() {
     paymentDate: string
     status: string
     method?: string | null
+    reminderSendEmail?: boolean
+    reminderSendWhatsApp?: boolean
+    reminderDaysBefore?: number
+    reminderSendTime?: string
+    whatsAppInstanceId?: string | null
     client: { id: string; name: string; email: string; company?: string | null }
     paymentProjects?: Array<{ id: string; amount: number; project: { id: string; name: string } }>
   }>>([])
+  const [calendarReminders, setCalendarReminders] = useState<CalendarReminderRow[]>([])
   const [financialEntries, setFinancialEntries] = useState<FinancialEntryRow[]>([])
   const [expenseOccurrences, setExpenseOccurrences] = useState<Array<{
     id: string
@@ -317,6 +337,12 @@ export default function FinancialCalendarPage() {
     fetchExpenseOccurrences()
   }, [session, status, calendarDate])
 
+  useEffect(() => {
+    if (status === "loading") return
+    if (!session) return
+    fetchCalendarReminders()
+  }, [session, status, calendarDate])
+
   const fetchSubscriptions = async () => {
     try {
       setLoading(true)
@@ -356,6 +382,26 @@ export default function FinancialCalendarPage() {
       setPayments(Array.isArray(data.payments) ? data.payments : [])
     } catch {
       setPayments([])
+    }
+  }
+
+  const fetchCalendarReminders = async () => {
+    try {
+      const y = calendarDate.getFullYear()
+      const m = calendarDate.getMonth()
+      const start = format(new Date(y, m, 1), "yyyy-MM-dd")
+      const end = format(new Date(y, m + 1, 0), "yyyy-MM-dd")
+      const res = await fetch(
+        `/api/financial/calendar/reminders?startDate=${start}&endDate=${end}`
+      )
+      if (!res.ok) {
+        setCalendarReminders([])
+        return
+      }
+      const data = await res.json()
+      setCalendarReminders(Array.isArray(data.items) ? data.items : [])
+    } catch {
+      setCalendarReminders([])
     }
   }
 
@@ -909,6 +955,14 @@ export default function FinancialCalendarPage() {
       })
   }, [financialEntries, selectedKey])
 
+  const dayReminders = useMemo(
+    () =>
+      calendarReminders
+        .filter((r) => r.sendDateKey === selectedKey)
+        .sort((a, b) => a.clientName.localeCompare(b.clientName)),
+    [calendarReminders, selectedKey]
+  )
+
   const dayFinancialIncome = useMemo(
     () => dayFinancialEntries.filter(e => e.type === "INCOME").reduce((acc, e) => acc + e.amount, 0),
     [dayFinancialEntries]
@@ -1222,7 +1276,51 @@ export default function FinancialCalendarPage() {
               </div>
             </div>
 
-            {dayCharges.length === 0 && dayFinancialEntries.length === 0 ? (
+            {dayReminders.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Lembretes de cobrança
+                </p>
+                {dayReminders.map((r, idx) => (
+                  <div
+                    key={`${r.source}-${r.sourceId}-${r.channel}-${idx}`}
+                    className="flex items-start justify-between gap-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate flex items-center gap-1.5">
+                        {r.channel === "EMAIL" ? (
+                          <Mail className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                        ) : (
+                          <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                        )}
+                        {r.clientName}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {r.source === "PAYMENT" ? r.label : `${r.templateName || "Assinatura"} · ${r.label}`}
+                        {r.daysUntilDue === 0
+                          ? " · vence hoje"
+                          : ` · ${r.daysUntilDue} dia(s) antes`}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs font-medium">{r.amountLabel}</div>
+                      <Badge
+                        variant="outline"
+                        className={
+                          r.status === "sent"
+                            ? "text-green-600 border-green-600/40"
+                            : "text-amber-600 border-amber-600/40"
+                        }
+                      >
+                        {r.status === "sent" ? "Enviado" : "Agendado"}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {dayCharges.length === 0 && dayFinancialEntries.length === 0 && dayReminders.length === 0 ? (
               <div className="text-sm text-muted-foreground">
                 Nenhum registro para este dia.
               </div>
@@ -1320,7 +1418,12 @@ export default function FinancialCalendarPage() {
                                         amount: payment.amount,
                                         description: payment.description,
                                         paymentDate: payment.paymentDate,
-                                        method: payment.method || 'BANK_TRANSFER'
+                                        method: payment.method || 'BANK_TRANSFER',
+                                        reminderSendEmail: payment.reminderSendEmail,
+                                        reminderSendWhatsApp: payment.reminderSendWhatsApp,
+                                        reminderDaysBefore: payment.reminderDaysBefore,
+                                        reminderSendTime: payment.reminderSendTime,
+                                        whatsAppInstanceId: payment.whatsAppInstanceId,
                                       })
                                       setAddChargeOpen(true)
                                     }
@@ -1573,6 +1676,7 @@ export default function FinancialCalendarPage() {
           setPaymentToEdit(undefined)
           fetchPayments()
           fetchFinancialEntries()
+          fetchCalendarReminders()
         }}
         mode="CHARGE"
         defaultDate={format(selectedDate, "yyyy-MM-dd")}

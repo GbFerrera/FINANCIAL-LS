@@ -21,6 +21,8 @@ import {
   buildReminderPixPayload,
   parseAmountBrlFromReminderVars,
 } from "@/lib/pix-copia-cola"
+import { collectPaymentReminderCandidates } from "@/lib/payment-reminder"
+import { plainTextToHtml } from "@/lib/subscription-reminder"
 
 const bodySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -379,11 +381,220 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const paymentsPending = await prisma.payment.findMany({
+      where: {
+        status: "PENDING",
+        OR: [{ reminderSendEmail: true }, { reminderSendWhatsApp: true }],
+      },
+      include: {
+        client: { select: { name: true, email: true, phone: true, company: true } },
+        whatsAppInstance: true,
+      },
+    })
+
+    const paymentLogs = await prisma.paymentReminderSendLog.findMany({
+      select: { paymentId: true, dueDateKey: true, channel: true, daysUntilDue: true },
+    })
+    const paymentSentKeys = new Set(
+      paymentLogs.map((l) => `${l.paymentId}:${l.dueDateKey}:${l.channel}:${l.daysUntilDue}`)
+    )
+
+    const defaultWaInst = await prisma.whatsAppInstance.findFirst({
+      where: { status: "CONNECTED" },
+      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+    })
+
+    const paymentCandidates = collectPaymentReminderCandidates({
+      referenceDate,
+      payments: paymentsPending,
+    })
+
+    for (const c of paymentCandidates) {
+      if (!skipSendTimeCheck && !isReminderSendTimeReached(c.reminderSendTime, now)) continue
+
+      const channels: { channel: "EMAIL" | "WHATSAPP"; enabled: boolean }[] = [
+        { channel: "EMAIL", enabled: c.reminderSendEmail },
+        { channel: "WHATSAPP", enabled: c.reminderSendWhatsApp },
+      ]
+
+      for (const { channel, enabled } of channels) {
+        if (!enabled) continue
+        const dedupeKey = `${c.paymentId}:${c.dueDateKey}:${channel}:${c.daysUntilDue}`
+        if (paymentSentKeys.has(dedupeKey)) continue
+
+        const label = "Cobrança avulsa"
+
+        if (channel === "EMAIL") {
+          const to = c.clientEmail?.trim()
+          if (!to) {
+            results.push({
+              client: c.clientName,
+              channel,
+              destination: "",
+              dueDateKey: c.dueDateKey,
+              daysUntilDue: c.daysUntilDue,
+              template: label,
+              status: "skipped",
+              error: "Cliente sem e-mail",
+            })
+            continue
+          }
+          if (dryRun) {
+            results.push({
+              client: c.clientName,
+              channel,
+              destination: to,
+              dueDateKey: c.dueDateKey,
+              daysUntilDue: c.daysUntilDue,
+              template: label,
+              status: "preview",
+            })
+            continue
+          }
+          try {
+            await sendMail({
+              to,
+              subject: c.reminderSubject,
+              text: c.reminderBody,
+              html: `<div style="font-family:sans-serif;line-height:1.6">${plainTextToHtml(c.reminderBody)}</div>`,
+            })
+            await prisma.paymentReminderSendLog.create({
+              data: {
+                paymentId: c.paymentId,
+                dueDateKey: c.dueDateKey,
+                daysUntilDue: c.daysUntilDue,
+                channel: "EMAIL",
+                recipientEmail: to,
+              },
+            })
+            paymentSentKeys.add(dedupeKey)
+            results.push({
+              client: c.clientName,
+              channel,
+              destination: to,
+              dueDateKey: c.dueDateKey,
+              daysUntilDue: c.daysUntilDue,
+              template: label,
+              status: "sent",
+            })
+          } catch (err) {
+            results.push({
+              client: c.clientName,
+              channel,
+              destination: to,
+              dueDateKey: c.dueDateKey,
+              template: label,
+              status: "error",
+              error: err instanceof Error ? err.message : "Erro ao enviar e-mail",
+            })
+          }
+          continue
+        }
+
+        const inst =
+          paymentsPending.find((p) => p.id === c.paymentId)?.whatsAppInstance ||
+          (c.whatsAppInstanceId
+            ? await prisma.whatsAppInstance.findUnique({ where: { id: c.whatsAppInstanceId } })
+            : defaultWaInst)
+        const phone = normalizeWhatsAppNumber(c.clientPhone)
+        if (!inst) {
+          results.push({
+            client: c.clientName,
+            channel,
+            destination: phone || "",
+            dueDateKey: c.dueDateKey,
+            template: label,
+            status: "skipped",
+            error: "Nenhuma instância WhatsApp conectada",
+          })
+          continue
+        }
+        if (inst.status !== "CONNECTED") {
+          results.push({
+            client: c.clientName,
+            channel,
+            destination: phone || "",
+            dueDateKey: c.dueDateKey,
+            template: label,
+            status: "skipped",
+            error: "WhatsApp desconectado",
+          })
+          continue
+        }
+        if (!phone) {
+          results.push({
+            client: c.clientName,
+            channel,
+            destination: "",
+            dueDateKey: c.dueDateKey,
+            template: label,
+            status: "skipped",
+            error: "Cliente sem telefone",
+          })
+          continue
+        }
+        if (dryRun) {
+          results.push({
+            client: c.clientName,
+            channel,
+            destination: phone,
+            dueDateKey: c.dueDateKey,
+            daysUntilDue: c.daysUntilDue,
+            template: label,
+            status: "preview",
+          })
+          continue
+        }
+        try {
+          if (whatsAppSentThisRun > 0) {
+            await sleep(2000)
+          }
+          await sendSubscriptionReminderWhatsApp({
+            instanceName: inst.instanceName,
+            phone,
+            subject: c.reminderSubject,
+            body: c.reminderBody,
+            pix: null,
+            pauseSeconds: 2,
+          })
+          await prisma.paymentReminderSendLog.create({
+            data: {
+              paymentId: c.paymentId,
+              dueDateKey: c.dueDateKey,
+              daysUntilDue: c.daysUntilDue,
+              channel: "WHATSAPP",
+              recipientPhone: phone,
+            },
+          })
+          paymentSentKeys.add(dedupeKey)
+          whatsAppSentThisRun += 1
+          results.push({
+            client: c.clientName,
+            channel,
+            destination: phone,
+            dueDateKey: c.dueDateKey,
+            template: label,
+            status: "sent",
+          })
+        } catch (err) {
+          results.push({
+            client: c.clientName,
+            channel,
+            destination: phone,
+            dueDateKey: c.dueDateKey,
+            template: label,
+            status: "error",
+            error: err instanceof Error ? err.message : "Erro WhatsApp",
+          })
+        }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       referenceDate: referenceDate.toISOString().slice(0, 10),
       dryRun,
-      candidates: candidates.length,
+      candidates: candidates.length + paymentCandidates.length,
       sent: results.filter((r) => r.status === "sent").length,
       errors: results.filter((r) => r.status === "error").length,
       skipped: results.filter((r) => r.status === "skipped").length,

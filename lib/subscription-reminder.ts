@@ -99,6 +99,8 @@ export function collectReminderCandidates(input: {
     body: string
     daysBeforeDue: number
     isActive: boolean
+    sendEmail?: boolean
+    sendWhatsApp?: boolean
     group: { name: string }
     recipientClientSubscriptionIds?: string[]
   }[]

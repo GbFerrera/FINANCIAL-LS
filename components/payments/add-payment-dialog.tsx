@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -42,6 +43,11 @@ interface AddPaymentDialogProps {
     description?: string | null
     paymentDate: string
     method?: string | null
+    reminderSendEmail?: boolean
+    reminderSendWhatsApp?: boolean
+    reminderDaysBefore?: number
+    reminderSendTime?: string
+    whatsAppInstanceId?: string | null
   }
 }
 
@@ -54,13 +60,20 @@ export function AddPaymentDialog({
   paymentToEdit,
 }: AddPaymentDialogProps) {
   const [clients, setClients] = useState<Client[]>([])
+  const [waInstances, setWaInstances] = useState<Array<{ id: string; label: string; status: string }>>([])
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     clientId: '',
     amount: '',
     description: '',
     paymentDate: defaultDate || new Date().toISOString().split('T')[0],
-    method: 'BANK_TRANSFER'
+    method: 'BANK_TRANSFER',
+    reminderEnabled: false,
+    reminderSendEmail: true,
+    reminderSendWhatsApp: false,
+    reminderDaysBefore: '1',
+    reminderSendTime: '09:00',
+    whatsAppInstanceId: '',
   })
 
   const formatCurrencyBRFromDigits = (digits: string) => {
@@ -95,13 +108,22 @@ export function AddPaymentDialog({
   useEffect(() => {
     if (open) {
       fetchClients()
+      if (mode === 'CHARGE') fetchWaInstances()
       if (paymentToEdit) {
+        const hasReminder =
+          paymentToEdit.reminderSendEmail || paymentToEdit.reminderSendWhatsApp
         setFormData({
           clientId: paymentToEdit.clientId || '',
           amount: formatCurrencyBRFromNumber(paymentToEdit.amount),
           description: paymentToEdit.description || '',
           paymentDate: dateOnly(paymentToEdit.paymentDate),
-          method: paymentToEdit.method || 'BANK_TRANSFER'
+          method: paymentToEdit.method || 'BANK_TRANSFER',
+          reminderEnabled: Boolean(hasReminder),
+          reminderSendEmail: paymentToEdit.reminderSendEmail ?? true,
+          reminderSendWhatsApp: paymentToEdit.reminderSendWhatsApp ?? false,
+          reminderDaysBefore: String(paymentToEdit.reminderDaysBefore ?? 1),
+          reminderSendTime: paymentToEdit.reminderSendTime || '09:00',
+          whatsAppInstanceId: paymentToEdit.whatsAppInstanceId || '',
         })
       } else {
         setFormData({
@@ -109,11 +131,28 @@ export function AddPaymentDialog({
           amount: '',
           description: '',
           paymentDate: defaultDate || new Date().toISOString().split('T')[0],
-          method: 'BANK_TRANSFER'
+          method: 'BANK_TRANSFER',
+          reminderEnabled: false,
+          reminderSendEmail: true,
+          reminderSendWhatsApp: false,
+          reminderDaysBefore: '1',
+          reminderSendTime: '09:00',
+          whatsAppInstanceId: '',
         })
       }
     }
-  }, [open, defaultDate, paymentToEdit])
+  }, [open, defaultDate, paymentToEdit, mode])
+
+  const fetchWaInstances = async () => {
+    try {
+      const res = await fetch('/api/financial/whatsapp/instances')
+      if (!res.ok) return
+      const data = await res.json()
+      setWaInstances(Array.isArray(data.instances) ? data.instances : [])
+    } catch {
+      setWaInstances([])
+    }
+  }
 
   const fetchClients = async () => {
     try {
@@ -150,6 +189,20 @@ export function AddPaymentDialog({
 
     try {
       const payloadDate = formData.paymentDate + 'T12:00:00.000Z'
+      const daysBefore = parseInt(formData.reminderDaysBefore, 10)
+      const reminderPayload =
+        mode === 'CHARGE' && formData.reminderEnabled
+          ? {
+              reminderSendEmail: formData.reminderSendEmail,
+              reminderSendWhatsApp: formData.reminderSendWhatsApp,
+              reminderDaysBefore: Number.isFinite(daysBefore) && daysBefore >= 0 ? daysBefore : 1,
+              reminderSendTime: formData.reminderSendTime.trim() || '09:00',
+              whatsAppInstanceId: formData.whatsAppInstanceId.trim() || null,
+            }
+          : {
+              reminderSendEmail: false,
+              reminderSendWhatsApp: false,
+            }
 
       const response = paymentToEdit
         ? await fetch('/api/payments', {
@@ -162,8 +215,9 @@ export function AddPaymentDialog({
                 amount: String(amountNumber.toFixed(2)),
                 description: formData.description.trim() || null,
                 paymentDate: payloadDate,
-                method: formData.method
-              }
+                method: formData.method,
+                ...reminderPayload,
+              },
             })
           })
         : await fetch('/api/payments', {
@@ -172,10 +226,13 @@ export function AddPaymentDialog({
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              ...formData,
+              clientId: formData.clientId,
               amount: String(amountNumber.toFixed(2)),
+              description: formData.description.trim() || null,
               paymentDate: payloadDate,
-              status: mode === 'CHARGE' ? 'PENDING' : 'COMPLETED'
+              method: formData.method,
+              status: mode === 'CHARGE' ? 'PENDING' : 'COMPLETED',
+              ...reminderPayload,
             }),
           })
 
@@ -239,7 +296,7 @@ export function AddPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className={mode === 'CHARGE' ? 'sm:max-w-[480px] max-h-[90vh] overflow-y-auto' : 'sm:max-w-[425px]'}>
         <DialogHeader>
           <DialogTitle>
             {paymentToEdit
@@ -337,6 +394,103 @@ export function AddPaymentDialog({
               rows={3}
             />
           </div>
+
+          {mode === 'CHARGE' && (
+            <div className="space-y-3 rounded-md border border-dashed p-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="charge-reminder"
+                  checked={formData.reminderEnabled}
+                  onCheckedChange={(v) =>
+                    setFormData((prev) => ({ ...prev, reminderEnabled: v === true }))
+                  }
+                />
+                <Label htmlFor="charge-reminder" className="font-medium cursor-pointer">
+                  Enviar lembrete de cobrança
+                </Label>
+              </div>
+              {formData.reminderEnabled && (
+                <div className="space-y-3 pl-1">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="reminder-email"
+                        checked={formData.reminderSendEmail}
+                        onCheckedChange={(v) =>
+                          setFormData((prev) => ({ ...prev, reminderSendEmail: v === true }))
+                        }
+                      />
+                      <Label htmlFor="reminder-email" className="text-sm cursor-pointer">
+                        E-mail
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="reminder-wa"
+                        checked={formData.reminderSendWhatsApp}
+                        onCheckedChange={(v) =>
+                          setFormData((prev) => ({ ...prev, reminderSendWhatsApp: v === true }))
+                        }
+                      />
+                      <Label htmlFor="reminder-wa" className="text-sm cursor-pointer">
+                        WhatsApp
+                      </Label>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Dias antes (até vencimento)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={60}
+                        value={formData.reminderDaysBefore}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, reminderDaysBefore: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Horário de envio</Label>
+                      <Input
+                        type="time"
+                        value={formData.reminderSendTime}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, reminderSendTime: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  {formData.reminderSendWhatsApp && waInstances.length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Número WhatsApp</Label>
+                      <Select
+                        value={formData.whatsAppInstanceId}
+                        onValueChange={(v) =>
+                          setFormData((prev) => ({ ...prev, whatsAppInstanceId: v }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Padrão (conectado)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {waInstances.map((w) => (
+                            <SelectItem key={w.id} value={w.id}>
+                              {w.label} ({w.status})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Envia todo dia desde N dias antes até o vencimento (mesmo cron dos lembretes de
+                    assinatura).
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <DialogFooter>
             <Button

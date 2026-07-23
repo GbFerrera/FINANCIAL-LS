@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            email: true
+            email: true,
+            phone: true,
           }
         },
         paymentProjects: {
@@ -94,7 +95,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { clientId, amount, description, paymentDate, method, status } = body
+    const {
+      clientId,
+      amount,
+      description,
+      paymentDate,
+      method,
+      status,
+      reminderSendEmail,
+      reminderSendWhatsApp,
+      reminderDaysBefore,
+      reminderSendTime,
+      reminderSubject,
+      reminderBody,
+      whatsAppInstanceId,
+    } = body
 
     // Validações
     if (!clientId || !amount || !paymentDate) {
@@ -121,6 +136,9 @@ export async function POST(request: NextRequest) {
         ? (status as PaymentStatus)
         : PaymentStatus.COMPLETED
 
+    const wantsReminder = Boolean(reminderSendEmail || reminderSendWhatsApp)
+    const daysBefore = Number.parseInt(String(reminderDaysBefore ?? 1), 10)
+
     const result = await prisma.$transaction(async (tx) => {
       const created = await tx.payment.create({
         data: {
@@ -129,7 +147,17 @@ export async function POST(request: NextRequest) {
           description,
           paymentDate: new Date(paymentDate),
           method: method || 'BANK_TRANSFER',
-          status: desiredStatus
+          status: desiredStatus,
+          reminderSendEmail: wantsReminder && Boolean(reminderSendEmail),
+          reminderSendWhatsApp: wantsReminder && Boolean(reminderSendWhatsApp),
+          reminderDaysBefore: Number.isFinite(daysBefore) && daysBefore >= 0 ? daysBefore : 1,
+          reminderSendTime:
+            typeof reminderSendTime === "string" && reminderSendTime.trim()
+              ? reminderSendTime.trim()
+              : "09:00",
+          reminderSubject: reminderSubject?.trim() || null,
+          reminderBody: reminderBody?.trim() || null,
+          whatsAppInstanceId: whatsAppInstanceId?.trim() || null,
         },
         include: {
           client: {
@@ -196,8 +224,16 @@ export async function PATCH(request: NextRequest) {
           description?: string | null
           paymentDate?: string
           method?: string
+          reminderSendEmail?: boolean
+          reminderSendWhatsApp?: boolean
+          reminderDaysBefore?: number
+          reminderSendTime?: string
+          reminderSubject?: string | null
+          reminderBody?: string | null
+          whatsAppInstanceId?: string | null
         }
       | undefined
+    const reminderPatch = body?.reminder as typeof update | undefined
 
     if (!paymentId) return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
 
@@ -280,8 +316,34 @@ export async function PATCH(request: NextRequest) {
           amount: amountNumber,
           description: update.description ?? null,
           paymentDate: parsedDate,
-          method: nextMethod
-        }
+          method: nextMethod,
+          ...(reminderPatch || update.reminderSendEmail !== undefined
+            ? {
+                reminderSendEmail: Boolean(
+                  reminderPatch?.reminderSendEmail ?? update.reminderSendEmail
+                ),
+                reminderSendWhatsApp: Boolean(
+                  reminderPatch?.reminderSendWhatsApp ?? update.reminderSendWhatsApp
+                ),
+                reminderDaysBefore:
+                  reminderPatch?.reminderDaysBefore ?? update.reminderDaysBefore ?? undefined,
+                reminderSendTime:
+                  reminderPatch?.reminderSendTime ?? update.reminderSendTime ?? undefined,
+                reminderSubject:
+                  reminderPatch?.reminderSubject !== undefined
+                    ? reminderPatch.reminderSubject
+                    : update.reminderSubject,
+                reminderBody:
+                  reminderPatch?.reminderBody !== undefined
+                    ? reminderPatch.reminderBody
+                    : update.reminderBody,
+                whatsAppInstanceId:
+                  reminderPatch?.whatsAppInstanceId !== undefined
+                    ? reminderPatch.whatsAppInstanceId
+                    : update.whatsAppInstanceId,
+              }
+            : {}),
+        },
       })
 
       const entry = await tx.financialEntry.findFirst({ where: { paymentId } })

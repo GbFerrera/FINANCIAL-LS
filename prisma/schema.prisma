@@ -397,12 +397,21 @@ model Payment {
   paymentDate      DateTime
   method           PaymentMethod    @default(BANK_TRANSFER)
   status           PaymentStatus    @default(PENDING)
+  reminderSendEmail      Boolean    @default(false)
+  reminderSendWhatsApp   Boolean    @default(false)
+  reminderDaysBefore     Int        @default(1)
+  reminderSendTime       String     @default("09:00")
+  reminderSubject        String?
+  reminderBody           String?    @db.Text
+  whatsAppInstanceId     String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   clientId         String
   financialEntries FinancialEntry[]
   paymentProjects  PaymentProject[]
+  reminderSendLogs PaymentReminderSendLog[]
   client           Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  whatsAppInstance WhatsAppInstance? @relation(fields: [whatsAppInstanceId], references: [id], onDelete: SetNull)
 
   @@map("payments")
 }
@@ -719,8 +728,25 @@ model WhatsAppInstance {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   reminderTemplates    SubscriptionGroupReminderTemplate[]
+  paymentReminders     Payment[]
 
   @@map("whatsapp_instances")
+}
+
+model PaymentReminderSendLog {
+  id             String   @id @default(cuid())
+  paymentId      String
+  dueDateKey     String
+  daysUntilDue   Int      @default(-1)
+  channel        String   @default("EMAIL")
+  recipientEmail String?
+  recipientPhone String?
+  sentAt         DateTime @default(now())
+  payment        Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, dueDateKey, channel, daysUntilDue])
+  @@index([paymentId])
+  @@map("payment_reminder_send_logs")
 }
 
 model SubscriptionReminderTemplateRecipient {
