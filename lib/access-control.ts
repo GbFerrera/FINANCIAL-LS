@@ -16,6 +16,7 @@ export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "mkt", label: "MKT", path: "/mkt" },
   { key: "financial", label: "Financeiro", path: "/financial" },
   { key: "financial_commissions", label: "Financeiro • Comissões", path: "/financial/commissions" },
+  { key: "financial_reminders", label: "Financeiro • Lembretes", path: "/financial/reminders" },
   { key: "clients", label: "Clientes", path: "/clients" },
   { key: "subscriptions", label: "Assinaturas", path: "/subscriptions" },
   { key: "team", label: "Equipe", path: "/team" },

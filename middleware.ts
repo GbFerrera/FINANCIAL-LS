@@ -16,9 +16,11 @@ export async function middleware(request: NextRequest) {
     '/proposta',
     '/api/health', // Healthcheck sem autenticação
     '/api/financial/daily-email/?', // Cron + envio manual (a rota valida x-cron-secret/admin internamente)
+    '/api/financial/subscription-reminders/run/?',
     '/api/files/.*', // Permitir acesso a arquivos sem autenticação
     '/client-portal/.*', // Portal do cliente
     '/collaborator-portal/.*', // Portal do colaborador
+    '/pix/copiar-chave', // Copiar chave Pix (link do e-mail de lembrete)
     '/api/client-portal/.*', // APIs do portal do cliente
     '/api/collaborator-portal/.*', // APIs do portal do colaborador
   ]

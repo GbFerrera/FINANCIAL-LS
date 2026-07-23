@@ -37,7 +37,8 @@ import {
   Wallet,
   FilePen,
   Megaphone,
-  CreditCard
+  CreditCard,
+  Mail,
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
@@ -89,6 +90,7 @@ const navigation: NavItem[] = [
       { name: "Calendário", href: "/financial/calendar", icon: Calendar },
       { name: "Assinaturas", href: "/subscriptions", icon: CreditCard },
       { name: "Comissões", href: "/financial/commissions", icon: DollarSign },
+      { name: "Lembretes", href: "/financial/reminders", icon: Mail },
     ]
   },
   { 

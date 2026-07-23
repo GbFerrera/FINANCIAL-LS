@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import toast from "react-hot-toast"
-import { Archive, ArchiveRestore, Plus } from "lucide-react"
+import { Archive, ArchiveRestore, Filter, Plus, X } from "lucide-react"
 import { KanbanBoard } from "@/components/projects/KanbanBoard"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProjectCreateTaskModal } from "@/components/projects/ProjectCreateTaskModal"
@@ -42,6 +43,7 @@ export default function PipelinePage() {
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [selectedPriorities, setSelectedPriorities] = useState<string[]>([])
   const [tasks, setTasks] = useState<BoardTask[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [createPickOpen, setCreatePickOpen] = useState(false)
@@ -56,6 +58,7 @@ export default function PipelinePage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [archiveLoading, setArchiveLoading] = useState(false)
+  const [projectSearch, setProjectSearch] = useState("")
 
   useEffect(() => {
     const rawIds = searchParams?.get("projectIds")
@@ -78,6 +81,15 @@ export default function PipelinePage() {
           .filter(Boolean)
       : []
     setSelectedStatuses(statuses)
+
+    const rawPriorities = searchParams?.get("priorities")
+    const priorities = rawPriorities
+      ? rawPriorities
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : []
+    setSelectedPriorities(priorities)
   }, [searchParams])
 
   const fetchProjects = async () => {
@@ -91,13 +103,20 @@ export default function PipelinePage() {
     setProjects(list.map((p: any) => ({ id: String(p.id), name: String(p.name) })))
   }
 
-  const fetchTasks = async (projectIds: string[], statuses: string[] = []) => {
+  const fetchTasks = async (
+    projectIds: string[],
+    statuses: string[] = [],
+    priorities: string[] = []
+  ) => {
     const params = new URLSearchParams()
     if (projectIds.length > 0) {
       params.set("projectIds", projectIds.join(","))
     }
     if (statuses.length > 0) {
       params.set("statuses", statuses.join(","))
+    }
+    if (priorities.length > 0) {
+      params.set("priorities", priorities.join(","))
     }
     if (showArchived) {
       params.set("archivedOnly", "true")
@@ -124,7 +143,7 @@ export default function PipelinePage() {
       try {
         setInitialLoading(true)
         await fetchProjects()
-        if (!cancelled) await fetchTasks(selectedProjectIds, selectedStatuses)
+        if (!cancelled) await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Erro ao carregar pipeline")
       } finally {
@@ -143,7 +162,7 @@ export default function PipelinePage() {
     let cancelled = false
     const run = async () => {
       try {
-        await fetchTasks(selectedProjectIds, selectedStatuses)
+        await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Erro ao carregar tarefas")
       } finally {
@@ -154,7 +173,7 @@ export default function PipelinePage() {
     return () => {
       cancelled = true
     }
-  }, [selectedProjectIds, selectedStatuses, status, initialLoading, showArchived])
+  }, [selectedProjectIds, selectedStatuses, selectedPriorities, status, initialLoading, showArchived])
 
   const mappedTasks = useMemo(() => {
     return tasks.map((t) => ({
@@ -176,60 +195,96 @@ export default function PipelinePage() {
 
   const isAdmin = session?.user?.role === "ADMIN"
 
-  const filterLabel = useMemo(() => {
-    if (selectedProjectIds.length === 0) return "Todos os projetos"
-    if (selectedProjectIds.length === 1) {
-      const p = projects.find((x) => x.id === selectedProjectIds[0])
-      return p?.name || "1 projeto"
-    }
-    return `${selectedProjectIds.length} projetos`
+  const STATUS_OPTIONS = [
+    { value: "TODO", label: "A Fazer" },
+    { value: "IN_PROGRESS", label: "Em Andamento" },
+    { value: "IN_REVIEW", label: "Em Teste" },
+    { value: "COMPLETED", label: "Concluído" },
+  ] as const
+
+  const PRIORITY_OPTIONS = [
+    { value: "LOW", label: "Baixa" },
+    { value: "MEDIUM", label: "Média" },
+    { value: "HIGH", label: "Alta" },
+    { value: "URGENT", label: "Urgente" },
+  ] as const
+
+  const activeFilterCount =
+    selectedProjectIds.length + selectedStatuses.length + selectedPriorities.length
+
+  const availableProjects = useMemo(() => {
+    const q = projectSearch.trim().toLowerCase()
+    return projects
+      .filter((p) => !selectedProjectIds.includes(p.id))
+      .filter((p) => (q ? p.name.toLowerCase().includes(q) : true))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+  }, [projects, selectedProjectIds, projectSearch])
+
+  const selectedProjectBadges = useMemo(() => {
+    return selectedProjectIds
+      .map((id) => projects.find((p) => p.id === id))
+      .filter(Boolean) as ProjectOption[]
   }, [projects, selectedProjectIds])
 
-  const toggleProject = (projectId: string) => {
-    setSelectedProjectIds((prev) => {
-      const next = prev.includes(projectId) ? prev.filter((id) => id !== projectId) : [...prev, projectId]
-      updateURL(selectedStatuses)
-      return next
-    })
-  }
-
-  const clearProjects = () => {
-    setSelectedProjectIds([])
-    updateURL()
-  }
-
-  const statusFilterLabel = useMemo(() => {
-    if (selectedStatuses.length === 0) return "Todos os status"
-    if (selectedStatuses.length === 1) {
-      return selectedStatuses[0]
-    }
-    return `${selectedStatuses.length} status`
-  }, [selectedStatuses])
-
-  const toggleStatus = (status: string) => {
-    setSelectedStatuses((prev) => {
-      const next = prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
-      updateURL(next)
-      return next
-    })
-  }
-
-  const clearStatuses = () => {
-    setSelectedStatuses([])
-    updateURL([])
-  }
-
-  const updateURL = (statuses?: string[]) => {
-    const currentStatuses = statuses !== undefined ? statuses : selectedStatuses
+  const syncURL = (opts: {
+    projectIds?: string[]
+    statuses?: string[]
+    priorities?: string[]
+  }) => {
+    const pIds = opts.projectIds ?? selectedProjectIds
+    const sts = opts.statuses ?? selectedStatuses
+    const prs = opts.priorities ?? selectedPriorities
     const params = new URLSearchParams()
-    if (selectedProjectIds.length > 0) {
-      params.set("projectIds", selectedProjectIds.join(","))
-    }
-    if (currentStatuses.length > 0) {
-      params.set("statuses", currentStatuses.join(","))
-    }
+    if (pIds.length > 0) params.set("projectIds", pIds.join(","))
+    if (sts.length > 0) params.set("statuses", sts.join(","))
+    if (prs.length > 0) params.set("priorities", prs.join(","))
     const qs = params.toString()
     router.replace(qs ? `/pipeline?${qs}` : "/pipeline")
+  }
+
+  const addProjectFilter = (projectId: string) => {
+    if (!projectId || selectedProjectIds.includes(projectId)) return
+    setSelectedProjectIds((prev) => {
+      const next = [...prev, projectId]
+      syncURL({ projectIds: next })
+      return next
+    })
+  }
+
+  const removeProjectFilter = (projectId: string) => {
+    setSelectedProjectIds((prev) => {
+      const next = prev.filter((id) => id !== projectId)
+      syncURL({ projectIds: next })
+      return next
+    })
+  }
+
+  const clearProjectFilters = () => {
+    setSelectedProjectIds([])
+    syncURL({ projectIds: [] })
+  }
+
+  const toggleStatus = (statusValue: string) => {
+    setSelectedStatuses((prev) => {
+      const next = prev.includes(statusValue) ? prev.filter((s) => s !== statusValue) : [...prev, statusValue]
+      syncURL({ statuses: next })
+      return next
+    })
+  }
+
+  const togglePriority = (priority: string) => {
+    setSelectedPriorities((prev) => {
+      const next = prev.includes(priority) ? prev.filter((p) => p !== priority) : [...prev, priority]
+      syncURL({ priorities: next })
+      return next
+    })
+  }
+
+  const clearAllFilters = () => {
+    setSelectedProjectIds([])
+    setSelectedStatuses([])
+    setSelectedPriorities([])
+    router.replace("/pipeline")
   }
 
   const clearSelection = () => {
@@ -423,7 +478,7 @@ export default function PipelinePage() {
         toast(`${skippedCount} tarefa(s) não puderam ser processadas`)
       }
 
-      await fetchTasks(selectedProjectIds, selectedStatuses)
+      await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao arquivar tarefas")
     } finally {
@@ -450,71 +505,160 @@ export default function PipelinePage() {
             </p>
           </div>
           <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap justify-end">
-            <Popover>
+            <Popover modal={false}>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-[200px] justify-between">
-                  <span className="truncate">{filterLabel}</span>
+                <Button variant="outline" className="whitespace-nowrap gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filtros
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 px-1.5">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-[360px] p-2">
-                <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-sm font-medium">Projetos</span>
-                  <Button variant="ghost" size="sm" onClick={clearProjects}>
-                    Limpar
+              <PopoverContent align="end" className="w-[380px] p-0 z-[200]">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <span className="text-sm font-semibold">Filtrar tarefas</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={clearAllFilters}
+                    disabled={activeFilterCount === 0}
+                  >
+                    Limpar tudo
                   </Button>
                 </div>
-                <div className="max-h-[320px] overflow-y-auto px-2 py-1 space-y-2">
-                  {projects.map((p) => {
-                    const checked = selectedProjectIds.includes(p.id)
-                    return (
-                      <div key={p.id} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggleProject(p.id)}
-                          id={`project-${p.id}`}
-                        />
-                        <Label htmlFor={`project-${p.id}`} className="text-sm cursor-pointer">
-                          {p.name}
-                        </Label>
+                <div className="max-h-[min(420px,70vh)] overflow-y-auto p-4 space-y-5">
+                  <section>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Projetos
+                      </h3>
+                      {selectedProjectIds.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={clearProjectFilters}
+                        >
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="Buscar projeto..."
+                        value={projectSearch}
+                        onChange={(e) => setProjectSearch(e.target.value)}
+                        className="h-9"
+                      />
+                      <div className="rounded-md border max-h-44 overflow-y-auto">
+                        {availableProjects.length === 0 ? (
+                          <p className="p-3 text-sm text-muted-foreground text-center">
+                            {projects.length === 0
+                              ? "Sem projetos cadastrados"
+                              : selectedProjectIds.length === projects.length
+                                ? "Todos os projetos já estão no filtro"
+                                : projectSearch.trim()
+                                  ? "Nenhum projeto com esse nome — limpe a busca"
+                                  : "Nenhum projeto disponível"}
+                          </p>
+                        ) : (
+                          availableProjects.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b last:border-b-0 transition-colors"
+                              onClick={() => addProjectFilter(p.id)}
+                            >
+                              {p.name}
+                            </button>
+                          ))
+                        )}
                       </div>
-                    )
-                  })}
-                  {projects.length === 0 && <div className="text-sm text-muted-foreground">Sem projetos</div>}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full sm:w-[200px] justify-between">
-                  <span className="truncate">{statusFilterLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[360px] p-2">
-                <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-sm font-medium">Status</span>
-                  <Button variant="ghost" size="sm" onClick={clearStatuses}>
-                    Limpar
-                  </Button>
-                </div>
-                <div className="max-h-[320px] overflow-y-auto px-2 py-1 space-y-2">
-                  {["TODO", "IN_PROGRESS", "IN_TEST", "COMPLETED", "DONE"].map((status) => {
-                    const checked = selectedStatuses.includes(status)
-                    return (
-                      <div key={status} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggleStatus(status)}
-                          id={`status-${status}`}
-                        />
-                        <Label htmlFor={`status-${status}`} className="text-sm cursor-pointer">
-                          {status === "TODO" ? "A Fazer" : 
-                           status === "IN_PROGRESS" ? "Em Andamento" :
-                           status === "IN_TEST" ? "Em Teste" :
-                           status === "COMPLETED" ? "Concluído" : status}
-                        </Label>
-                      </div>
-                    )
-                  })}
+                      {selectedProjectBadges.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedProjectBadges.map((p) => (
+                            <Badge
+                              key={p.id}
+                              variant="secondary"
+                              className="pl-2 pr-1 py-1 gap-1 font-normal max-w-full"
+                            >
+                              <span className="truncate max-w-[220px]">{p.name}</span>
+                              <button
+                                type="button"
+                                className="rounded-sm p-0.5 hover:bg-muted-foreground/20 shrink-0"
+                                aria-label={`Remover ${p.name}`}
+                                onClick={() => removeProjectFilter(p.id)}
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {selectedProjectIds.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Nenhum projeto selecionado — exibe todos.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Prioridade
+                    </h3>
+                    <div className="space-y-2">
+                      {PRIORITY_OPTIONS.map((opt) => {
+                        const checked = selectedPriorities.includes(opt.value)
+                        return (
+                          <div key={opt.value} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => togglePriority(opt.value)}
+                              id={`filter-priority-${opt.value}`}
+                            />
+                            <Label
+                              htmlFor={`filter-priority-${opt.value}`}
+                              className="text-sm cursor-pointer font-normal"
+                            >
+                              {opt.label}
+                            </Label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                      Status
+                    </h3>
+                    <div className="space-y-2">
+                      {STATUS_OPTIONS.map((opt) => {
+                        const checked = selectedStatuses.includes(opt.value)
+                        return (
+                          <div key={opt.value} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => toggleStatus(opt.value)}
+                              id={`filter-status-${opt.value}`}
+                            />
+                            <Label
+                              htmlFor={`filter-status-${opt.value}`}
+                              className="text-sm cursor-pointer font-normal"
+                            >
+                              {opt.label}
+                            </Label>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </section>
                 </div>
               </PopoverContent>
             </Popover>
@@ -619,7 +763,7 @@ export default function PipelinePage() {
           milestones={createMilestones}
           onSuccess={async () => {
             setCreateTaskOpen(false)
-            await fetchTasks(selectedProjectIds, selectedStatuses)
+            await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
           }}
         />
       )}
@@ -633,7 +777,7 @@ export default function PipelinePage() {
           editingTask={editingTask}
           onSuccess={async () => {
             setEditTaskOpen(false)
-            await fetchTasks(selectedProjectIds, selectedStatuses)
+            await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
           }}
         />
       )}

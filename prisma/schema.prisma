@@ -89,6 +89,7 @@ model SubscriptionGroup {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   subscriptions Subscription[]
+  reminderTemplates SubscriptionGroupReminderTemplate[]
 
   @@unique([name])
   @@map("subscription_groups")
@@ -125,6 +126,8 @@ model ClientSubscription {
   client         Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
   subscription   Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   financialEntries FinancialEntry[]
+  reminderSendLogs SubscriptionReminderSendLog[]
+  reminderTemplateRecipients SubscriptionReminderTemplateRecipient[]
 
   @@unique([clientId, subscriptionId])
   @@index([clientId])
@@ -670,6 +673,83 @@ enum ProposalStatus {
 enum SubscriptionBillingCycle {
   MONTHLY
   YEARLY
+}
+
+model SubscriptionGroupReminderTemplate {
+  id                 String   @id @default(cuid())
+  groupId            String
+  name               String   @default("Lembrete")
+  subject            String
+  body               String   @db.Text
+  daysBeforeDue      Int      @default(3)
+  sendTime           String   @default("09:00")
+  whatsAppPauseSeconds Int    @default(10)
+  isActive           Boolean  @default(true)
+  sendEmail          Boolean  @default(true)
+  sendWhatsApp       Boolean  @default(false)
+  whatsAppInstanceId String?
+  whatsAppPixButton  Boolean  @default(false)
+  pixKey             String?
+  pixKeyType         String?
+  pixReceiverName    String?
+  pixButtonLabel     String   @default("Pagar com Pix")
+  pixCity            String?
+  pixDescription     String?
+  pixTxid            String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  group              SubscriptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  whatsAppInstance   WhatsAppInstance? @relation(fields: [whatsAppInstanceId], references: [id], onDelete: SetNull)
+  sendLogs           SubscriptionReminderSendLog[]
+  recipients         SubscriptionReminderTemplateRecipient[]
+
+  @@index([groupId])
+  @@index([whatsAppInstanceId])
+  @@map("subscription_group_reminder_templates")
+}
+
+model WhatsAppInstance {
+  id                   String   @id @default(cuid())
+  label                String
+  instanceName         String   @unique
+  evolutionInstanceId  String?
+  status               String   @default("DISCONNECTED")
+  phone                String?
+  isDefault            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  reminderTemplates    SubscriptionGroupReminderTemplate[]
+
+  @@map("whatsapp_instances")
+}
+
+model SubscriptionReminderTemplateRecipient {
+  templateId           String
+  clientSubscriptionId String
+  createdAt            DateTime @default(now())
+  template             SubscriptionGroupReminderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  clientSubscription   ClientSubscription @relation(fields: [clientSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, clientSubscriptionId])
+  @@map("subscription_reminder_template_recipients")
+}
+
+model SubscriptionReminderSendLog {
+  id                   String   @id @default(cuid())
+  templateId           String
+  clientSubscriptionId String
+  dueDateKey           String
+  daysUntilDue         Int      @default(-1)
+  channel              String   @default("EMAIL")
+  recipientEmail       String?
+  recipientPhone       String?
+  sentAt               DateTime @default(now())
+  template             SubscriptionGroupReminderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  clientSubscription   ClientSubscription @relation(fields: [clientSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, clientSubscriptionId, dueDateKey, channel, daysUntilDue])
+  @@index([clientSubscriptionId])
+  @@map("subscription_reminder_send_logs")
 }
 
 enum SubscriptionStatus {

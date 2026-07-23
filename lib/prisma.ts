@@ -1,21 +1,24 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from "@prisma/client"
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-const candidate =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['query'],
+function prismaClientReady(client: PrismaClient) {
+  const d = client as unknown as { whatsAppInstance?: { findMany?: unknown } }
+  return typeof d.whatsAppInstance?.findMany === "function"
+}
+
+function createPrismaClient() {
+  return new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["query"] : [],
   })
+}
 
-const hasProposalDelegate = 'proposal' in (candidate as unknown as Record<string, unknown>)
+const candidate = globalForPrisma.prisma ?? createPrismaClient()
 
-export const prisma = hasProposalDelegate
-  ? candidate
-  : new PrismaClient({
-      log: ['query'],
-    })
+export const prisma = prismaClientReady(candidate) ? candidate : createPrismaClient()
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma
+}

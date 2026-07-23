@@ -177,6 +177,43 @@ function nextChargeDateForClientSubscription(input: {
   return computeInMonth(next.getFullYear(), next.getMonth())
 }
 
+function dayAfterNoon(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 12, 0, 0, 0)
+}
+
+/** Próximo vencimento em aberto (considera lastPaidFor). */
+function unpaidDueDateForClientSubscription(input: {
+  dueDay: number
+  billingCycle: "MONTHLY" | "YEARLY"
+  startedAt?: Date | null
+  lastPaidFor?: Date | null
+  referenceDate?: Date
+}) {
+  const from = input.lastPaidFor
+    ? dayAfterNoon(input.lastPaidFor)
+    : input.referenceDate ?? new Date()
+  return nextChargeDateForClientSubscription({
+    from,
+    dueDay: input.dueDay,
+    billingCycle: input.billingCycle,
+    startedAt: input.startedAt,
+  })
+}
+
+function nextDueAfterSettling(input: {
+  settledDue: Date
+  dueDay: number
+  billingCycle: "MONTHLY" | "YEARLY"
+  startedAt?: Date | null
+}) {
+  return nextChargeDateForClientSubscription({
+    from: dayAfterNoon(input.settledDue),
+    dueDay: input.dueDay,
+    billingCycle: input.billingCycle,
+    startedAt: input.startedAt,
+  })
+}
+
 export default function SubscriptionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -965,32 +1002,39 @@ export default function SubscriptionsPage() {
                     const clientName = link?.client?.name || "-"
                     const startedAt = link?.startedAt ? new Date(link.startedAt) : null
                     const dueDay = typeof link?.dueDay === "number" ? link.dueDay : null
-                    const currentDue =
-                      dueDay !== null
-                        ? nextChargeDateForClientSubscription({
-                            from: new Date(),
-                            dueDay,
-                            billingCycle: s.billingCycle,
-                            startedAt,
-                          })
-                        : null
+                    const lastPaidFor = link?.lastPaidFor ? new Date(link.lastPaidFor) : null
                     const now = new Date()
                     const monthYear = now.getFullYear()
                     const monthIndex0 = now.getMonth()
                     const isInThisMonthCycle =
                       s.billingCycle === "MONTHLY" ? true : (startedAt ? startedAt.getMonth() : monthIndex0) === monthIndex0
-                    const dueThisMonth = dueDay !== null && isInThisMonthCycle ? dueDateForMonth(monthYear, monthIndex0, dueDay) : null
-                    const lastPaidFor = link?.lastPaidFor ? new Date(link.lastPaidFor) : null
-                    const isPaid = dueThisMonth ? !!lastPaidFor && dateKey(lastPaidFor) === dateKey(dueThisMonth) : currentDue && lastPaidFor ? dateKey(lastPaidFor) === dateKey(currentDue) : false
+                    const dueThisMonth =
+                      dueDay !== null && isInThisMonthCycle ? dueDateForMonth(monthYear, monthIndex0, dueDay) : null
+
+                    const nextUnpaidDue =
+                      dueDay !== null
+                        ? unpaidDueDateForClientSubscription({
+                            dueDay,
+                            billingCycle: s.billingCycle,
+                            startedAt,
+                            lastPaidFor,
+                          })
+                        : null
+
+                    const isPaidThisMonth =
+                      !!dueThisMonth && !!lastPaidFor && dateKey(lastPaidFor) === dateKey(dueThisMonth)
+
                     const nextChargeDate =
-                      currentDue && isPaid
-                        ? nextChargeDateForClientSubscription({
-                            from: new Date(currentDue.getTime() + 24 * 60 * 60 * 1000),
+                      isPaidThisMonth && dueThisMonth
+                        ? nextDueAfterSettling({
+                            settledDue: dueThisMonth,
                             dueDay: dueDay as number,
                             billingCycle: s.billingCycle,
                             startedAt,
                           })
-                        : dueThisMonth ?? currentDue
+                        : nextUnpaidDue
+
+                    const isPaid = isPaidThisMonth
                     const nextCharge = nextChargeDate ? formatDateBR(nextChargeDate) : "-"
                     return (
                       <div key={s.id} className="rounded-lg border p-4">
@@ -1014,12 +1058,10 @@ export default function SubscriptionsPage() {
                             <div className="flex items-center gap-2">
                               <Button
                                 variant={isPaid ? "outline" : "secondary"}
-                                disabled={!link?.id || isPaid || (!dueThisMonth && !currentDue) || markingPaidId === link?.id}
+                                disabled={!link?.id || isPaid || !nextUnpaidDue || markingPaidId === link?.id}
                                 onClick={() => {
-                                  if (!link?.id) return
-                                  const paidFor = dueThisMonth ?? currentDue
-                                  if (!paidFor) return
-                                  void markAsPaid(link.id, paidFor)
+                                  if (!link?.id || !nextUnpaidDue) return
+                                  void markAsPaid(link.id, nextUnpaidDue)
                                 }}
                               >
                                 {isPaid ? "Pago" : markingPaidId === link?.id ? "Marcando..." : "Marcar como pago"}

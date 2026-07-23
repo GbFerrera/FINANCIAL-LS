@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         clients: {
           where: { status: "ACTIVE" },
           include: {
-            client: { select: { id: true, name: true, email: true } },
+            client: { select: { id: true, name: true, email: true, company: true } },
           },
         },
       },

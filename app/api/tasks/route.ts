@@ -8,6 +8,7 @@ const querySchema = z.object({
   projectId: z.string().min(1).optional(),
   projectIds: z.string().min(1).optional(),
   statuses: z.string().min(1).optional(),
+  priorities: z.string().min(1).optional(),
   includeArchived: z.enum(["true", "false"]).optional(),
   archivedOnly: z.enum(["true", "false"]).optional(),
 })
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
       projectId: searchParams.get("projectId") || undefined,
       projectIds: searchParams.get("projectIds") || undefined,
       statuses: searchParams.get("statuses") || undefined,
+      priorities: searchParams.get("priorities") || undefined,
       includeArchived: searchParams.get("includeArchived") || undefined,
       archivedOnly: searchParams.get("archivedOnly") || undefined,
     })
@@ -50,6 +52,14 @@ export async function GET(request: NextRequest) {
             .filter(Boolean)
         : []
 
+    const priorities =
+      parsed.data.priorities
+        ? parsed.data.priorities
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: { role: true },
@@ -59,6 +69,7 @@ export async function GET(request: NextRequest) {
     const where: any = {}
     if (projectIds.length > 0) where.projectId = { in: projectIds }
     if (statuses.length > 0) where.status = { in: statuses }
+    if (priorities.length > 0) where.priority = { in: priorities }
     const includeArchived = parsed.data.includeArchived === "true"
     const archivedOnly = parsed.data.archivedOnly === "true"
     if (archivedOnly) {

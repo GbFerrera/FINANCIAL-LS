@@ -15,16 +15,12 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FileUpload } from '@/components/ui/file-upload'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { toast } from 'react-hot-toast'
 import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
-import { Calendar, Clock, Flag, Tag, Target, User, Briefcase, CheckSquare } from 'lucide-react'
+import { TaskCommentsPanel } from '@/components/scrum/TaskCommentsPanel'
+import { TaskMetadataControls } from '@/components/scrum/TaskMetadataControls'
+import { cn } from '@/lib/utils'
+import { AlignLeft, Paperclip, CheckSquare } from 'lucide-react'
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -363,317 +359,179 @@ export function CreateTaskModal({
     onClose()
   }
 
+  const metadataControls = (
+    <TaskMetadataControls
+      watch={watch}
+      setValue={setValue}
+      register={register}
+      teamMembers={teamMembers}
+      milestones={propMilestones}
+      sprintProjects={sprintProjects}
+      selectedProjectId={selectedProjectId}
+      onProjectChange={(value) => {
+        setSelectedProjectId(value)
+        fetchTeamMembers()
+      }}
+      estimatedEndTime={estimatedEndTime}
+      showSummary
+    />
+  )
+
+  const mainFields = (
+    <>
+      {!editingTask && (
+        <div>
+          <Label htmlFor="title">Título *</Label>
+          <Input
+            id="title"
+            {...register('title')}
+            placeholder="Digite o título da tarefa"
+          />
+          {errors.title && (
+            <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
+          )}
+        </div>
+      )}
+
+      {editingTask && (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-2 h-5 w-5 shrink-0 rounded-full border-2 border-muted-foreground/50"
+              aria-hidden
+            />
+            <div className="flex-1 min-w-0">
+              <Input
+                id="title"
+                {...register('title')}
+                placeholder="Título do cartão"
+                className="text-lg font-semibold border-0 shadow-none px-0 h-auto focus-visible:ring-0 bg-transparent"
+              />
+              {errors.title && (
+                <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
+              )}
+            </div>
+          </div>
+          <div className="pl-8">{metadataControls}</div>
+        </div>
+      )}
+
+      <div className={editingTask ? 'pl-8 space-y-2' : ''}>
+        {editingTask && (
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <AlignLeft className="w-4 h-4 text-muted-foreground" />
+            Descrição
+          </div>
+        )}
+        {!editingTask && <Label htmlFor="description">Descrição</Label>}
+        <Textarea
+          id="description"
+          {...register('description')}
+          placeholder="Descreva a tarefa (opcional)"
+          rows={editingTask ? 8 : 12}
+          className={editingTask ? 'min-h-[140px] bg-muted/10 border-muted/50' : 'min-h-[200px]'}
+        />
+      </div>
+
+      <div className={editingTask ? 'pl-8 space-y-2' : ''}>
+        {editingTask ? (
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Paperclip className="w-4 h-4 text-muted-foreground" />
+            Anexos
+          </div>
+        ) : (
+          <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
+        )}
+        <div className={editingTask ? 'rounded-lg' : 'bg-card rounded-lg p-3 border border-muted'}>
+          <FileUpload
+            ref={(instance) => {
+              fileUploadRef.current = instance as unknown as {
+                handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]>
+              }
+            }}
+            taskId={editingTask?.id}
+            existingFiles={attachments}
+            onFilesChange={(files) => setAttachments(files as UploadFileInfo[])}
+            maxFiles={5}
+            disabled={loading}
+          />
+        </div>
+      </div>
+
+      {editingTask && (
+        <div className="pl-8 pt-2">
+          <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+            <CheckSquare className="w-4 h-4 text-muted-foreground" />
+            Checklist
+          </div>
+          <div className={editingTask ? '' : 'bg-card rounded-lg p-4 border border-muted'}>
+            <TaskChecklist taskId={editingTask.id} />
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  const formFooter = (
+    <div className="flex justify-end gap-2 px-6 py-4 border-t bg-background shrink-0">
+      <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
+        Cancelar
+      </Button>
+      <Button type="submit" disabled={loading} className="bg-primary">
+        {loading
+          ? editingTask
+            ? 'Salvando...'
+            : 'Criando...'
+          : editingTask
+            ? 'Salvar alterações'
+            : 'Criar Tarefa'}
+      </Button>
+    </div>
+  )
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingTask ? 'Editar Tarefa' : 'Nova Tarefa'}</DialogTitle>
+      <DialogContent
+        className={cn(
+          editingTask
+            ? 'sm:max-w-[1080px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col'
+            : 'sm:max-w-[900px] max-h-[90vh] overflow-y-auto'
+        )}
+      >
+        <DialogHeader className={editingTask ? 'sr-only' : undefined}>
+          <DialogTitle>{editingTask ? 'Detalhes da tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit, (errors) => console.error('Validation errors:', errors))} className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Coluna Esquerda - Principal */}
-            <div className="lg:col-span-7 space-y-4">
-              {/* Título */}
-              <div>
-                <Label htmlFor="title">Título *</Label>
-                <Input
-                  id="title"
-                  {...register('title')}
-                  placeholder="Digite o título da tarefa"
-                />
-                {errors.title && (
-                  <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
-                )}
+        <form
+          onSubmit={handleSubmit(onSubmit, (errors) => console.error('Validation errors:', errors))}
+          className={cn(editingTask && 'flex flex-col flex-1 min-h-0')}
+        >
+          {editingTask ? (
+            <>
+              <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
+                <div className="flex-1 overflow-y-auto p-6 space-y-5 min-h-0">
+                  {mainFields}
+                </div>
+                <aside className="lg:w-[360px] shrink-0 border-t lg:border-t-0 lg:border-l flex flex-col min-h-[280px] lg:min-h-0 lg:max-h-[calc(92vh-4rem)]">
+                  <TaskCommentsPanel taskId={editingTask.id} />
+                </aside>
               </div>
-
-              {/* Descrição */}
-              <div>
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  {...register('description')}
-                  placeholder="Descreva a tarefa (opcional)"
-                  rows={12}
-                  className="min-h-[200px]"
-                />
-              </div>
-
-              {/* Anexos (opcional) */}
-              <div>
-                <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
-                <div className="bg-card rounded-lg p-3 border border-muted">
-                  <FileUpload
-                    ref={(instance) => {
-                      fileUploadRef.current = instance as unknown as { handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> }
-                    }}
-                    taskId={editingTask?.id}
-                    existingFiles={attachments}
-                    onFilesChange={(files) => setAttachments(files as UploadFileInfo[])}
-                    maxFiles={5}
-                    disabled={loading}
-                  />
+              {formFooter}
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-7 space-y-4">{mainFields}</div>
+                <div className="lg:col-span-5 pt-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                    Configurações
+                  </p>
+                  {metadataControls}
                 </div>
               </div>
-
-              {/* Checklist de Tarefas (apenas edição) */}
-              {editingTask && (
-                <div className="border-t pt-4 mt-4">
-                  <Label className="mb-2 block">Checklist e Subtarefas</Label>
-                  <div className="bg-card rounded-lg p-4 border border-muted">
-                    <TaskChecklist taskId={editingTask.id} />
-                  </div>
-                </div>
-              )}
+              {formFooter}
             </div>
-
-            {/* Coluna Direita - Metadados */}
-            <div className="lg:col-span-5 space-y-5">
-              
-              {/* Seleção de Projeto (apenas quando há múltiplos projetos na sprint) */}
-              {sprintProjects.length > 0 && (
-                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-1.5 bg-primary/10 rounded-md">
-                      <Briefcase className="w-4 h-4 text-primary" />
-                    </div>
-                    <span className="font-semibold text-sm text-foreground">Projeto</span>
-                  </div>
-                  <Select
-                    value={selectedProjectId}
-                    onValueChange={(value) => {
-                      setSelectedProjectId(value)
-                      fetchTeamMembers()
-                    }}
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Selecionar projeto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sprintProjects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
-                          {project.name} - {project.client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Grupo: Classificação e Planejamento */}
-              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/50 pb-2">
-                  <div className="p-1.5 bg-blue-500/10 rounded-md">
-                    <Tag className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <span className="font-semibold text-sm text-foreground">Classificação</span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Prioridade */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                      <Flag className="w-3 h-3" /> Prioridade
-                    </Label>
-                    <Select
-                      value={watch('priority')}
-                      onValueChange={(value) => setValue('priority', value as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT')}
-                    >
-                      <SelectTrigger className="h-9 bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="LOW">Baixa</SelectItem>
-                        <SelectItem value="MEDIUM">Média</SelectItem>
-                        <SelectItem value="HIGH">Alta</SelectItem>
-                        <SelectItem value="URGENT">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Story Points */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                      <Target className="w-3 h-3" /> Story Points
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      {...register('storyPoints', { valueAsNumber: true })}
-                      placeholder="1"
-                      className="h-9 bg-background"
-                    />
-                  </div>
-
-                  {/* Bônus */}
-                  <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                      Preço Bônus
-                    </Label>
-                    <Select
-                      value={(watch('hasBonus') ? 'yes' : 'no')}
-                      onValueChange={(value) => setValue('hasBonus', value === 'yes')}
-                    >
-                      <SelectTrigger className="h-9 bg-background">
-                        <SelectValue placeholder="Aplicar bônus?" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="no">Não</SelectItem>
-                        <SelectItem value="yes">Sim</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Milestone */}
-                  <div className="col-span-2">
-                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                      <CheckSquare className="w-3 h-3" /> Milestone
-                    </Label>
-                    <Select
-                      value={watch('milestoneId') || 'none'}
-                      onValueChange={(value) => setValue('milestoneId', value === 'none' ? undefined : value)}
-                    >
-                      <SelectTrigger className="h-9 bg-background">
-                        <SelectValue placeholder="Selecionar milestone" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhuma</SelectItem>
-                        {propMilestones.map((milestone) => (
-                          <SelectItem key={milestone.id} value={milestone.id}>
-                            {milestone.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Grupo: Atribuição */}
-              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/50 pb-2">
-                  <div className="p-1.5 bg-purple-500/10 rounded-md">
-                    <User className="w-4 h-4 text-purple-500" />
-                  </div>
-                  <span className="font-semibold text-sm text-foreground">Responsável</span>
-                </div>
-                
-                <div>
-                  {sprintProjects.length > 0 && selectedProjectId && (
-                    <p className="text-[10px] text-muted-foreground mb-1.5 ml-1">
-                      Membros do projeto selecionado
-                    </p>
-                  )}
-                  <Select
-                    value={watch('assigneeId') || 'none'}
-                    onValueChange={(value) => setValue('assigneeId', value === 'none' ? undefined : value)}
-                  >
-                    <SelectTrigger className="h-9 bg-background">
-                      <SelectValue placeholder="Atribuir a..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Ninguém</SelectItem>
-                      {teamMembers.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Grupo: Agendamento */}
-              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 space-y-4">
-                <div className="flex items-center gap-2 border-b border-border/50 pb-2">
-                  <div className="p-1.5 bg-orange-500/10 rounded-md">
-                    <Calendar className="w-4 h-4 text-orange-500" />
-                  </div>
-                  <span className="font-semibold text-sm text-foreground">Prazos e Tempo</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Data Início */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Início</Label>
-                    <Input
-                      type="date"
-                      {...register('startDate')}
-                      className="h-9 bg-background text-xs"
-                    />
-                  </div>
-
-                  {/* Data Entrega */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <Label className="text-xs text-muted-foreground mb-1.5 block">Entrega</Label>
-                    <Input
-                      type="date"
-                      {...register('dueDate')}
-                      className="h-9 bg-background text-xs"
-                    />
-                  </div>
-
-                  {/* Hora Início */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Hora Início
-                    </Label>
-                    <Input
-                      type="time"
-                      {...register('startTime')}
-                      className="h-9 bg-background text-xs"
-                    />
-                  </div>
-
-                  {/* Tempo Estimado */}
-                  <div className="col-span-2 sm:col-span-1">
-                    <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Estimado (min)
-                    </Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      {...register('estimatedMinutes', { valueAsNumber: true })}
-                      placeholder="0"
-                      className="h-9 bg-background text-xs"
-                    />
-                  </div>
-                  
-                  {/* Previsão de Término */}
-                  {estimatedEndTime && (
-                    <div className="col-span-2 bg-blue-500/5 border border-blue-500/20 rounded-md p-2 flex items-center justify-between">
-                      <span className="text-xs text-blue-700 font-medium">Previsão de término:</span>
-                      <span className="text-sm font-bold text-blue-700">{estimatedEndTime}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Botões */}
-          <div className="flex justify-end gap-2 pt-4 border-t mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={loading}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="bg-primary"
-            >
-              {loading 
-                ? (editingTask ? 'Salvando...' : 'Criando...') 
-                : (editingTask ? 'Salvar Alterações' : 'Criar Tarefa')
-              }
-            </Button>
-          </div>
+          )}
         </form>
       </DialogContent>
     </Dialog>
