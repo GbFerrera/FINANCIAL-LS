@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import {
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   Tag,
   User,
@@ -413,7 +413,7 @@ export function TaskMetadataControls({
       >
         <PopoverTrigger asChild>
           <ActionChip active={isOpen('dates') || hasDates}>
-            <Calendar className="w-3.5 h-3.5 opacity-70" />
+            <CalendarIcon className="w-3.5 h-3.5 opacity-70" />
             Datas
           </ActionChip>
         </PopoverTrigger>
