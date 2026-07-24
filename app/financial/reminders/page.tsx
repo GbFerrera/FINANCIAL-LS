@@ -596,9 +596,9 @@ export default function FinancialRemindersPage() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <p>
-            Em produção o servidor dispara automaticamente a cada 5 minutos (após o horário configurado
-            no template). Exige <code className="text-xs">CRON_SECRET</code> e fuso{" "}
-            <code className="text-xs">America/Sao_Paulo</code> no container.
+            Em produção a fila BullMQ (Redis) dispara a varredura a cada 5 minutos após o horário do
+            template. Configure <code className="text-xs">REDIS_URL</code> (db/1) e{" "}
+            <code className="text-xs">TZ=America/Sao_Paulo</code>.
           </p>
           <p>Ou agende um POST externo (Coolify/cron):</p>
           <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto">

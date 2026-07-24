@@ -1,6 +1,6 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { startReminderScheduler } = await import("./lib/reminder-scheduler")
-    startReminderScheduler()
+    const { startReminderQueue } = await import("./lib/reminder-queue")
+    await startReminderQueue()
   }
 }

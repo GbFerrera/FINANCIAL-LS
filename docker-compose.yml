@@ -25,6 +25,7 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       - FINANCE_DAILY_EMAIL_TO=${FINANCE_DAILY_EMAIL_TO}
       - CRON_SECRET=${CRON_SECRET}
+      - REDIS_URL=${REDIS_URL:-redis://evolution-redis:6379/1}
       - REMINDER_CRON_INTERVAL_MS=${REMINDER_CRON_INTERVAL_MS:-300000}
       - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://evolution-api:8080}
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-dev-evolution-key-change-me}
@@ -41,6 +42,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      evolution-redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
       interval: 30s
