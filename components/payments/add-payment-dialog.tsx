@@ -48,6 +48,13 @@ interface AddPaymentDialogProps {
     reminderDaysBefore?: number
     reminderSendTime?: string
     whatsAppInstanceId?: string | null
+    reminderIncludePix?: boolean
+    pixKey?: string | null
+    pixKeyType?: string | null
+    pixReceiverName?: string | null
+    pixCity?: string | null
+    pixDescription?: string | null
+    pixTxid?: string | null
   }
 }
 
@@ -74,6 +81,13 @@ export function AddPaymentDialog({
     reminderDaysBefore: '1',
     reminderSendTime: '09:00',
     whatsAppInstanceId: '',
+    reminderIncludePix: true,
+    pixKey: '64c2591a-b8be-4c71-bc8c-674486ca86fd',
+    pixKeyType: 'random',
+    pixReceiverName: '50122718 GABRIEL FERREI',
+    pixCity: 'Niquelandia',
+    pixDescription: '',
+    pixTxid: '5012271800000675390941ASA',
   })
 
   const formatCurrencyBRFromDigits = (digits: string) => {
@@ -108,7 +122,10 @@ export function AddPaymentDialog({
   useEffect(() => {
     if (open) {
       fetchClients()
-      if (mode === 'CHARGE') fetchWaInstances()
+      if (mode === 'CHARGE') {
+        fetchWaInstances()
+        fetchDefaultPixFromTemplate()
+      }
       if (paymentToEdit) {
         const hasReminder =
           paymentToEdit.reminderSendEmail || paymentToEdit.reminderSendWhatsApp
@@ -124,6 +141,13 @@ export function AddPaymentDialog({
           reminderDaysBefore: String(paymentToEdit.reminderDaysBefore ?? 1),
           reminderSendTime: paymentToEdit.reminderSendTime || '09:00',
           whatsAppInstanceId: paymentToEdit.whatsAppInstanceId || '',
+          reminderIncludePix: paymentToEdit.reminderIncludePix ?? true,
+          pixKey: paymentToEdit.pixKey || '64c2591a-b8be-4c71-bc8c-674486ca86fd',
+          pixKeyType: paymentToEdit.pixKeyType || 'random',
+          pixReceiverName: paymentToEdit.pixReceiverName || '50122718 GABRIEL FERREI',
+          pixCity: paymentToEdit.pixCity || 'Niquelandia',
+          pixDescription: paymentToEdit.pixDescription || '',
+          pixTxid: paymentToEdit.pixTxid || '5012271800000675390941ASA',
         })
       } else {
         setFormData({
@@ -138,10 +162,41 @@ export function AddPaymentDialog({
           reminderDaysBefore: '1',
           reminderSendTime: '09:00',
           whatsAppInstanceId: '',
+          reminderIncludePix: true,
+          pixKey: '64c2591a-b8be-4c71-bc8c-674486ca86fd',
+          pixKeyType: 'random',
+          pixReceiverName: '50122718 GABRIEL FERREI',
+          pixCity: 'Niquelandia',
+          pixDescription: '',
+          pixTxid: '5012271800000675390941ASA',
         })
       }
     }
   }, [open, defaultDate, paymentToEdit, mode])
+
+  const fetchDefaultPixFromTemplate = async () => {
+    try {
+      const res = await fetch('/api/financial/subscription-reminders/templates')
+      if (!res.ok) return
+      const data = await res.json()
+      const t = Array.isArray(data.templates)
+        ? data.templates.find((row: { whatsAppPixButton?: boolean; pixKey?: string }) => row.whatsAppPixButton && row.pixKey)
+        : null
+      if (!t) return
+      setFormData((prev) => ({
+        ...prev,
+        reminderIncludePix: true,
+        pixKey: t.pixKey || prev.pixKey,
+        pixKeyType: t.pixKeyType || prev.pixKeyType,
+        pixReceiverName: t.pixReceiverName || prev.pixReceiverName,
+        pixCity: t.pixCity || prev.pixCity,
+        pixDescription: t.pixDescription || prev.pixDescription,
+        pixTxid: t.pixTxid || prev.pixTxid,
+      }))
+    } catch {
+      /* mantém defaults locais */
+    }
+  }
 
   const fetchWaInstances = async () => {
     try {
@@ -198,6 +253,13 @@ export function AddPaymentDialog({
               reminderDaysBefore: Number.isFinite(daysBefore) && daysBefore >= 0 ? daysBefore : 1,
               reminderSendTime: formData.reminderSendTime.trim() || '09:00',
               whatsAppInstanceId: formData.whatsAppInstanceId.trim() || null,
+              reminderIncludePix: formData.reminderIncludePix,
+              pixKey: formData.reminderIncludePix ? formData.pixKey.trim() : null,
+              pixKeyType: formData.reminderIncludePix ? formData.pixKeyType : null,
+              pixReceiverName: formData.reminderIncludePix ? formData.pixReceiverName.trim() : null,
+              pixCity: formData.reminderIncludePix ? formData.pixCity.trim() : null,
+              pixDescription: formData.reminderIncludePix ? formData.pixDescription.trim() || null : null,
+              pixTxid: formData.reminderIncludePix ? formData.pixTxid.trim() || null : null,
             }
           : {
               reminderSendEmail: false,
@@ -487,6 +549,44 @@ export function AddPaymentDialog({
                     Envia todo dia desde N dias antes até o vencimento (mesmo cron dos lembretes de
                     assinatura).
                   </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Checkbox
+                      id="reminder-pix"
+                      checked={formData.reminderIncludePix}
+                      onCheckedChange={(v) =>
+                        setFormData((prev) => ({ ...prev, reminderIncludePix: v === true }))
+                      }
+                    />
+                    <Label htmlFor="reminder-pix" className="text-sm cursor-pointer">
+                      Incluir Pix copia e cola (e-mail e WhatsApp)
+                    </Label>
+                  </div>
+                  {formData.reminderIncludePix && (
+                    <div className="grid grid-cols-1 gap-2 rounded-md border p-3">
+                      <Input
+                        placeholder="Chave Pix"
+                        value={formData.pixKey}
+                        onChange={(e) => handleInputChange('pixKey', e.target.value)}
+                      />
+                      <Input
+                        placeholder="Nome recebedor"
+                        value={formData.pixReceiverName}
+                        onChange={(e) => handleInputChange('pixReceiverName', e.target.value)}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Cidade"
+                          value={formData.pixCity}
+                          onChange={(e) => handleInputChange('pixCity', e.target.value)}
+                        />
+                        <Input
+                          placeholder="TxID (opcional)"
+                          value={formData.pixTxid}
+                          onChange={(e) => handleInputChange('pixTxid', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

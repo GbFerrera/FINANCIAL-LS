@@ -11,9 +11,10 @@ import { runReminderDispatch } from "../lib/run-reminder-dispatch"
 
 const email = process.argv[2] || "business.gabrielferreira@gmail.com"
 const dryRun = process.argv.includes("--dry-run")
+const dateArg = process.argv.find((a) => a.startsWith("--date="))?.slice("--date=".length)
 
 async function main() {
-  console.log(`Teste lembretes → ${email} (dryRun=${dryRun})`)
+  console.log(`Teste lembretes → ${email} (dryRun=${dryRun}${dateArg ? `, date=${dateArg}` : ""})`)
 
   const client = await prisma.client.findFirst({
     where: { email: { equals: email, mode: "insensitive" } },
@@ -28,6 +29,7 @@ async function main() {
     dryRun,
     skipSendTimeCheck: true,
     onlyClientEmail: email,
+    date: dateArg,
   })
 
   console.log(JSON.stringify(result, null, 2))

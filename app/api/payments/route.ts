@@ -109,6 +109,13 @@ export async function POST(request: NextRequest) {
       reminderSubject,
       reminderBody,
       whatsAppInstanceId,
+      reminderIncludePix,
+      pixKey,
+      pixKeyType,
+      pixReceiverName,
+      pixCity,
+      pixDescription,
+      pixTxid,
     } = body
 
     // Validações
@@ -138,6 +145,7 @@ export async function POST(request: NextRequest) {
 
     const wantsReminder = Boolean(reminderSendEmail || reminderSendWhatsApp)
     const daysBefore = Number.parseInt(String(reminderDaysBefore ?? 1), 10)
+    const includePix = Boolean(reminderIncludePix && pixKey?.trim())
 
     const result = await prisma.$transaction(async (tx) => {
       const created = await tx.payment.create({
@@ -158,6 +166,13 @@ export async function POST(request: NextRequest) {
           reminderSubject: reminderSubject?.trim() || null,
           reminderBody: reminderBody?.trim() || null,
           whatsAppInstanceId: whatsAppInstanceId?.trim() || null,
+          reminderIncludePix: wantsReminder && includePix,
+          pixKey: wantsReminder && includePix ? String(pixKey).trim() : null,
+          pixKeyType: wantsReminder && includePix ? (pixKeyType?.trim() || "random") : null,
+          pixReceiverName: wantsReminder && includePix ? pixReceiverName?.trim() || null : null,
+          pixCity: wantsReminder && includePix ? pixCity?.trim() || null : null,
+          pixDescription: wantsReminder && includePix ? pixDescription?.trim() || null : null,
+          pixTxid: wantsReminder && includePix ? pixTxid?.trim() || null : null,
         },
         include: {
           client: {
@@ -231,6 +246,13 @@ export async function PATCH(request: NextRequest) {
           reminderSubject?: string | null
           reminderBody?: string | null
           whatsAppInstanceId?: string | null
+          reminderIncludePix?: boolean
+          pixKey?: string | null
+          pixKeyType?: string | null
+          pixReceiverName?: string | null
+          pixCity?: string | null
+          pixDescription?: string | null
+          pixTxid?: string | null
         }
       | undefined
     const reminderPatch = body?.reminder as typeof update | undefined
@@ -341,6 +363,24 @@ export async function PATCH(request: NextRequest) {
                   reminderPatch?.whatsAppInstanceId !== undefined
                     ? reminderPatch.whatsAppInstanceId
                     : update.whatsAppInstanceId,
+                reminderIncludePix:
+                  reminderPatch?.reminderIncludePix ?? update.reminderIncludePix ?? undefined,
+                pixKey:
+                  reminderPatch?.pixKey !== undefined ? reminderPatch.pixKey : update.pixKey,
+                pixKeyType:
+                  reminderPatch?.pixKeyType !== undefined
+                    ? reminderPatch.pixKeyType
+                    : update.pixKeyType,
+                pixReceiverName:
+                  reminderPatch?.pixReceiverName !== undefined
+                    ? reminderPatch.pixReceiverName
+                    : update.pixReceiverName,
+                pixCity: reminderPatch?.pixCity !== undefined ? reminderPatch.pixCity : update.pixCity,
+                pixDescription:
+                  reminderPatch?.pixDescription !== undefined
+                    ? reminderPatch.pixDescription
+                    : update.pixDescription,
+                pixTxid: reminderPatch?.pixTxid !== undefined ? reminderPatch.pixTxid : update.pixTxid,
               }
             : {}),
         },

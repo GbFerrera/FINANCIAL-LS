@@ -52,6 +52,13 @@ export type PaymentWithReminderConfig = {
   reminderSubject: string | null
   reminderBody: string | null
   whatsAppInstanceId: string | null
+  reminderIncludePix?: boolean
+  pixKey?: string | null
+  pixKeyType?: string | null
+  pixReceiverName?: string | null
+  pixCity?: string | null
+  pixDescription?: string | null
+  pixTxid?: string | null
   client: {
     name: string
     email: string

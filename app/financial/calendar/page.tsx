@@ -19,7 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Calendar as CalendarIcon, Mail, MessageCircle, Plus, TrendingDown, TrendingUp, Wallet, MoreHorizontal } from "lucide-react"
+import { Calendar as CalendarIcon, Mail, MessageCircle, Plus, RefreshCw, TrendingDown, TrendingUp, Wallet, MoreHorizontal } from "lucide-react"
 import { AddPaymentDialog } from "@/components/payments/add-payment-dialog"
 
 const locales = {
@@ -38,14 +38,16 @@ type CalendarReminderRow = {
   sendDateKey: string
   dueDateKey: string
   daysUntilDue: number
-  channel: "EMAIL" | "WHATSAPP"
+  channels: Array<"EMAIL" | "WHATSAPP">
   clientName: string
   label: string
   amountLabel: string
-  status: "scheduled" | "sent"
+  status: "scheduled" | "sent" | "partial"
   source: "SUBSCRIPTION" | "PAYMENT"
   sourceId: string
+  templateId?: string
   templateName?: string
+  canResend: boolean
 }
 
 type Subscription = {
@@ -229,6 +231,7 @@ export default function FinancialCalendarPage() {
     client: { id: string; name: string; email: string; company?: string | null }
     paymentProjects?: Array<{ id: string; amount: number; project: { id: string; name: string } }>
   }>>([])
+  const [resendingReminderKey, setResendingReminderKey] = useState<string | null>(null)
   const [calendarReminders, setCalendarReminders] = useState<CalendarReminderRow[]>([])
   const [financialEntries, setFinancialEntries] = useState<FinancialEntryRow[]>([])
   const [expenseOccurrences, setExpenseOccurrences] = useState<Array<{
@@ -403,6 +406,47 @@ export default function FinancialCalendarPage() {
     } catch {
       setCalendarReminders([])
     }
+  }
+
+  const resendReminder = async (r: CalendarReminderRow) => {
+    const key = `${r.source}-${r.sourceId}-${r.sendDateKey}`
+    setResendingReminderKey(key)
+    try {
+      const res = await fetch("/api/financial/calendar/reminders/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: r.source,
+          sourceId: r.sourceId,
+          dueDateKey: r.dueDateKey,
+          daysUntilDue: r.daysUntilDue,
+          sendDateKey: r.sendDateKey,
+          templateId: r.templateId,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Falha ao reenviar")
+      if (data.errors > 0) {
+        toast.error(`Reenvio com erro (${data.errors}). Verifique SMTP/WhatsApp.`)
+      } else if (data.sent > 0) {
+        toast.success("Lembrete reenviado")
+      } else {
+        toast("Nada a reenviar (já enviado ou sem candidatos)")
+      }
+      await fetchCalendarReminders()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao reenviar lembrete")
+    } finally {
+      setResendingReminderKey(null)
+    }
+  }
+
+  const reminderChannelsLabel = (channels: CalendarReminderRow["channels"]) => {
+    const email = channels.includes("EMAIL")
+    const wa = channels.includes("WHATSAPP")
+    if (email && wa) return "E-mail e WhatsApp"
+    if (email) return "E-mail"
+    return "WhatsApp"
   }
 
   const fetchFinancialEntries = async () => {
@@ -1281,42 +1325,70 @@ export default function FinancialCalendarPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Lembretes de cobrança
                 </p>
-                {dayReminders.map((r, idx) => (
+                {dayReminders.map((r) => {
+                  const rowKey = `${r.source}-${r.sourceId}-${r.sendDateKey}-${r.dueDateKey}`
+                  const resending = resendingReminderKey === `${r.source}-${r.sourceId}-${r.sendDateKey}`
+                  return (
                   <div
-                    key={`${r.source}-${r.sourceId}-${r.channel}-${idx}`}
+                    key={rowKey}
                     className="flex items-start justify-between gap-2 text-sm"
                   >
                     <div className="min-w-0">
                       <div className="font-medium truncate flex items-center gap-1.5">
-                        {r.channel === "EMAIL" ? (
+                        {r.channels.includes("EMAIL") && (
                           <Mail className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                        ) : (
+                        )}
+                        {r.channels.includes("WHATSAPP") && (
                           <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                         )}
                         {r.clientName}
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {r.source === "PAYMENT" ? r.label : `${r.templateName || "Assinatura"} · ${r.label}`}
+                        Lembrete · {reminderChannelsLabel(r.channels)}
+                        {" · "}
+                        {r.source === "PAYMENT"
+                          ? r.label
+                          : `${r.templateName || "Assinatura"} · ${r.label}`}
                         {r.daysUntilDue === 0
                           ? " · vence hoje"
                           : ` · ${r.daysUntilDue} dia(s) antes`}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
                       <div className="text-xs font-medium">{r.amountLabel}</div>
                       <Badge
                         variant="outline"
                         className={
                           r.status === "sent"
                             ? "text-green-600 border-green-600/40"
-                            : "text-amber-600 border-amber-600/40"
+                            : r.status === "partial"
+                              ? "text-orange-600 border-orange-600/40"
+                              : "text-amber-600 border-amber-600/40"
                         }
                       >
-                        {r.status === "sent" ? "Enviado" : "Agendado"}
+                        {r.status === "sent"
+                          ? "Enviado"
+                          : r.status === "partial"
+                            ? "Parcial"
+                            : "Agendado"}
                       </Badge>
+                      {r.canResend && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={resending}
+                          onClick={() => void resendReminder(r)}
+                        >
+                          <RefreshCw className={`h-3 w-3 mr-1 ${resending ? "animate-spin" : ""}`} />
+                          Reenviar
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 

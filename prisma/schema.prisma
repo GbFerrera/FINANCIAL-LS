@@ -404,6 +404,13 @@ model Payment {
   reminderSubject        String?
   reminderBody           String?    @db.Text
   whatsAppInstanceId     String?
+  reminderIncludePix     Boolean    @default(false)
+  pixKey                 String?
+  pixKeyType             String?
+  pixReceiverName        String?
+  pixCity                String?
+  pixDescription         String?
+  pixTxid                String?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   clientId         String

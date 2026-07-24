@@ -2,22 +2,23 @@ import { prisma } from "@/lib/prisma"
 import {
   collectReminderCandidates,
   isReminderSendTimeReached,
-  plainTextToHtml,
   renderReminderTemplate,
 } from "@/lib/subscription-reminder"
 import { buildReminderEmailHtml } from "@/lib/subscription-reminder-email"
 import { sendMail } from "@/lib/mail"
 import { normalizeWhatsAppNumber } from "@/lib/evolution-api"
 import {
-  normalizePixKeyType,
   sendSubscriptionReminderWhatsApp,
 } from "@/lib/subscription-reminder-whatsapp"
 import {
   appendPixToPlainEmailText,
-  buildReminderPixPayload,
   parseAmountBrlFromReminderVars,
 } from "@/lib/pix-copia-cola"
 import { collectPaymentReminderCandidates } from "@/lib/payment-reminder"
+import {
+  buildReminderPixFromFields,
+  buildWhatsAppPixConfigFromFields,
+} from "@/lib/reminder-pix-fields"
 
 export type ReminderDispatchResultRow = {
   client: string
@@ -37,6 +38,11 @@ export type RunReminderDispatchInput = {
   skipSendTimeCheck?: boolean
   /** Só processa destinatários com este e-mail (testes). */
   onlyClientEmail?: string
+  onlyPaymentId?: string
+  onlyTemplateId?: string
+  onlyClientSubscriptionId?: string
+  /** Reenvio: ignora logs de envio anteriores. */
+  forceResend?: boolean
 }
 
 export type RunReminderDispatchOutput = {
@@ -70,6 +76,7 @@ export async function runReminderDispatch(
   const dryRun = input.dryRun ?? false
   const skipSendTimeCheck = input.skipSendTimeCheck ?? (dryRun || Boolean(input.date))
   const onlyClientEmail = input.onlyClientEmail?.trim()
+  const forceResend = input.forceResend ?? false
 
   const templatesRaw = await prisma.subscriptionGroupReminderTemplate.findMany({
     where: { isActive: true },
@@ -129,7 +136,14 @@ export async function runReminderDispatch(
         billingCycle: l.subscription.billingCycle as "MONTHLY" | "YEARLY",
       },
     })),
-  }).filter((c) => !onlyClientEmail || matchesClientEmail(c.clientEmail, onlyClientEmail))
+  }).filter((c) => {
+    if (onlyClientEmail && !matchesClientEmail(c.clientEmail, onlyClientEmail)) return false
+    if (input.onlyTemplateId && c.templateId !== input.onlyTemplateId) return false
+    if (input.onlyClientSubscriptionId && c.clientSubscriptionId !== input.onlyClientSubscriptionId) {
+      return false
+    }
+    return true
+  })
 
   const templateById = new Map(templates.map((t) => [t.id, t]))
   const results: ReminderDispatchResultRow[] = []
@@ -142,19 +156,21 @@ export async function runReminderDispatch(
     const subject = renderReminderTemplate(template.subject, c.vars)
     const textBody = renderReminderTemplate(template.body, c.vars)
 
-    const pixPayload =
-      template.whatsAppPixButton && template.pixKey
-        ? buildReminderPixPayload({
-            key: template.pixKey,
-            keyType: template.pixKeyType,
-            receiverName: template.pixReceiverName || template.group.name,
-            amountBrl: parseAmountBrlFromReminderVars(c.vars.preco),
-            amountLabel: c.vars.preco,
-            merchantCity: template.pixCity ?? undefined,
-            pixDescription: template.pixDescription,
-            pixTxid: template.pixTxid,
-          })
-        : null
+    const pixSource = {
+      includePix: template.whatsAppPixButton,
+      pixKey: template.pixKey,
+      pixKeyType: template.pixKeyType,
+      pixReceiverName: template.pixReceiverName,
+      pixCity: template.pixCity,
+      pixDescription: template.pixDescription,
+      pixTxid: template.pixTxid,
+    }
+    const amountBrl = parseAmountBrlFromReminderVars(c.vars.preco)
+    const pixPayload = buildReminderPixFromFields(pixSource, {
+      amountBrl,
+      amountLabel: c.vars.preco,
+      fallbackReceiverName: template.pixReceiverName || template.group.name,
+    })
 
     const text = pixPayload ? appendPixToPlainEmailText(textBody, pixPayload) : textBody
     const html = buildReminderEmailHtml({
@@ -164,21 +180,11 @@ export async function runReminderDispatch(
       pix: pixPayload,
     })
 
-    const waPixConfig =
-      template.whatsAppPixButton && template.pixKey
-        ? {
-            enabled: true as const,
-            key: template.pixKey,
-            keyType: normalizePixKeyType(template.pixKeyType),
-            receiverName: template.pixReceiverName || template.group.name,
-            buttonLabel: template.pixButtonLabel || "Copiar Pix",
-            amountLabel: c.vars.preco,
-            amountBrl: parseAmountBrlFromReminderVars(c.vars.preco),
-            merchantCity: template.pixCity ?? undefined,
-            pixDescription: template.pixDescription ?? undefined,
-            pixTxid: template.pixTxid ?? undefined,
-          }
-        : null
+    const waPixConfig = buildWhatsAppPixConfigFromFields(pixSource, {
+      amountBrl,
+      amountLabel: c.vars.preco,
+      fallbackReceiverName: template.pixReceiverName || template.group.name,
+    })
 
     const channels: { channel: "EMAIL" | "WHATSAPP"; enabled: boolean }[] = [
       { channel: "EMAIL", enabled: template.sendEmail },
@@ -189,7 +195,7 @@ export async function runReminderDispatch(
       if (!enabled) continue
 
       const dedupeKey = `${c.templateId}:${c.clientSubscriptionId}:${c.dueDateKey}:${channel}:${c.daysUntilDue}`
-      if (sentChannelKeys.has(dedupeKey)) continue
+        if (sentChannelKeys.has(dedupeKey) && !forceResend) continue
 
       if (channel === "EMAIL") {
         const destination = c.clientEmail?.trim()
@@ -383,10 +389,57 @@ export async function runReminderDispatch(
   const paymentCandidates = collectPaymentReminderCandidates({
     referenceDate,
     payments: paymentsPending,
-  }).filter((c) => !onlyClientEmail || matchesClientEmail(c.clientEmail, onlyClientEmail))
+  }).filter((c) => {
+    if (onlyClientEmail && !matchesClientEmail(c.clientEmail, onlyClientEmail)) return false
+    if (input.onlyPaymentId && c.paymentId !== input.onlyPaymentId) return false
+    return true
+  })
 
   for (const c of paymentCandidates) {
     if (!skipSendTimeCheck && !isReminderSendTimeReached(c.reminderSendTime, now)) continue
+
+    const paymentRow = paymentsPending.find((p) => p.id === c.paymentId)
+    const pixSource = {
+      includePix: paymentRow?.reminderIncludePix,
+      pixKey: paymentRow?.pixKey,
+      pixKeyType: paymentRow?.pixKeyType,
+      pixReceiverName: paymentRow?.pixReceiverName,
+      pixCity: paymentRow?.pixCity,
+      pixDescription: paymentRow?.pixDescription,
+      pixTxid: paymentRow?.pixTxid,
+    }
+    const amountBrl = Number(c.amount || 0)
+    const fallbackReceiver =
+      paymentRow?.pixReceiverName?.trim() || paymentRow?.client.company?.trim() || c.clientName
+    const pixPayload = buildReminderPixFromFields(pixSource, {
+      amountBrl,
+      amountLabel: c.vars.preco,
+      fallbackReceiverName: fallbackReceiver,
+    })
+    const waPixConfig = buildWhatsAppPixConfigFromFields(pixSource, {
+      amountBrl,
+      amountLabel: c.vars.preco,
+      fallbackReceiverName: fallbackReceiver,
+    })
+    const emailVars = {
+      nome: c.vars.nome,
+      cliente: c.vars.cliente,
+      preco: c.vars.preco,
+      vencimento: c.vars.vencimento,
+      plano: c.vars.descricao,
+      empresa: paymentRow?.client.company || "",
+      grupo: "Cobrança avulsa",
+      dias_antes: c.vars.dias_antes,
+    }
+    const emailText = pixPayload
+      ? appendPixToPlainEmailText(c.reminderBody, pixPayload)
+      : c.reminderBody
+    const emailHtml = buildReminderEmailHtml({
+      bodyText: c.reminderBody,
+      vars: emailVars,
+      daysUntilDue: c.daysUntilDue,
+      pix: pixPayload,
+    })
 
     const channels: { channel: "EMAIL" | "WHATSAPP"; enabled: boolean }[] = [
       { channel: "EMAIL", enabled: c.reminderSendEmail },
@@ -396,7 +449,7 @@ export async function runReminderDispatch(
     for (const { channel, enabled } of channels) {
       if (!enabled) continue
       const dedupeKey = `${c.paymentId}:${c.dueDateKey}:${channel}:${c.daysUntilDue}`
-      if (paymentSentKeys.has(dedupeKey)) continue
+      if (paymentSentKeys.has(dedupeKey) && !forceResend) continue
 
       const label = "Cobrança avulsa"
 
@@ -431,8 +484,8 @@ export async function runReminderDispatch(
           await sendMail({
             to,
             subject: c.reminderSubject,
-            text: c.reminderBody,
-            html: `<div style="font-family:sans-serif;line-height:1.6">${plainTextToHtml(c.reminderBody)}</div>`,
+            text: emailText,
+            html: emailHtml,
           })
           await prisma.paymentReminderSendLog.create({
             data: {
@@ -530,7 +583,8 @@ export async function runReminderDispatch(
           phone,
           subject: c.reminderSubject,
           body: c.reminderBody,
-          pix: null,
+          footer: fallbackReceiver,
+          pix: waPixConfig,
           pauseSeconds: 2,
         })
         await prisma.paymentReminderSendLog.create({
