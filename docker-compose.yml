@@ -13,6 +13,7 @@ services:
     labels:
       - traefik.docker.network=coolify
     environment:
+      - TZ=America/Sao_Paulo
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${COMPOSE_PROJECT_NAME:-financial}-postgres:5432/${POSTGRES_DB:-financial_ls}?schema=public
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
@@ -24,6 +25,7 @@ services:
       - SMTP_FROM=${SMTP_FROM}
       - FINANCE_DAILY_EMAIL_TO=${FINANCE_DAILY_EMAIL_TO}
       - CRON_SECRET=${CRON_SECRET}
+      - REMINDER_CRON_INTERVAL_MS=${REMINDER_CRON_INTERVAL_MS:-300000}
       - EVOLUTION_API_URL=${EVOLUTION_API_URL:-http://evolution-api:8080}
       - EVOLUTION_API_KEY=${EVOLUTION_API_KEY:-dev-evolution-key-change-me}
       - SEED_DB=${SEED_DB:-false}

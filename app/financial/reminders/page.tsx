@@ -595,7 +595,12 @@ export default function FinancialRemindersPage() {
           <CardTitle className="text-base">Cron em produção</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>Agende um POST diário (mesmo padrão do resumo financeiro):</p>
+          <p>
+            Em produção o servidor dispara automaticamente a cada 5 minutos (após o horário configurado
+            no template). Exige <code className="text-xs">CRON_SECRET</code> e fuso{" "}
+            <code className="text-xs">America/Sao_Paulo</code> no container.
+          </p>
+          <p>Ou agende um POST externo (Coolify/cron):</p>
           <pre className="bg-muted rounded-md p-3 text-xs overflow-x-auto">
             {`POST /api/financial/subscription-reminders/run
 Header: x-cron-secret: <CRON_SECRET>`}
