@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { scheduleLinkBrainSync } from '@/lib/link-brain-sync/trigger'
 import { z } from 'zod'
 
 // Schema de validação para cliente
@@ -133,6 +134,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    scheduleLinkBrainSync('cliente criado')
     return NextResponse.json(client, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {

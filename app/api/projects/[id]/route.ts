@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { scheduleLinkBrainSync } from '@/lib/link-brain-sync/trigger'
 import { z } from 'zod'
 import { ProjectStatus } from '@prisma/client'
 
@@ -246,6 +247,7 @@ export async function PUT(
       })
     }
 
+    scheduleLinkBrainSync('projeto atualizado')
     return NextResponse.json(updatedProject)
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -349,6 +351,7 @@ export async function DELETE(
       })
     })
 
+    scheduleLinkBrainSync('projeto excluído')
     return NextResponse.json(
       { message: 'Projeto excluído com sucesso' },
       { status: 200 }

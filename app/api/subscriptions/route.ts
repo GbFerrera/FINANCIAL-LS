@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { scheduleLinkBrainSync } from "@/lib/link-brain-sync/trigger"
 import { z } from "zod"
 import { UserRole } from "@prisma/client"
 
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    scheduleLinkBrainSync('assinatura criada')
     return NextResponse.json(created, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -212,6 +214,7 @@ export async function PATCH(req: NextRequest) {
         return refetched ?? sub
       })
 
+      scheduleLinkBrainSync('assinatura atualizada')
       return NextResponse.json(updated)
     }
 
@@ -298,6 +301,7 @@ export async function DELETE(req: NextRequest) {
       })
     })
 
+    scheduleLinkBrainSync('assinatura excluída')
     return NextResponse.json({ ok: true })
   } catch (error) {
     if (error instanceof z.ZodError) {

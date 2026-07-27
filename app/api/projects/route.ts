@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { scheduleLinkBrainSync } from '@/lib/link-brain-sync/trigger'
 import { z } from 'zod'
 import { ProjectStatus } from '@prisma/client'
 
@@ -188,6 +189,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    scheduleLinkBrainSync('projeto criado')
     return NextResponse.json(project, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {

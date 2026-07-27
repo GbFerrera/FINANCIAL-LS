@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { scheduleLinkBrainSync } from '@/lib/link-brain-sync/trigger'
 import { z } from 'zod'
 
 // Schema de validação para atualização de cliente
@@ -136,6 +137,7 @@ export async function PUT(
       }
     })
 
+    scheduleLinkBrainSync('cliente atualizado')
     return NextResponse.json(updatedClient)
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -198,6 +200,7 @@ export async function DELETE(
       where: { id: params.id }
     })
 
+    scheduleLinkBrainSync('cliente excluído')
     return NextResponse.json(
       { message: 'Cliente excluído com sucesso' },
       { status: 200 }
