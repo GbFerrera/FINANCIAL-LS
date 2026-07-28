@@ -1,13 +1,13 @@
 'use client'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { cn } from '@/lib/utils'
 import { 
   Clock, 
   Flag, 
-  User, 
   Calendar,
   CheckCircle2,
   Circle,
@@ -56,6 +56,7 @@ interface Task {
     originalName: string
     fileType: string
     fileSize: number
+    filePath?: string
   }>
 }
 
@@ -84,9 +85,9 @@ const formatDateSafe = (dateString: string) => {
 }
 
 export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: TaskCardProps) {
-  const [showMenu, setShowMenu] = useState(false)
   const [showAttachments, setShowAttachments] = useState(false)
-  const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string }>>([])
+  const [coverBroken, setCoverBroken] = useState(false)
+  const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string; url?: string }>>([])
   
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -237,16 +238,21 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
   }
 
   useEffect(() => {
+    setCoverBroken(false)
+  }, [task.id])
+
+  useEffect(() => {
     let cancelled = false
     const fetchDiskAttachments = async () => {
       try {
         const res = await fetch(`/api/tasks/${task.id}/attachments`)
         if (!res.ok) return
-        const data: { attachments?: Array<{ originalName: string; mimeType: string; filePath?: string }> } = await res.json()
+        const data: { attachments?: Array<{ originalName: string; mimeType: string; filePath?: string; url?: string }> } = await res.json()
         const mapped = (data.attachments || []).map((a) => ({
           originalName: a.originalName,
           fileType: a.mimeType,
-          filePath: a.filePath
+          filePath: a.filePath,
+          url: a.url || (a.filePath ? `/api/files/${a.filePath}` : undefined),
         }))
         if (!cancelled) {
           setDiskAttachments(mapped)
@@ -256,6 +262,111 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     fetchDiskAttachments()
     return () => { cancelled = true }
   }, [task.id])
+
+  const coverUrl = useMemo(() => {
+    if (coverBroken) return null
+    const candidates = [
+      ...diskAttachments,
+      ...(task.attachments || []).map((a) => ({
+        originalName: a.originalName,
+        fileType: a.fileType,
+        filePath: a.filePath,
+        url: a.filePath ? `/api/files/${a.filePath}` : a.id ? `/api/files/${a.id}` : undefined,
+      })),
+      ...getAttachmentsFromDescription(),
+    ]
+    for (const a of candidates) {
+      const type = 'fileType' in a && a.fileType ? a.fileType : 'type' in a ? a.type : ''
+      const isImage = type.startsWith('image/')
+      if (!isImage) continue
+      if ('url' in a && a.url) return a.url
+      if ('filePath' in a && a.filePath) return `/api/files/${a.filePath}`
+    }
+    return null
+  }, [coverBroken, diskAttachments, task.attachments, task.description])
+
+  const getPriorityBarClass = () => {
+    switch (task.priority) {
+      case 'LOW':
+        return 'bg-slate-400'
+      case 'MEDIUM':
+        return 'bg-sky-400'
+      case 'HIGH':
+        return 'bg-orange-500'
+      case 'URGENT':
+        return 'bg-red-500'
+      default:
+        return 'bg-blue-500'
+    }
+  }
+
+  const getStatusBarClass = () => {
+    switch (task.status) {
+      case 'IN_PROGRESS':
+        return 'bg-blue-500'
+      case 'IN_REVIEW':
+        return 'bg-amber-500'
+      case 'COMPLETED':
+        return 'bg-emerald-500'
+      default:
+        return 'bg-slate-500'
+    }
+  }
+
+  const cardMenu = (onEdit || onDelete) && (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 w-7 p-0 hover:bg-black/10 dark:hover:bg-white/10 text-foreground/80"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <MoreVertical className="w-4 h-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40">
+        {onEdit && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              onEdit(task)
+            }}
+            className="flex items-center gap-2"
+          >
+            <Edit className="w-3 h-3" />
+            Editar
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(task.id)
+            }}
+            className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50"
+          >
+            <Trash2 className="w-3 h-3" />
+            Excluir
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const attachmentsFooter = hasAttachments() && (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+      onClick={(e) => {
+        e.stopPropagation()
+        setShowAttachments(!showAttachments)
+      }}
+    >
+      <Paperclip className="w-3.5 h-3.5" />
+      <span>{getAttachmentsCount()}</span>
+    </button>
+  )
 
   type DescriptionAttachment = { name: string; type: string; filePath?: string }
   type RealAttachment = { id?: string; originalName?: string; fileType?: string; filePath?: string }
@@ -336,13 +447,135 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     }
   }
 
+  const attachmentsPanel =
+    showAttachments && hasAttachments() ? (
+      <div className="pt-2 border-t border-muted max-h-24 overflow-y-auto">
+        <h4 className="text-xs font-medium text-muted-foreground mb-2">
+          Anexos ({getAttachmentsCount()})
+        </h4>
+        <div className="space-y-1">
+          {getAttachmentsFromDescription().map((attachment, index) => {
+            const fileName = 'name' in attachment ? attachment.name : attachment.originalName
+            const fileType = 'type' in attachment ? attachment.type : attachment.fileType
+            const isImage = fileType?.startsWith('image/')
+            const isPDF = fileType === 'application/pdf'
+            return (
+              <div
+                key={index}
+                className={cn(
+                  'flex items-center gap-2 p-2 bg-card rounded text-xs transition-colors',
+                  isImage || isPDF ? 'hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer' : 'hover:bg-muted'
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleAttachmentClick(attachment, fileName, fileType)
+                }}
+              >
+                {isImage ? (
+                  <ImageIcon className="w-3 h-3 text-blue-600 shrink-0" />
+                ) : isPDF ? (
+                  <FileText className="w-3 h-3 text-red-600 shrink-0" />
+                ) : (
+                  <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
+                )}
+                <p className="font-medium text-foreground truncate flex-1">{fileName}</p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    ) : null
+
 
   return (
-    <Card 
-      className={`flex flex-col cursor-pointer transition-all duration-200 hover:shadow-lg hover:translate-y-[-2px] ${isOverdue() ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800' : getStatusColor()} border-l-4`}
+    <Card
+      className={cn(
+        'flex flex-col cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
+        coverUrl
+          ? 'overflow-hidden p-0 gap-0 bg-card border border-border shadow-sm'
+          : cn(
+              'border-l-4',
+              isOverdue()
+                ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800'
+                : getStatusColor()
+            )
+      )}
       onClick={handleCardClick}
       onMouseDown={(e) => e.stopPropagation()}
     >
+      {coverUrl ? (
+        <>
+          <div className="relative w-full bg-muted/40">
+            <img
+              src={coverUrl}
+              alt=""
+              className="w-full h-[7.5rem] object-cover object-top"
+              loading="lazy"
+              onError={() => setCoverBroken(true)}
+            />
+            <div className="absolute inset-x-0 top-0 flex justify-end p-1.5 bg-gradient-to-b from-black/35 to-transparent">
+              {cardMenu}
+            </div>
+          </div>
+
+          <CardContent className="px-2.5 pt-2 pb-2.5 space-y-2">
+            <div className="flex flex-wrap gap-1">
+              <div
+                className={cn('h-2 w-10 rounded-full', getPriorityBarClass())}
+                title={`Prioridade: ${getPriorityLabel()}`}
+              />
+              <div
+                className={cn('h-2 w-10 rounded-full', getStatusBarClass())}
+                title={`Status: ${getStatusLabel()}`}
+              />
+              {task.project?.name && (
+                <div
+                  className="h-2 w-10 rounded-full bg-violet-500"
+                  title={task.project.name}
+                />
+              )}
+            </div>
+
+            <h3
+              className="text-sm font-medium leading-snug text-foreground break-words line-clamp-4"
+              title={task.title}
+            >
+              {limitChars(task.title, 280)}
+            </h3>
+
+            <div className="flex items-center justify-between gap-2 pt-0.5">
+              <div className="flex items-center gap-2 min-w-0">
+                {attachmentsFooter}
+                {task.dueDate && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 text-[11px]',
+                      isOverdue() ? 'text-red-500' : 'text-muted-foreground'
+                    )}
+                  >
+                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                    {formatDateSafe(task.dueDate)}
+                  </span>
+                )}
+                {isReportedTask() && (
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                )}
+              </div>
+              {task.assignee && (
+                <Avatar className="w-6 h-6 ring-1 ring-border shrink-0">
+                  <AvatarImage src={task.assignee.avatar} />
+                  <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
+                    {task.assignee.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+            </div>
+
+            {attachmentsPanel}
+          </CardContent>
+        </>
+      ) : (
+        <>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -381,46 +614,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
                 {task.storyPoints} SP
               </Badge>
             )}
-            {(onEdit || onDelete) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:bg-gray-100 text-gray-400"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <MoreVertical className="w-3 h-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  {onEdit && (
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onEdit(task)
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <Edit className="w-3 h-3" />
-                      Editar
-                    </DropdownMenuItem>
-                  )}
-                  {onDelete && (
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onDelete(task.id)
-                      }}
-                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Excluir
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+            {cardMenu}
           </div>
         </div>
       </CardHeader>
@@ -526,75 +720,11 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
             </div>
           )}
 
-          {/* Lista de Anexos */}
-          {showAttachments && hasAttachments() && (
-            <div className="pt-3 border-t border-muted max-h-20 overflow-y-auto">
-              <h4 className="text-xs font-medium text-gray-700 mb-2">
-                Anexos ({getAttachmentsCount()})
-              </h4>
-              <div className="space-y-1">
-                {getAttachmentsFromDescription().map((attachment, index) => {
-                  // Lidar com ambos os formatos: {name, type} e {originalName, fileType}
-                  const fileName = 'name' in attachment ? attachment.name : attachment.originalName
-                  const fileType = 'type' in attachment ? attachment.type : attachment.fileType
-                  
-                  const isImage = fileType?.startsWith('image/')
-                  const isPDF = fileType === 'application/pdf'
-                  
-                  return (
-                    <div 
-                      key={index}
-                      className={`flex items-center gap-2 p-2 bg-card rounded text-xs transition-colors ${
-                        isImage || isPDF ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-gray-100'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleAttachmentClick(attachment, fileName, fileType)
-                      }}
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {isImage ? (
-                          <ImageIcon className="w-3 h-3 text-blue-600 flex-shrink-0" />
-                        ) : isPDF ? (
-                          <FileText className="w-3 h-3 text-red-600 flex-shrink-0" />
-                        ) : (
-                          <Paperclip className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                        )}
-                        
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-foreground truncate">
-                            {fileName}
-                          </p>
-                          <p className="text-muted-foreground">
-                            {isImage ? 'Imagem' : isPDF ? 'PDF' : 'Arquivo'}
-                            {(isImage || isPDF) && (
-                              <span className="ml-1 text-blue-600">• Clique para ver</span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="text-xs text-gray-400">
-                        {isImage ? (
-                          <ImageIcon className="w-3 h-3" />
-                        ) : isPDF ? (
-                          <FileText className="w-3 h-3" />
-                        ) : (
-                          <Paperclip className="w-3 h-3" />
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              
-              <p className="text-xs text-muted-foreground mt-2 italic">
-                💡 Os anexos estão salvos no servidor e podem ser acessados pelos administradores
-              </p>
-            </div>
-          )}
+          {attachmentsPanel}
         </div>
       </CardContent>
+        </>
+      )}
     </Card>
   )
 }
