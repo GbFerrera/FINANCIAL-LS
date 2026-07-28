@@ -11,6 +11,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -20,8 +26,18 @@ import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 import { TaskCommentsPanel } from '@/components/scrum/TaskCommentsPanel'
 import { TaskMetadataControls } from '@/components/scrum/TaskMetadataControls'
 import { cn } from '@/lib/utils'
-import { mergeAttachmentDescription, parseAttachmentsFromDescription, pickCoverUrl, isImageAttachment, getAttachmentName, getAttachmentMime, resolveAttachmentUrl } from '@/lib/task-attachments'
-import { AlignLeft, Paperclip, CheckSquare, ExternalLink } from 'lucide-react'
+import {
+  mergeAttachmentDescription,
+  parseAttachmentsFromDescription,
+  pickCoverUrl,
+  isImageAttachment,
+  getAttachmentName,
+  getAttachmentMime,
+  resolveAttachmentUrl,
+  removeAttachmentFromDescription,
+  stripAttachmentSectionFromDescription,
+} from '@/lib/task-attachments'
+import { AlignLeft, Paperclip, CheckSquare, ExternalLink, MoreVertical, Trash2 } from 'lucide-react'
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -111,31 +127,13 @@ export function CreateTaskModal({
     file?: File
   }
   const [attachments, setAttachments] = useState<UploadFileInfo[]>([])
+  const [fullDescription, setFullDescription] = useState('')
   const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
   const fileUploadRef = useRef<{ handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> } | null>(null)
-
-  const stripAttachmentSection = (description?: string | null) => {
-    if (!description?.includes('📎 Anexos (')) return description || ''
-    const lines = description.split('\n')
-    const clean: string[] = []
-    let skip = false
-    for (const line of lines) {
-      if (line.includes('📎 Anexos (')) {
-        skip = true
-        continue
-      }
-      if (skip && line.startsWith('• ')) continue
-      if (skip && !line.startsWith('• ')) skip = false
-      if (!skip) clean.push(line)
-    }
-    return clean.join('\n').trim()
-  }
 
   const coverUrl = useMemo(() => {
     if (!editingTask) return null
-    if (editingTask.coverImageUrl && editingTask.coverImageUrl !== failedCoverUrl) {
-      return editingTask.coverImageUrl
-    }
     const candidates = attachments.map((a) => ({
       originalName: a.originalName,
       fileType: a.fileType,
@@ -146,13 +144,110 @@ export function CreateTaskModal({
           ? `/api/files/${a.filePath}`
           : undefined,
     }))
-    candidates.push(...parseAttachmentsFromDescription(editingTask.description))
-    return pickCoverUrl(candidates, failedCoverUrl)
-  }, [attachments, editingTask, failedCoverUrl])
+    candidates.push(...parseAttachmentsFromDescription(fullDescription || editingTask.description))
+    const fromAttachments = pickCoverUrl(candidates, failedCoverUrl)
+    if (fromAttachments) return fromAttachments
+    if (editingTask.coverImageUrl && editingTask.coverImageUrl !== failedCoverUrl) {
+      return editingTask.coverImageUrl
+    }
+    return null
+  }, [attachments, editingTask, failedCoverUrl, fullDescription])
 
   useEffect(() => {
     setFailedCoverUrl(null)
   }, [editingTask?.id])
+
+  const handleDeleteAttachment = async (file: UploadFileInfo) => {
+    if (!editingTask) return
+    if (!confirm(`Remover o anexo "${file.originalName}"?`)) return
+
+    const removeLocally = (nextDescription: string) => {
+      setAttachments((prev) => prev.filter((f) => f.id !== file.id))
+      setFullDescription(nextDescription)
+      setValue('description', stripAttachmentSectionFromDescription(nextDescription))
+      setFailedCoverUrl(null)
+    }
+
+    if (file.file || file.filePath.startsWith('blob:')) {
+      if (file.filePath.startsWith('blob:')) {
+        URL.revokeObjectURL(file.filePath)
+      }
+      removeLocally(
+        removeAttachmentFromDescription(fullDescription || editingTask.description || '', {
+          filePath: file.filePath,
+          fileName: file.fileName,
+          originalName: file.originalName,
+        })
+      )
+      return
+    }
+
+    setDeletingAttachmentId(file.id)
+    try {
+      const res = await fetch(`/api/tasks/${editingTask.id}/attachments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          filePath: file.filePath,
+          filename: file.fileName || file.filePath.split('/').pop(),
+        }),
+      })
+      if (!res.ok) throw new Error('Falha ao remover')
+      removeLocally(
+        removeAttachmentFromDescription(fullDescription || editingTask.description || '', {
+          filePath: file.filePath,
+          fileName: file.fileName,
+          originalName: file.originalName,
+        })
+      )
+      toast.success('Anexo removido')
+      onSuccess()
+    } catch {
+      toast.error('Erro ao remover anexo')
+    } finally {
+      setDeletingAttachmentId(null)
+    }
+  }
+
+  const getCoverAttachment = (): UploadFileInfo | undefined => {
+    if (!coverUrl) return undefined
+    return attachments.find((file) => {
+      const previewUrl = file.filePath.startsWith('blob:')
+        ? file.filePath
+        : resolveAttachmentUrl({
+            originalName: file.originalName,
+            fileType: file.fileType,
+            filePath: file.filePath,
+          })
+      return previewUrl === coverUrl
+    })
+  }
+
+  const handleDeleteCover = async () => {
+    const file = getCoverAttachment()
+    if (file) {
+      await handleDeleteAttachment(file)
+      return
+    }
+
+    const match = parseAttachmentsFromDescription(fullDescription || editingTask?.description).find(
+      (a) => resolveAttachmentUrl(a) === coverUrl
+    )
+    if (!match || !editingTask || !coverUrl) return
+
+    const pseudoFile: UploadFileInfo = {
+      id: `cover-${match.filePath || getAttachmentName(match)}`,
+      originalName: getAttachmentName(match),
+      fileName: match.filePath?.split('/').pop() || getAttachmentName(match),
+      filePath: match.filePath || '',
+      fileSize: 0,
+      fileType: getAttachmentMime(match),
+      uploadedAt: new Date().toISOString(),
+      taskId: editingTask.id,
+    }
+    await handleDeleteAttachment(pseudoFile)
+  }
 
   const {
     register,
@@ -190,8 +285,10 @@ export function CreateTaskModal({
       
       // Se estiver editando, preencher o formulário
       if (editingTask) {
+        const initialDescription = editingTask.description || ''
+        setFullDescription(initialDescription)
         setValue('title', editingTask.title)
-        setValue('description', stripAttachmentSection(editingTask.description))
+        setValue('description', stripAttachmentSectionFromDescription(initialDescription))
         setValue('priority', editingTask.priority)
         setValue('storyPoints', editingTask.storyPoints ?? 1)
         setValue('assigneeId', editingTask.assigneeId || undefined)
@@ -231,7 +328,7 @@ export function CreateTaskModal({
               })) as UploadFileInfo[]
             }
             if (mapped.length === 0) {
-              mapped = parseAttachmentsFromDescription(editingTask.description).map((a, index) => ({
+              mapped = parseAttachmentsFromDescription(initialDescription).map((a, index) => ({
                 id: `desc-${index}`,
                 originalName: getAttachmentName(a),
                 fileName: getAttachmentName(a),
@@ -256,6 +353,7 @@ export function CreateTaskModal({
         })
         setSelectedProjectId(projectId || '')
         setAttachments([])
+        setFullDescription('')
       }
     }
   }, [isOpen, projectId, sprintId, editingTask, setValue, reset])
@@ -399,7 +497,7 @@ export function CreateTaskModal({
         if (persisted.length === 0) return
 
         const description = mergeAttachmentDescription(
-          editingTask?.description || taskData.description || createdTask.description,
+          fullDescription || editingTask?.description || taskData.description || createdTask.description,
           persisted.map((f) => ({
             originalName: f.originalName,
             fileType: f.fileType,
@@ -556,21 +654,62 @@ export function CreateTaskModal({
                         filePath: file.filePath,
                       }) || ''
                   return (
-                    <button
+                    <div
                       key={file.id}
-                      type="button"
                       className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-border bg-muted/40"
-                      onClick={() => window.open(previewUrl, '_blank')}
                     >
-                      <img
-                        src={previewUrl}
-                        alt={file.originalName}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
-                      />
-                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 text-left text-[10px] text-white truncate">
+                      <button
+                        type="button"
+                        className="block h-full w-full"
+                        onClick={() => window.open(previewUrl, '_blank')}
+                      >
+                        <img
+                          src={previewUrl}
+                          alt={file.originalName}
+                          className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                        />
+                      </button>
+                      <div className="absolute top-1.5 right-1.5 z-10">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 rounded-md bg-black/55 text-white hover:bg-black/75 hover:text-white"
+                              disabled={deletingAttachmentId === file.id}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                window.open(previewUrl, '_blank')
+                              }}
+                            >
+                              <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                              Abrir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteAttachment(file)
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-3.5 w-3.5" />
+                              Remover
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 text-left text-[10px] text-white truncate">
                         {file.originalName}
                       </span>
-                    </button>
+                    </div>
                   )
                 })}
             </div>
@@ -644,6 +783,34 @@ export function CreateTaskModal({
                 onError={() => setFailedCoverUrl(coverUrl)}
               />
             </button>
+            <div className="absolute top-3 right-12 z-10">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 rounded-md bg-black/55 text-white hover:bg-black/75 hover:text-white"
+                    disabled={!!deletingAttachmentId}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuItem onClick={() => window.open(coverUrl, '_blank')}>
+                    <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                    Abrir
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-600"
+                    onClick={() => handleDeleteCover()}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    Remover capa
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <button
               type="button"
               className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs text-white hover:bg-black/70"

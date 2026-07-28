@@ -129,3 +129,49 @@ export function mergeAttachmentDescription(
   const section = `${header}\n${lines.join('\n')}`
   return cleaned ? `${cleaned}\n\n${section}` : section
 }
+
+export function stripAttachmentSectionFromDescription(description?: string | null): string {
+  if (!description?.includes('📎 Anexos (')) return (description || '').trim()
+  const lines = description.split('\n')
+  const clean: string[] = []
+  let skip = false
+  for (const line of lines) {
+    if (line.includes('📎 Anexos (')) {
+      skip = true
+      continue
+    }
+    if (skip && line.startsWith('• ')) continue
+    if (skip && !line.startsWith('• ')) skip = false
+    if (!skip) clean.push(line)
+  }
+  return clean.join('\n').trim()
+}
+
+export function removeAttachmentFromDescription(
+  description: string | null | undefined,
+  target: { filePath?: string; originalName?: string; fileName?: string }
+): string {
+  const targetPath = target.filePath || ''
+  const targetName =
+    target.originalName || target.fileName || targetPath.split('/').pop() || ''
+
+  const remaining = parseAttachmentsFromDescription(description).filter((a) => {
+    const name = getAttachmentName(a)
+    const fp = a.filePath || ''
+    if (targetPath && (fp === targetPath || fp.endsWith(`/${targetName}`))) return false
+    if (targetName && (name === targetName || fp.endsWith(`/${targetName}`))) return false
+    return true
+  })
+
+  const stripped = stripAttachmentSectionFromDescription(description)
+  if (remaining.length === 0) return stripped
+
+  return mergeAttachmentDescription(
+    stripped,
+    remaining.map((a) => ({
+      originalName: getAttachmentName(a),
+      fileType: getAttachmentMime(a),
+      filePath: a.filePath || '',
+    }))
+  )
+}
