@@ -20,6 +20,7 @@ import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 import { TaskCommentsPanel } from '@/components/scrum/TaskCommentsPanel'
 import { TaskMetadataControls } from '@/components/scrum/TaskMetadataControls'
 import { cn } from '@/lib/utils'
+import { mergeAttachmentDescription } from '@/lib/task-attachments'
 import { AlignLeft, Paperclip, CheckSquare } from 'lucide-react'
 
 const taskSchema = z.object({
@@ -323,11 +324,36 @@ export function CreateTaskModal({
       }
 
       const createdTask = await response.json()
+      const taskId = editingTask?.id || createdTask?.id
+
+      const syncAttachmentDescription = async (uploadedFiles: UploadFileInfo[]) => {
+        if (!taskId) return
+        const persisted = uploadedFiles.filter(
+          (f) => f.filePath && !f.filePath.startsWith('blob:') && !f.file
+        )
+        if (persisted.length === 0) return
+
+        const description = mergeAttachmentDescription(
+          editingTask?.description || taskData.description || createdTask.description,
+          persisted.map((f) => ({
+            originalName: f.originalName,
+            fileType: f.fileType,
+            filePath: f.filePath,
+          }))
+        )
+
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description }),
+        })
+      }
 
       // Se houver anexos selecionados na criação, enviar após obter o taskId
       if (!editingTask && attachments.length > 0 && createdTask?.id) {
         try {
-          await fileUploadRef.current?.handleUpload(createdTask.id)
+          const uploadedFiles = (await fileUploadRef.current?.handleUpload(createdTask.id)) || []
+          await syncAttachmentDescription(uploadedFiles)
         } catch {
           // Se falhar upload, seguir com criação e avisar
         }
@@ -335,7 +361,8 @@ export function CreateTaskModal({
       // Se estiver editando e houver novos arquivos (previews), enviar vinculando ao taskId existente
       if (editingTask && attachments.some((f) => !!f.file)) {
         try {
-          await fileUploadRef.current?.handleUpload(editingTask.id)
+          const uploadedFiles = (await fileUploadRef.current?.handleUpload(editingTask.id)) || []
+          await syncAttachmentDescription(uploadedFiles)
         } catch {
           // Se falhar upload, seguir com edição e avisar
         }

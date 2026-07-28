@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { scheduleLinkBrainSync } from '@/lib/link-brain-sync/trigger'
+import { getTaskCoverUrl } from '@/lib/task-attachments-server'
 import { z } from 'zod'
 import { ProjectStatus } from '@prisma/client'
 
@@ -136,7 +137,14 @@ export async function GET(
       )
     }
 
-    return NextResponse.json(project)
+    const tasksWithCover = await Promise.all(
+      project.tasks.map(async (task) => ({
+        ...task,
+        coverImageUrl: await getTaskCoverUrl(task.id, task.description),
+      }))
+    )
+
+    return NextResponse.json({ ...project, tasks: tasksWithCover })
   } catch (error) {
     console.error('Erro ao buscar projeto:', error)
     return NextResponse.json(

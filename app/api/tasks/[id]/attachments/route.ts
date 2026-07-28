@@ -7,7 +7,7 @@ import { existsSync } from 'fs'
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -15,7 +15,7 @@ export async function GET(
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const { id } = params
+    const { id } = await params
     const uploadsDir = path.join(process.cwd(), 'uploads', 'tasks', id)
     if (!existsSync(uploadsDir)) {
       return NextResponse.json({ attachments: [] })

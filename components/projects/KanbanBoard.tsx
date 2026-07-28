@@ -40,6 +40,7 @@ interface ProjectTask {
     id: string;
     name: string;
   } | null;
+  coverImageUrl?: string | null;
 }
 
 interface KanbanBoardProps {
@@ -169,6 +170,7 @@ export function KanbanBoard({
       startTime: task.startTime || undefined,
       estimatedMinutes: task.estimatedMinutes || undefined,
       order: index,
+      coverImageUrl: task.coverImageUrl || undefined,
     };
   };
 

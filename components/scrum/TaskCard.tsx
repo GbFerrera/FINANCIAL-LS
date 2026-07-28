@@ -5,6 +5,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
+import {
+  getAttachmentName,
+  getAttachmentMime,
+  isImageAttachment,
+  parseAttachmentsFromDescription,
+  pickCoverUrl,
+} from '@/lib/task-attachments'
 import { 
   Clock, 
   Flag, 
@@ -58,6 +65,7 @@ interface Task {
     fileSize: number
     filePath?: string
   }>
+  coverImageUrl?: string
 }
 
 interface TaskCardProps {
@@ -86,7 +94,7 @@ const formatDateSafe = (dateString: string) => {
 
 export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: TaskCardProps) {
   const [showAttachments, setShowAttachments] = useState(false)
-  const [coverBroken, setCoverBroken] = useState(false)
+  const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null)
   const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string; url?: string }>>([])
   
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -202,50 +210,18 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
   const getAttachmentsFromDescription = () => {
     if (diskAttachments.length > 0) return diskAttachments
     if (task.attachments && task.attachments.length > 0) return task.attachments
-    
-    const attachments: Array<{name: string, type: string, filePath?: string}> = []
-    const lines = task.description?.split('\n') || []
-    
-    let inAttachmentsSection = false
-    for (const line of lines) {
-      if (line.includes('📎 Anexos (')) {
-        inAttachmentsSection = true
-        continue
-      }
-      
-      if (inAttachmentsSection && line.startsWith('• ')) {
-        const withPath = line.match(/• (.+) \((.+)\) - (.+)$/)
-        const basic = line.match(/• (.+) \((.+)\)/)
-        if (withPath) {
-          attachments.push({
-            name: withPath[1],
-            type: withPath[2],
-            filePath: withPath[3]
-          })
-        } else if (basic) {
-          attachments.push({
-            name: basic[1],
-            type: basic[2],
-            filePath: basic[1]
-          })
-        }
-      } else if (inAttachmentsSection && !line.startsWith('• ')) {
-        break
-      }
-    }
-    
-    return attachments
+    return parseAttachmentsFromDescription(task.description)
   }
 
   useEffect(() => {
-    setCoverBroken(false)
+    setFailedCoverUrl(null)
   }, [task.id])
 
   useEffect(() => {
     let cancelled = false
     const fetchDiskAttachments = async () => {
       try {
-        const res = await fetch(`/api/tasks/${task.id}/attachments`)
+        const res = await fetch(`/api/tasks/${task.id}/attachments`, { credentials: 'same-origin' })
         if (!res.ok) return
         const data: { attachments?: Array<{ originalName: string; mimeType: string; filePath?: string; url?: string }> } = await res.json()
         const mapped = (data.attachments || []).map((a) => ({
@@ -264,7 +240,9 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
   }, [task.id])
 
   const coverUrl = useMemo(() => {
-    if (coverBroken) return null
+    if (task.coverImageUrl && task.coverImageUrl !== failedCoverUrl) {
+      return task.coverImageUrl
+    }
     const candidates = [
       ...diskAttachments,
       ...(task.attachments || []).map((a) => ({
@@ -273,17 +251,10 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
         filePath: a.filePath,
         url: a.filePath ? `/api/files/${a.filePath}` : a.id ? `/api/files/${a.id}` : undefined,
       })),
-      ...getAttachmentsFromDescription(),
+      ...parseAttachmentsFromDescription(task.description),
     ]
-    for (const a of candidates) {
-      const type = 'fileType' in a && a.fileType ? a.fileType : 'type' in a ? a.type : ''
-      const isImage = type.startsWith('image/')
-      if (!isImage) continue
-      if ('url' in a && a.url) return a.url
-      if ('filePath' in a && a.filePath) return `/api/files/${a.filePath}`
-    }
-    return null
-  }, [coverBroken, diskAttachments, task.attachments, task.description])
+    return pickCoverUrl(candidates, failedCoverUrl)
+  }, [failedCoverUrl, diskAttachments, task.attachments, task.description, task.coverImageUrl])
 
   const getPriorityBarClass = () => {
     switch (task.priority) {
@@ -455,9 +426,9 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
         </h4>
         <div className="space-y-1">
           {getAttachmentsFromDescription().map((attachment, index) => {
-            const fileName = 'name' in attachment ? attachment.name : attachment.originalName
-            const fileType = 'type' in attachment ? attachment.type : attachment.fileType
-            const isImage = fileType?.startsWith('image/')
+            const fileName = getAttachmentName(attachment)
+            const fileType = getAttachmentMime(attachment)
+            const isImage = isImageAttachment(attachment)
             const isPDF = fileType === 'application/pdf'
             return (
               <div
@@ -511,7 +482,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
               alt=""
               className="w-full h-[7.5rem] object-cover object-top"
               loading="lazy"
-              onError={() => setCoverBroken(true)}
+              onError={() => setFailedCoverUrl(coverUrl)}
             />
             <div className="absolute inset-x-0 top-0 flex justify-end p-1.5 bg-gradient-to-b from-black/35 to-transparent">
               {cardMenu}
