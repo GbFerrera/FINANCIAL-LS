@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -20,8 +20,8 @@ import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 import { TaskCommentsPanel } from '@/components/scrum/TaskCommentsPanel'
 import { TaskMetadataControls } from '@/components/scrum/TaskMetadataControls'
 import { cn } from '@/lib/utils'
-import { mergeAttachmentDescription } from '@/lib/task-attachments'
-import { AlignLeft, Paperclip, CheckSquare } from 'lucide-react'
+import { mergeAttachmentDescription, parseAttachmentsFromDescription, pickCoverUrl, isImageAttachment, getAttachmentName, getAttachmentMime, resolveAttachmentUrl } from '@/lib/task-attachments'
+import { AlignLeft, Paperclip, CheckSquare, ExternalLink } from 'lucide-react'
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -52,6 +52,7 @@ interface Task {
   startDate?: string | null
   startTime?: string | null
   estimatedMinutes?: number | null
+  coverImageUrl?: string | null
 }
 
 interface CreateTaskModalProps {
@@ -110,7 +111,48 @@ export function CreateTaskModal({
     file?: File
   }
   const [attachments, setAttachments] = useState<UploadFileInfo[]>([])
+  const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null)
   const fileUploadRef = useRef<{ handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> } | null>(null)
+
+  const stripAttachmentSection = (description?: string | null) => {
+    if (!description?.includes('📎 Anexos (')) return description || ''
+    const lines = description.split('\n')
+    const clean: string[] = []
+    let skip = false
+    for (const line of lines) {
+      if (line.includes('📎 Anexos (')) {
+        skip = true
+        continue
+      }
+      if (skip && line.startsWith('• ')) continue
+      if (skip && !line.startsWith('• ')) skip = false
+      if (!skip) clean.push(line)
+    }
+    return clean.join('\n').trim()
+  }
+
+  const coverUrl = useMemo(() => {
+    if (!editingTask) return null
+    if (editingTask.coverImageUrl && editingTask.coverImageUrl !== failedCoverUrl) {
+      return editingTask.coverImageUrl
+    }
+    const candidates = attachments.map((a) => ({
+      originalName: a.originalName,
+      fileType: a.fileType,
+      filePath: a.filePath,
+      url: a.filePath.startsWith('blob:')
+        ? a.filePath
+        : a.filePath
+          ? `/api/files/${a.filePath}`
+          : undefined,
+    }))
+    candidates.push(...parseAttachmentsFromDescription(editingTask.description))
+    return pickCoverUrl(candidates, failedCoverUrl)
+  }, [attachments, editingTask, failedCoverUrl])
+
+  useEffect(() => {
+    setFailedCoverUrl(null)
+  }, [editingTask?.id])
 
   const {
     register,
@@ -149,7 +191,7 @@ export function CreateTaskModal({
       // Se estiver editando, preencher o formulário
       if (editingTask) {
         setValue('title', editingTask.title)
-        setValue('description', editingTask.description || '')
+        setValue('description', stripAttachmentSection(editingTask.description))
         setValue('priority', editingTask.priority)
         setValue('storyPoints', editingTask.storyPoints ?? 1)
         setValue('assigneeId', editingTask.assigneeId || undefined)
@@ -160,24 +202,47 @@ export function CreateTaskModal({
         setValue('estimatedMinutes', editingTask.estimatedMinutes ?? undefined)
         // @ts-ignore - campo pode não estar no tipo gerado até migrar
         setValue('hasBonus', (editingTask as any).hasBonus ?? false)
+        setAttachments([])
         // Carregar anexos existentes
         ;(async () => {
           try {
-            const res = await fetch(`/api/tasks/${editingTask.id}/attachments`)
+            const res = await fetch(`/api/tasks/${editingTask.id}/attachments`, {
+              credentials: 'same-origin',
+            })
+            let mapped: UploadFileInfo[] = []
             if (res.ok) {
               const data = await res.json()
-              const mapped = (data.attachments || []).map((a: any) => ({
+              mapped = (data.attachments || []).map((a: {
+                filename: string
+                originalName?: string
+                filePath?: string
+                size?: number
+                mimeType?: string
+                url?: string
+              }) => ({
                 id: a.filename,
                 originalName: a.originalName || a.filename,
                 fileName: a.filename,
-                filePath: a.filePath,
+                filePath: a.filePath || '',
                 fileSize: a.size || 0,
                 fileType: a.mimeType || 'application/octet-stream',
                 uploadedAt: new Date().toISOString(),
                 taskId: editingTask.id,
               })) as UploadFileInfo[]
-              setAttachments(mapped)
             }
+            if (mapped.length === 0) {
+              mapped = parseAttachmentsFromDescription(editingTask.description).map((a, index) => ({
+                id: `desc-${index}`,
+                originalName: getAttachmentName(a),
+                fileName: getAttachmentName(a),
+                filePath: a.filePath || '',
+                fileSize: 0,
+                fileType: getAttachmentMime(a),
+                uploadedAt: new Date().toISOString(),
+                taskId: editingTask.id,
+              }))
+            }
+            setAttachments(mapped)
           } catch (e) {
             // Silencioso: anexos não são críticos para edição
           }
@@ -470,6 +535,46 @@ export function CreateTaskModal({
           <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
         )}
         <div className={editingTask ? 'rounded-lg' : 'bg-card rounded-lg p-3 border border-muted'}>
+          {editingTask && attachments.some((f) => isImageAttachment({
+            originalName: f.originalName,
+            fileType: f.fileType,
+            filePath: f.filePath,
+          })) && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+              {attachments
+                .filter((f) => isImageAttachment({
+                  originalName: f.originalName,
+                  fileType: f.fileType,
+                  filePath: f.filePath,
+                }))
+                .map((file) => {
+                  const previewUrl = file.filePath.startsWith('blob:')
+                    ? file.filePath
+                    : resolveAttachmentUrl({
+                        originalName: file.originalName,
+                        fileType: file.fileType,
+                        filePath: file.filePath,
+                      }) || ''
+                  return (
+                    <button
+                      key={file.id}
+                      type="button"
+                      className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-border bg-muted/40"
+                      onClick={() => window.open(previewUrl, '_blank')}
+                    >
+                      <img
+                        src={previewUrl}
+                        alt={file.originalName}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                      />
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5 text-left text-[10px] text-white truncate">
+                        {file.originalName}
+                      </span>
+                    </button>
+                  )
+                })}
+            </div>
+          )}
           <FileUpload
             ref={(instance) => {
               fileUploadRef.current = instance as unknown as {
@@ -521,10 +626,34 @@ export function CreateTaskModal({
       <DialogContent
         className={cn(
           editingTask
-            ? 'sm:max-w-[1080px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col'
+            ? 'sm:max-w-[1080px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col [&>[data-slot=dialog-close]]:z-20 [&>[data-slot=dialog-close]]:bg-black/40 [&>[data-slot=dialog-close]]:text-white [&>[data-slot=dialog-close]]:hover:bg-black/60'
             : 'sm:max-w-[900px] max-h-[90vh] overflow-y-auto'
         )}
       >
+        {editingTask && coverUrl && (
+          <div className="relative shrink-0 bg-neutral-950">
+            <button
+              type="button"
+              className="flex w-full items-center justify-center"
+              onClick={() => window.open(coverUrl, '_blank')}
+            >
+              <img
+                src={coverUrl}
+                alt=""
+                className="max-h-[min(420px,42vh)] w-full object-contain"
+                onError={() => setFailedCoverUrl(coverUrl)}
+              />
+            </button>
+            <button
+              type="button"
+              className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs text-white hover:bg-black/70"
+              onClick={() => window.open(coverUrl, '_blank')}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Abrir
+            </button>
+          </div>
+        )}
         <DialogHeader className={editingTask ? 'sr-only' : undefined}>
           <DialogTitle>{editingTask ? 'Detalhes da tarefa' : 'Nova Tarefa'}</DialogTitle>
         </DialogHeader>

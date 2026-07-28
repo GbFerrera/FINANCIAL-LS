@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getTaskCoverUrl } from '@/lib/task-attachments-server'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -194,7 +195,9 @@ export async function GET(
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 })
     }
 
-    return NextResponse.json(task)
+    const coverImageUrl = await getTaskCoverUrl(task.id, task.description)
+
+    return NextResponse.json({ ...task, coverImageUrl })
   } catch (error) {
     console.error('Erro ao buscar tarefa:', error)
     return NextResponse.json(

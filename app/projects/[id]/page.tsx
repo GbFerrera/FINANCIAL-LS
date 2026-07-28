@@ -538,7 +538,8 @@ export default function ProjectDetailsPage() {
         dueDate: full.dueDate ? new Date(full.dueDate).toISOString().split('T')[0] : undefined,
         startDate: full.startDate ? new Date(full.startDate).toISOString().split('T')[0] : undefined,
         startTime: full.startTime || undefined,
-        estimatedMinutes: full.estimatedMinutes ?? undefined
+        estimatedMinutes: full.estimatedMinutes ?? undefined,
+        coverImageUrl: full.coverImageUrl ?? task.coverImageUrl ?? null,
       })
       setShowAddTaskModal(true)
     } catch (error) {
@@ -1298,7 +1299,10 @@ export default function ProjectDetailsPage() {
                   <KanbanBoard 
                     tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
                     onTaskUpdate={handleTaskStatusChange}
-                    onTaskClick={(taskId) => handleViewTaskDetails(taskId)}
+                    onTaskClick={(taskId) => {
+                      const task = project.tasks.find((t) => t.id === taskId)
+                      if (task) handleEditTask(task)
+                    }}
                     onTaskEdit={handleEditTask}
                     onTaskDelete={isAdmin ? handleDeleteTask : undefined}
                   />
@@ -1528,7 +1532,10 @@ export default function ProjectDetailsPage() {
               <KanbanBoard 
                 tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
                 onTaskUpdate={handleTaskStatusChange}
-                onTaskClick={(taskId) => handleViewTaskDetails(taskId)}
+                onTaskClick={(taskId) => {
+                  const task = project.tasks.find((t) => t.id === taskId)
+                  if (task) handleEditTask(task)
+                }}
                 onTaskEdit={handleEditTask}
                 onTaskDelete={isAdmin ? handleDeleteTask : undefined}
               />
