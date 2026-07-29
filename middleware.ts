@@ -24,6 +24,8 @@ export async function middleware(request: NextRequest) {
     '/pix/copiar-chave', // Copiar chave Pix (link do e-mail de lembrete)
     '/api/client-portal/.*', // APIs do portal do cliente
     '/api/collaborator-portal/.*', // APIs do portal do colaborador
+    '/task-portal/.*', // Portal público de task compartilhada
+    '/api/task-portal/.*', // APIs do portal de task
   ]
 
   const isPublicPath = publicPaths.some(path => {

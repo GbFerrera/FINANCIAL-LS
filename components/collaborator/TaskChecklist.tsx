@@ -26,11 +26,19 @@ interface ChecklistGroup {
 
 interface TaskChecklistProps {
   token?: string
+  shareToken?: string
   taskId: string
   variant?: 'default' | 'minimal'
+  readOnly?: boolean
 }
 
-export function TaskChecklist({ token, taskId, variant = 'default' }: TaskChecklistProps) {
+export function TaskChecklist({
+  token,
+  shareToken,
+  taskId,
+  variant = 'default',
+  readOnly = false,
+}: TaskChecklistProps) {
   const [groups, setGroups] = useState<ChecklistGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [newGroupTitle, setNewGroupTitle] = useState('')
@@ -43,6 +51,9 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
   const [isMainCollapsed, setIsMainCollapsed] = useState(false)
 
   const isMinimal = variant === 'minimal'
+  const isSharePortal = Boolean(shareToken)
+  const canEditStructure = !readOnly && !isSharePortal
+  const canToggleItems = !readOnly
 
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups(prev => ({
@@ -52,6 +63,9 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
   }
 
   const getBaseUrl = () => {
+    if (shareToken) {
+      return `/api/task-portal/${shareToken}/checklist`
+    }
     if (token) {
       return `/api/collaborator-portal/${token}/tasks/${taskId}/checklist`
     }
@@ -75,7 +89,7 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
 
   useEffect(() => {
     fetchChecklist()
-  }, [token, taskId])
+  }, [token, shareToken, taskId])
 
   const addGroup = async () => {
     if (!newGroupTitle.trim()) return
@@ -266,6 +280,7 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
 
   const content = (
     <div className="space-y-4">
+      {canEditStructure && (
       <div className="flex gap-2">
         <Input
           placeholder="Nome do novo grupo..."
@@ -284,6 +299,7 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
           {isMinimal ? 'Grupo' : 'Adicionar grupo'}
         </Button>
       </div>
+      )}
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="space-y-6">
@@ -336,12 +352,16 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                           <span className="font-medium text-sm">{group.title}</span>
                           <span className="text-xs text-muted-foreground">({groupDone}/{groupTotal})</span>
                           <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                            {canEditStructure && (
+                              <>
                             <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditGroup(group)}>
                               <Pencil className="w-3 h-3 text-muted-foreground" />
                             </Button>
                             <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => deleteGroup(group.id)}>
                               <Trash2 className="w-3 h-3 text-destructive" />
                             </Button>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
@@ -360,6 +380,7 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                               >
                                 <Checkbox
                                   checked={item.done}
+                                  disabled={!canToggleItems}
                                   onCheckedChange={(checked) => toggleItem(item.id, checked as boolean)}
                                   className="mt-0.5"
                                 />
@@ -385,10 +406,14 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                                   </div>
                                 ) : (
                                   <div className={`flex-1 break-words ${item.done ? 'text-muted-foreground line-through' : ''}`}>
-                                    {item.title}
+                                    <div>{item.title}</div>
+                                    {item.description && (
+                                      <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{item.description}</p>
+                                    )}
                                   </div>
                                 )}
 
+                                {canEditStructure && (
                                 <div className="opacity-0 group-hover/item:opacity-100 flex items-center gap-1">
                                   <Button type="button" size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => startEditItem(item)}>
                                     <Pencil className="w-3 h-3 text-muted-foreground" />
@@ -397,12 +422,14 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                                     <Trash2 className="w-3 h-3 text-destructive" />
                                   </Button>
                                 </div>
+                                )}
                               </div>
                             )}
                           </Draggable>
                         ))}
                         {provided.placeholder}
 
+                        {canEditStructure && (
                         <div className="flex gap-2 items-center pt-1">
                           <Input
                             placeholder="Nova tarefa..."
@@ -421,6 +448,7 @@ export function TaskChecklist({ token, taskId, variant = 'default' }: TaskCheckl
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
+                        )}
                       </div>
                     )}
                   </div>

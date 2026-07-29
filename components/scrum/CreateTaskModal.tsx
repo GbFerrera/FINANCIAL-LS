@@ -37,6 +37,7 @@ import {
   removeAttachmentFromDescription,
   stripAttachmentSectionFromDescription,
 } from '@/lib/task-attachments'
+import { TaskSharePanel } from '@/components/scrum/TaskSharePanel'
 import { AlignLeft, Paperclip, CheckSquare, ExternalLink, MoreVertical, Trash2 } from 'lucide-react'
 
 const taskSchema = z.object({
@@ -728,6 +729,10 @@ export function CreateTaskModal({
           />
         </div>
       </div>
+
+      {editingTask && (
+        <TaskSharePanel taskId={editingTask.id} />
+      )}
 
       {editingTask && (
         <div className="pl-8 pt-2">

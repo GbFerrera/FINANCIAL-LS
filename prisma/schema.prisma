@@ -208,6 +208,8 @@ model Task {
   estimatedMinutes Int?
   hasBonus         Boolean      @default(false)
   startDate        DateTime?
+  shareToken       String?      @unique
+  shareEnabled     Boolean      @default(false)
   comments         Comment[]
   assignee         User?        @relation(fields: [assigneeId], references: [id])
   milestone        Milestone?   @relation(fields: [milestoneId], references: [id])
