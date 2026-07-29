@@ -26,7 +26,9 @@ import {
   MessageSquare,
   Paperclip,
   Image as ImageIcon,
-  FileText
+  FileText,
+  Bot,
+  Loader2
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -35,6 +37,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
+import { toast } from 'react-hot-toast'
+import {
+  buildTaskAgentClipboardText,
+  ensureTaskShareLink,
+} from '@/lib/task-share-client'
 
 interface Task {
   id: string
@@ -96,6 +103,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
   const [showAttachments, setShowAttachments] = useState(false)
   const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null)
   const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string; url?: string }>>([])
+  const [copyingForAgent, setCopyingForAgent] = useState(false)
   
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -284,7 +292,49 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     }
   }
 
-  const cardMenu = (onEdit || onDelete) && (
+  const getPriorityLabel = () => {
+    switch (task.priority) {
+      case 'LOW':
+        return 'Baixa'
+      case 'MEDIUM':
+        return 'Média'
+      case 'HIGH':
+        return 'Alta'
+      case 'URGENT':
+        return 'Urgente'
+      default:
+        return 'Média'
+    }
+  }
+
+  const handleCopyForAgent = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (copyingForAgent) return
+
+    try {
+      setCopyingForAgent(true)
+      const { shareUrl, agentApiUrl } = await ensureTaskShareLink(task.id)
+      const text = buildTaskAgentClipboardText(
+        {
+          title: task.title,
+          projectName: task.project?.name,
+          status: getStatusLabel(),
+          priority: getPriorityLabel(),
+          assigneeName: task.assignee?.name,
+        },
+        shareUrl,
+        agentApiUrl
+      )
+      await navigator.clipboard.writeText(text)
+      toast.success('Detalhes + link copiados para colar na IA')
+    } catch {
+      toast.error('Erro ao copiar link da task')
+    } finally {
+      setCopyingForAgent(false)
+    }
+  }
+
+  const cardMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
@@ -296,7 +346,19 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
           <MoreVertical className="w-4 h-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem
+          onClick={handleCopyForAgent}
+          disabled={copyingForAgent}
+          className="flex items-center gap-2"
+        >
+          {copyingForAgent ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Bot className="w-3 h-3" />
+          )}
+          Copiar para IA
+        </DropdownMenuItem>
         {onEdit && (
           <DropdownMenuItem
             onClick={(e) => {
