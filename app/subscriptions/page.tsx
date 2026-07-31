@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { StatsCard } from "@/components/ui/stats-card"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ClientPicker } from "@/components/clients/client-picker"
 
 type Group = {
   id: string
@@ -220,7 +221,6 @@ export default function SubscriptionsPage() {
 
   const [activeTab, setActiveTab] = useState<"subscriptions" | "groups">("subscriptions")
   const [loading, setLoading] = useState(false)
-  const [selectClientOpen, setSelectClientOpen] = useState(false)
   const [createSubscriptionOpen, setCreateSubscriptionOpen] = useState(false)
   const [editSubscriptionOpen, setEditSubscriptionOpen] = useState(false)
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
@@ -229,7 +229,6 @@ export default function SubscriptionsPage() {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
 
   const [groups, setGroups] = useState<Group[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
 
   const [newGroupName, setNewGroupName] = useState("")
@@ -241,7 +240,6 @@ export default function SubscriptionsPage() {
   const [subPrice, setSubPrice] = useState("0,00")
   const [subCycle, setSubCycle] = useState<"MONTHLY" | "YEARLY">("MONTHLY")
   const [subDueDay, setSubDueDay] = useState("10")
-  const [clientSearch, setClientSearch] = useState("")
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
 
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null)
@@ -252,12 +250,6 @@ export default function SubscriptionsPage() {
   const [editCycle, setEditCycle] = useState<"MONTHLY" | "YEARLY">("MONTHLY")
   const [editDueDay, setEditDueDay] = useState("10")
   const [editClientId, setEditClientId] = useState<string | null>(null)
-
-  const filteredClients = useMemo(() => {
-    const q = clientSearch.trim().toLowerCase()
-    if (!q) return clients
-    return clients.filter((c) => (c.name || "").toLowerCase().includes(q) || (c.email || "").toLowerCase().includes(q))
-  }, [clients, clientSearch])
 
   useEffect(() => {
     if (status === "loading") return
@@ -271,7 +263,7 @@ export default function SubscriptionsPage() {
   const refreshAll = async () => {
     setLoading(true)
     try {
-      await Promise.all([fetchGroups(), fetchClients(), fetchSubscriptions()])
+      await Promise.all([fetchGroups(), fetchSubscriptions()])
     } finally {
       setLoading(false)
     }
@@ -282,14 +274,6 @@ export default function SubscriptionsPage() {
     if (!res.ok) throw new Error("Falha ao buscar grupos")
     const data = await res.json()
     setGroups(data.groups || [])
-  }
-
-  const fetchClients = async () => {
-    const res = await fetch("/api/clients?page=1&limit=500")
-    if (!res.ok) throw new Error("Falha ao buscar clientes")
-    const data = await res.json()
-    const list = (data.clients || []).map((c: any) => ({ id: c.id, name: c.name, email: c.email })) as Client[]
-    setClients(list)
   }
 
   const fetchSubscriptions = async () => {
@@ -477,11 +461,6 @@ export default function SubscriptionsPage() {
       setLoading(false)
     }
   }
-
-  const selectedClient = useMemo(() => {
-    if (!selectedClientId) return null
-    return clients.find((c) => c.id === selectedClientId) || null
-  }, [clients, selectedClientId])
 
   const markAsPaid = async (clientSubscriptionId: string, paidForDate: Date) => {
     try {
@@ -783,81 +762,11 @@ export default function SubscriptionsPage() {
 
                       <div className="space-y-2">
                         <Label>Cliente</Label>
-                        <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-                          <div className="min-w-0">
-                            {selectedClient ? (
-                              <div className="text-sm text-muted-foreground truncate">
-                                {selectedClient.name} • {selectedClient.email}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-muted-foreground">Nenhum cliente selecionado</div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button variant="outline" onClick={() => setSelectedClientId(null)} disabled={!selectedClientId}>
-                              Limpar
-                            </Button>
-                            <Dialog open={selectClientOpen} onOpenChange={setSelectClientOpen}>
-                              <DialogTrigger asChild>
-                                <Button variant="secondary">Selecionar</Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-2xl">
-                                <DialogHeader>
-                                  <DialogTitle>Selecionar cliente</DialogTitle>
-                                  <DialogDescription>Escolha o cliente para vincular a esta assinatura.</DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-3">
-                                  <Input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} placeholder="Buscar por nome ou email..." />
-                                  <div className="max-h-[320px] overflow-auto rounded-md border p-3">
-                                    {filteredClients.length === 0 ? (
-                                      <div className="text-sm text-muted-foreground">Nenhum cliente encontrado.</div>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        {filteredClients.map((c) => {
-                                          const checked = selectedClientId === c.id
-                                          return (
-                                            <button
-                                              key={c.id}
-                                              type="button"
-                                              onClick={() => setSelectedClientId(c.id)}
-                                              className={`w-full text-left rounded-md border px-3 py-2 transition-colors ${
-                                                checked ? "border-primary bg-primary/10" : "hover:bg-muted/40"
-                                              }`}
-                                            >
-                                              <div className="flex items-center justify-between gap-3">
-                                                <div className="min-w-0">
-                                                  <div className="text-sm font-medium truncate">{c.name}</div>
-                                                  <div className="text-xs text-muted-foreground truncate">{c.email}</div>
-                                                </div>
-                                                <Checkbox checked={checked} />
-                                              </div>
-                                            </button>
-                                          )
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <DialogFooter>
-                                  <Button variant="outline" onClick={() => setSelectClientOpen(false)}>
-                                    Fechar
-                                  </Button>
-                                  <Button
-                                    onClick={() => {
-                                      if (!selectedClientId) {
-                                        toast.error("Selecione um cliente")
-                                        return
-                                      }
-                                      setSelectClientOpen(false)
-                                    }}
-                                  >
-                                    Confirmar
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
-                          </div>
-                        </div>
+                        <ClientPicker
+                          value={selectedClientId || ""}
+                          onChange={(id) => setSelectedClientId(id ? id : null)}
+                          placeholder="Selecione um cliente"
+                        />
                       </div>
                     </div>
 
@@ -913,18 +822,11 @@ export default function SubscriptionsPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Cliente</Label>
-                          <Select value={editClientId || ""} onValueChange={(v) => setEditClientId(v || null)}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um cliente" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {clients.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  {c.name} ({c.email})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <ClientPicker
+                            value={editClientId || ""}
+                            onChange={(id) => setEditClientId(id ? id : null)}
+                            placeholder="Selecione um cliente"
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Nome</Label>

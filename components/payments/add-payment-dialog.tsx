@@ -21,14 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ClientPicker } from "@/components/clients/client-picker"
 import toast from "react-hot-toast"
-
-interface Client {
-  id: string
-  name: string
-  email: string
-  company?: string
-}
 
 interface AddPaymentDialogProps {
   open: boolean
@@ -66,7 +60,6 @@ export function AddPaymentDialog({
   defaultDate,
   paymentToEdit,
 }: AddPaymentDialogProps) {
-  const [clients, setClients] = useState<Client[]>([])
   const [waInstances, setWaInstances] = useState<Array<{ id: string; label: string; status: string }>>([])
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
@@ -121,7 +114,6 @@ export function AddPaymentDialog({
 
   useEffect(() => {
     if (open) {
-      fetchClients()
       if (mode === 'CHARGE') {
         fetchWaInstances()
         fetchDefaultPixFromTemplate()
@@ -206,28 +198,6 @@ export function AddPaymentDialog({
       setWaInstances(Array.isArray(data.instances) ? data.instances : [])
     } catch {
       setWaInstances([])
-    }
-  }
-
-  const fetchClients = async () => {
-    try {
-      const response = await fetch('/api/clients')
-      if (response.ok) {
-        const data = await response.json()
-        if (Array.isArray(data)) {
-          setClients(data)
-        } else if (data && Array.isArray((data as any).clients)) {
-          setClients((data as any).clients)
-        } else {
-          setClients([])
-        }
-      } else {
-        setClients([])
-      }
-    } catch (error) {
-      console.error('Erro ao carregar clientes:', error)
-      toast.error('Erro ao carregar clientes')
-      setClients([])
     }
   }
 
@@ -383,21 +353,11 @@ export function AddPaymentDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="client">Cliente *</Label>
-            <Select
+            <ClientPicker
               value={formData.clientId}
-              onValueChange={(value) => handleInputChange('clientId', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.company || client.name} ({client.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={(value) => handleInputChange("clientId", value)}
+              placeholder="Selecione um cliente"
+            />
           </div>
 
           <div className="space-y-2">

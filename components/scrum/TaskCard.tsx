@@ -465,21 +465,6 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     }
   }
 
-  const getPriorityLabel = () => {
-    switch (task.priority) {
-      case 'LOW':
-        return 'Baixa'
-      case 'MEDIUM':
-        return 'Média'
-      case 'HIGH':
-        return 'Alta'
-      case 'URGENT':
-        return 'Urgente'
-      default:
-        return 'Média'
-    }
-  }
-
   const attachmentsPanel =
     showAttachments && hasAttachments() ? (
       <div className="pt-2 border-t border-muted max-h-24 overflow-y-auto">

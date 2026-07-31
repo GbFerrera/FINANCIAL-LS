@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ClientPicker } from "@/components/clients/client-picker"
 import { 
   AlertDialog,
   AlertDialogContent,
@@ -433,18 +434,11 @@ function CreateMktSprintModal({
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="client" className="text-xs">Cliente</Label>
-                  <Select value={newProjectClientId} onValueChange={setNewProjectClientId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ClientPicker
+                    value={newProjectClientId}
+                    onChange={setNewProjectClientId}
+                    placeholder="Selecione o cliente"
+                  />
                 </div>
                 <Button 
                   type="button" 

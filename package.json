@@ -11,6 +11,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "subscriptions:reconcile": "tsx scripts/reconcile-subscription-billing.ts",
     "link-brain:sync": "tsx scripts/sync-link-brain.ts",
+    "pm:bootstrap": "tsx scripts/bootstrap-project-via-api.ts",
+    "pm:populate-task": "tsx scripts/populate-task-via-api.ts",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",

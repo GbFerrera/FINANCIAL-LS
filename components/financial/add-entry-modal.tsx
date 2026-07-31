@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ClientPicker } from "@/components/clients/client-picker"
 import { Calendar as RangeCalendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DateRange } from "react-day-picker"
@@ -32,13 +33,6 @@ import { cn } from "@/lib/utils"
 interface Project {
   id: string
   name: string
-}
-
-interface Client {
-  id: string
-  name: string
-  email: string
-  company?: string
 }
 
 interface ProjectPaymentSummary {
@@ -99,7 +93,6 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry, initia
   const [projects, setProjects] = useState<Project[]>([])
   const [categories, setCategories] = useState<{INCOME: string[], EXPENSE: string[]}>({INCOME: [], EXPENSE: []})
   const [teamMembers, setTeamMembers] = useState<Array<{ id: string; name: string }>>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [selectedClientId, setSelectedClientId] = useState('')
   const [clientProjectSummaries, setClientProjectSummaries] = useState<ProjectPaymentSummary[]>([])
   const [loadingClientData, setLoadingClientData] = useState(false)
@@ -162,7 +155,6 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry, initia
     if (isOpen) {
       fetchProjects()
       fetchCategories()
-      fetchClients()
       fetchTeamMembers()
       
       // Reset formulário para nova entrada ou preencher se editando
@@ -299,27 +291,6 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry, initia
           'Outros'
         ]
       })
-    }
-  }
-
-  const fetchClients = async () => {
-    try {
-      const response = await fetch('/api/clients')
-      if (response.ok) {
-        const data = await response.json()
-        if (Array.isArray(data)) {
-          setClients(data)
-        } else if (data && Array.isArray((data as any).clients)) {
-          setClients((data as any).clients)
-        } else {
-          setClients([])
-        }
-      } else {
-        setClients([])
-      }
-    } catch (error) {
-      console.error('Erro ao buscar clientes:', error)
-      setClients([])
     }
   }
 
@@ -705,24 +676,14 @@ export function AddEntryModal({ isOpen, onClose, onSuccess, editingEntry, initia
                   Cliente *
                 </Label>
                 <div className="mt-1">
-                  <Select
+                  <ClientPicker
                     value={selectedClientId}
-                    onValueChange={(value) => {
+                    onChange={(value) => {
                       setSelectedClientId(value)
-                      setFormData(prev => ({ ...prev, clientId: value, projectId: '' }))
+                      setFormData((prev) => ({ ...prev, clientId: value, projectId: "" }))
                     }}
-                  >
-                    <SelectTrigger className="rounded-lg border-muted focus:border-blue-400">
-                      <SelectValue placeholder="Selecione um cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map(client => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name} {client.company && `(${client.company})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Selecione um cliente"
+                  />
                 </div>
               </div>
             )}

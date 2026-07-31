@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { } from "date-fns"
 import {
   Plus,
   Search,
@@ -26,6 +25,7 @@ import {
 } from "lucide-react"
 import { StatsCard } from "@/components/ui/stats-card"
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { ClientMultiPicker, ClientPicker } from "@/components/clients/client-picker"
 import {
   Dialog,
   DialogContent,
@@ -63,13 +63,6 @@ interface ProjectStats {
   averageProgress: number
 }
 
-interface Client {
-  id: string
-  name: string
-  email: string
-  company: string
-}
-
 interface NewProject {
   name: string
   description: string
@@ -91,7 +84,6 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [clientFilter, setClientFilter] = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
-  const [clients, setClients] = useState<Client[]>([])
   const [newProject, setNewProject] = useState<NewProject>({
     name: '',
     description: '',
@@ -152,12 +144,6 @@ export default function ProjectsPage() {
     fetchProjects()
   }, [session, status, router])
 
-  useEffect(() => {
-    if (session && status === "authenticated") {
-      fetchClients()
-    }
-  }, [session, status])
-
   const fetchProjects = async () => {
     try {
       setLoading(true)
@@ -175,23 +161,6 @@ export default function ProjectsPage() {
       toast.error('Erro ao carregar projetos')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchClients = async () => {
-    try {
-      const response = await fetch('/api/clients?limit=all')
-      if (response.ok) {
-        const data = await response.json()
-        setClients(data.clients.map((client: { id: string; name: string; email: string; company?: string }) => ({
-          id: client.id,
-          name: client.name,
-          email: client.email,
-          company: client.company || ''
-        })))
-      }
-    } catch (error) {
-      console.error('Erro ao buscar clientes:', error)
     }
   }
 
@@ -514,51 +483,34 @@ export default function ProjectsPage() {
                       <label className="block text-sm font-medium text-foreground mb-1">
                         Cliente *
                       </label>
-                      <select
+                      <ClientPicker
                         value={newProject.clientId}
-                        onChange={(e) => setNewProject({ ...newProject, clientId: e.target.value })}
-                        className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
-                        required
-                      >
-                        <option value="">Selecione um cliente</option>
-                        {clients.map((client) => (
-                          <option key={client.id} value={client.id}>
-                            {client.name} {client.company && `- ${client.company}`}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(clientId) =>
+                          setNewProject((prev) => ({
+                            ...prev,
+                            clientId,
+                            additionalClientIds: prev.additionalClientIds.filter((id) => id !== clientId),
+                          }))
+                        }
+                        placeholder="Selecione um cliente"
+                      />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-foreground mb-1">
                         Clientes adicionais (opcional)
                       </label>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-input rounded p-2 bg-card">
-                        {clients
-                          .filter(c => c.id !== newProject.clientId)
-                          .map((client) => {
-                            const checked = newProject.additionalClientIds.includes(client.id)
-                            return (
-                              <label key={client.id} className="flex items-center gap-2 text-sm text-foreground">
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(e) => {
-                                    setNewProject(prev => ({
-                                      ...prev,
-                                      additionalClientIds: e.target.checked
-                                        ? [...prev.additionalClientIds, client.id]
-                                        : prev.additionalClientIds.filter(id => id !== client.id)
-                                    }))
-                                  }}
-                                />
-                                <span>
-                                  {client.name} {client.company && `- ${client.company}`}
-                                </span>
-                              </label>
-                            )
-                          })}
-                      </div>
+                      <ClientMultiPicker
+                        values={newProject.additionalClientIds}
+                        onChange={(ids) =>
+                          setNewProject((prev) => ({
+                            ...prev,
+                            additionalClientIds: ids.filter((id) => id && id !== prev.clientId),
+                          }))
+                        }
+                        excludeIds={[newProject.clientId]}
+                        placeholder="Nenhum cliente adicional selecionado"
+                      />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
