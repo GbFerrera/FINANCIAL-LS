@@ -21,6 +21,11 @@ const markPaidSchema = z.object({
   paidForDate: z.string().datetime(),
 })
 
+const resetPaymentSchema = z.object({
+  clientSubscriptionId: z.string().min(1),
+  resetPayment: z.literal(true),
+})
+
 const updateSubscriptionSchema = z.object({
   subscriptionId: z.string().min(1),
   groupId: z.string().min(1),
@@ -127,8 +132,25 @@ export async function PATCH(req: NextRequest) {
     if (session.user.role !== UserRole.ADMIN) return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
 
     const json = await req.json()
-    const isMarkPaid = json && typeof json === "object" && "clientSubscriptionId" in json
+    const isResetPayment =
+      json && typeof json === "object" && json.resetPayment === true && "clientSubscriptionId" in json
+    const isMarkPaid = json && typeof json === "object" && "clientSubscriptionId" in json && !isResetPayment
     const isUpdateSubscription = json && typeof json === "object" && "subscriptionId" in json && !("clientSubscriptionId" in json)
+
+    if (isResetPayment) {
+      const body = resetPaymentSchema.parse(json)
+      const db = prisma as any
+      const updated = await db.clientSubscription.update({
+        where: { id: body.clientSubscriptionId },
+        data: { lastPaidFor: null, paidAt: null },
+        include: {
+          client: { select: { id: true, name: true, email: true } },
+          subscription: { include: { group: true } },
+        },
+      })
+      scheduleLinkBrainSync('assinatura pagamento resetado')
+      return NextResponse.json(updated)
+    }
 
     if (isUpdateSubscription) {
       const body = updateSubscriptionSchema.parse(json)
