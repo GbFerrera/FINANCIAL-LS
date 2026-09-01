@@ -1,5 +1,6 @@
 import {
   dateKey,
+  isCyclePaid,
   unpaidDueDateForClientSubscription,
   yearMonthKey,
   type BillingCycle,
@@ -71,11 +72,6 @@ export function normalizeSendTime(input: string) {
   const hour = Math.min(23, Math.max(0, Number(match[1])))
   const minute = Math.min(59, Math.max(0, Number(match[2])))
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
-}
-
-export function isCyclePaid(lastPaidFor: Date | null, due: Date) {
-  if (!lastPaidFor) return false
-  return yearMonthKey(lastPaidFor) === yearMonthKey(due)
 }
 
 export type ReminderCandidate = {

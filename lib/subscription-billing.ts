@@ -42,7 +42,8 @@ export function isFirstDueApplicable(startedAt: Date | null | undefined, due: Da
 
 export function isCyclePaid(lastPaidFor: Date | null | undefined, due: Date) {
   if (!lastPaidFor) return false
-  return yearMonthKey(lastPaidFor) === yearMonthKey(due)
+  // lastPaidFor = último ciclo quitado; ciclos anteriores contam como pagos (sequencial).
+  return yearMonthKey(due) <= yearMonthKey(lastPaidFor)
 }
 
 export function chargeDueForMonth(input: {
@@ -133,7 +134,6 @@ export function unpaidDueDateForClientSubscription(input: {
   }
 
   const lastPaid = input.lastPaidFor ? normalizeToDueDay(input.lastPaidFor, input.dueDay) : null
-  const lastPaidYm = lastPaid ? yearMonthKey(lastPaid) : null
 
   const searchEnd = new Date(ref.getFullYear(), ref.getMonth() + 24, 1)
   const dues = listMonthlyDuesInRange({
@@ -143,22 +143,16 @@ export function unpaidDueDateForClientSubscription(input: {
     to: searchEnd,
   }).filter((due) => isFirstDueApplicable(startedAt, due))
 
-  for (const due of dues) {
-    const dueYm = yearMonthKey(due)
-    if (!lastPaidYm) return due
-    if (dueYm !== lastPaidYm) return due
+  if (!lastPaid) {
+    return dues[0] ?? null
   }
 
-  if (lastPaid) {
-    return nextChargeDateForClientSubscription({
-      from: dayAfterNoon(lastPaid),
-      dueDay: input.dueDay,
-      billingCycle: input.billingCycle,
-      startedAt: input.startedAt,
-    })
-  }
-
-  return null
+  return nextChargeDateForClientSubscription({
+    from: dayAfterNoon(lastPaid),
+    dueDay: input.dueDay,
+    billingCycle: input.billingCycle,
+    startedAt: input.startedAt,
+  })
 }
 
 /** Simula o cálculo antigo (bug) de "próxima cobrança" após pagar no mês do vencimento. */
@@ -294,8 +288,7 @@ export function auditClientSubscription(input: {
     if (due.getTime() < lastPaid.getTime() && yearMonthKey(due) !== yearMonthKey(lastPaid)) {
       issues.push({
         code: "OPEN_GAP_BEFORE_LAST_PAID",
-        message: `Ciclo em aberto antes do último pago: vencimento ${dateKey(due)}.`,
-        suggestedLastPaidFor: null,
+        message: `Ciclo em aberto antes do último pago: vencimento ${dateKey(due)}. Não zera lastPaidFor — revisar entradas financeiras ou marcar o ciclo em aberto.`,
       })
       break
     }

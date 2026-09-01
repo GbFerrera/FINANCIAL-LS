@@ -823,7 +823,7 @@ export default function SubscriptionsPage() {
                         : null
 
                     const isPaid =
-                      !nextUnpaidDue || yearMonthKey(nextUnpaidDue) > yearMonthKey(now)
+                      !nextUnpaidDue || dateKey(nextUnpaidDue) > dateKey(now)
                     const nextCharge = nextUnpaidDue ? formatDateBR(nextUnpaidDue) : "-"
                     return (
                       <div key={s.id} className="rounded-lg border p-4">
