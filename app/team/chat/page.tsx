@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 import {
   Send,
   Paperclip,
@@ -221,7 +222,7 @@ export default function TeamChatPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+          <LoadingAnimation size="lg" />
         </div>
       </DashboardLayout>
     )

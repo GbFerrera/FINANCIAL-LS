@@ -11,21 +11,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const archivedOnly = searchParams.get('archivedOnly') === 'true'
+
     // Buscar sprints básicas primeiro
-    const sprintsBasic = await prisma.$queryRaw`
-      SELECT 
-        id,
-        name,
-        description,
-        status,
-        "startDate",
-        "endDate",
-        goal,
-        capacity,
-        "createdAt",
-        "updatedAt"
-      FROM sprints
-    ` as any[]
+    const sprintsBasic = archivedOnly
+      ? await prisma.$queryRaw`
+          SELECT 
+            id, name, description, status, "startDate", "endDate", goal, capacity,
+            "isArchived", "archivedAt", "createdAt", "updatedAt"
+          FROM sprints
+          WHERE "isArchived" = true
+        ` as any[]
+      : await prisma.$queryRaw`
+          SELECT 
+            id, name, description, status, "startDate", "endDate", goal, capacity,
+            "isArchived", "archivedAt", "createdAt", "updatedAt"
+          FROM sprints
+          WHERE "isArchived" = false
+        ` as any[]
 
     // Para cada sprint, buscar projetos e tarefas separadamente
     const sprints = await Promise.all(

@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
+import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+import {
   Clock, 
   Calendar, 
   CheckCircle2, 
@@ -113,320 +114,6 @@ export default function CollaboratorPortalPage({ params }: { params: Promise<{ t
       setError(null)
       const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}?date=${selectedDate}`)
       
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Erro ao carregar dados')
-      }
-      
-      const result = await response.json()
-      setData(result)
-    } catch (error) {
-      console.error('Erro ao buscar dados:', error)
-      setError(error instanceof Error ? error.message : 'Erro desconhecido')
-    } finally {
-      setLoading(false)
-    }
-  }, [selectedDate, resolvedParams.token])
-
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (activeTimer) {
-      interval = setInterval(() => {
-        setTimeTrackers(prev => {
-          const newTrackers = new Map(prev)
-          const tracker = newTrackers.get(activeTimer)
-          if (tracker && !tracker.isPaused) {
-            const currentTime = Date.now()
-            const totalElapsed = Math.floor((currentTime - tracker.startTime) / 1000)
-            tracker.elapsedTime = totalElapsed - tracker.totalPausedTime
-            tracker.duration = tracker.elapsedTime
-            newTrackers.set(activeTimer, tracker)
-          }
-          // Se estiver pausado, não atualiza o elapsedTime, mantém o valor atual
-          return newTrackers
-        })
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [activeTimer])
-
-  const startTimer = async (taskId: string) => {
-    if (activeTimer && activeTimer !== taskId) {
-      await stopTimer(activeTimer)
-    }
-    
-    try {
-      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          taskId,
-          action: 'start'
-        })
-      })
-      
-      if (response.ok) {
-        const now = Date.now()
-        setTimeTrackers(prev => {
-          const newTrackers = new Map(prev)
-          newTrackers.set(taskId, {
-            taskId,
-            startTime: now,
-            elapsedTime: 0,
-            isPaused: false,
-            totalPausedTime: 0,
-            duration: 0
-          })
-          return newTrackers
-        })
-        setActiveTimer(taskId)
-      } else {
-        console.error('Erro ao iniciar cronômetro')
-      }
-    } catch (error) {
-      console.error('Erro ao iniciar cronômetro:', error)
-    }
-  }
-
-  const pauseTimer = async (taskId: string) => {
-    const tracker = timeTrackers.get(taskId)
-    if (tracker && !tracker.isPaused) {
-      try {
-        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            taskId,
-            action: 'pause'
-          })
-        })
-        
-        if (response.ok) {
-          setTimeTrackers(prev => {
-            const newTrackers = new Map(prev)
-            const currentTracker = newTrackers.get(taskId)
-            if (currentTracker) {
-              const pausedTime = Date.now()
-              newTrackers.set(taskId, {
-                ...currentTracker,
-                isPaused: true,
-                pausedAt: pausedTime
-              })
-            }
-            return newTrackers
-          })
-        } else {
-          console.error('Erro ao pausar cronômetro')
-        }
-      } catch (error) {
-        console.error('Erro ao pausar cronômetro:', error)
-      }
-    }
-  }
-
-  const resumeTimer = async (taskId: string) => {
-    const tracker = timeTrackers.get(taskId)
-    if (tracker && tracker.isPaused && tracker.pausedAt) {
-      try {
-        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            taskId,
-            action: 'resume'
-          })
-        })
-        
-        if (response.ok) {
-          setTimeTrackers(prev => {
-            const newTrackers = new Map(prev)
-            const currentTracker = newTrackers.get(taskId)
-            if (currentTracker && currentTracker.pausedAt) {
-              const pausedDuration = Math.floor((Date.now() - currentTracker.pausedAt) / 1000)
-              newTrackers.set(taskId, {
-                ...currentTracker,
-                totalPausedTime: currentTracker.totalPausedTime + pausedDuration,
-                isPaused: false,
-                pausedAt: undefined
-              })
-            }
-            return newTrackers
-          })
-        } else {
-          console.error('Erro ao retomar cronômetro')
-        }
-      } catch (error) {
-        console.error('Erro ao retomar cronômetro:', error)
-      }
-    }
-  }
-
-  const stopTimer = async (taskId: string) => {
-    const tracker = timeTrackers.get(taskId)
-    if (tracker) {
-      try {
-        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            taskId,
-            action: 'stop'
-          })
-        })
-        
-        if (response.ok) {
-          fetchData() // Refresh data
-        } else {
-          console.error('Erro ao parar cronômetro')
-        }
-      } catch (error) {
-        console.error('Erro ao parar cronômetro:', error)
-      }
-    }
-    
-    setTimeTrackers(prev => {
-      const newTrackers = new Map(prev)
-      newTrackers.delete(taskId)
-      return newTrackers
-    })
-    
-    if (activeTimer === taskId) {
-      setActiveTimer(null)
-    }
-  }
-
-  const updateTaskStatus = async (taskId: string, status: string) => {
-    try {
-      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ taskId, status })
-      })
-      
-      if (response.ok) {
-        fetchData()
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error)
-    }
-  }
-
-  const getCurrentTask = (taskId: string): Task | undefined => {
-    if (!data) return undefined
-    return [...data.tasks.today, ...data.tasks.overdue, ...data.tasks.inProgress, ...data.tasks.completed]
-      .find(task => task.id === taskId)
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'URGENT': return 'bg-red-500'
-      case 'HIGH': return 'bg-orange-500'
-      case 'MEDIUM': return 'bg-yellow-500'
-      case 'LOW': return 'bg-green-500'
-      default: return 'bg-card0'
-    }
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'TODO': return 'bg-card0'
-      case 'IN_PROGRESS': return 'bg-blue-500'
-      case 'IN_REVIEW': return 'bg-purple-500'
-      case 'COMPLETED': return 'bg-green-500'
-      default: return 'bg-card0'
-    }
-  }
-
-  const formatTime = (hours: number) => {
-    const totalSeconds = Math.floor(hours * 3600)
-    const h = Math.floor(totalSeconds / 3600)
-    const m = Math.floor((totalSeconds % 3600) / 60)
-    const s = totalSeconds % 60
-    
-    if (h > 0) {
-      return `${h}h ${m}m ${s}s`
-    } else if (m > 0) {
-      return `${m}m ${s}s`
-    } else {
-      return `${s}s`
-    }
-  }
-
-  const formatElapsedTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const remainingSeconds = seconds % 60
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
-  }
-
-  // Função para filtrar tasks
-  const filterTasks = (tasks: Task[]) => {
-    return tasks.filter(task => {
-      const statusMatch = statusFilter === 'all' || task.status === statusFilter
-      const priorityMatch = priorityFilter === 'all' || task.priority === priorityFilter
-      return statusMatch && priorityMatch
-    })
-  }
-
-  // Função para obter todas as tasks filtradas
-  const getAllFilteredTasks = () => {
-    if (!data) return []
-    
-    const allTasks = [
-      ...data.tasks.today,
-      ...data.tasks.overdue,
-      ...data.tasks.inProgress,
-      ...data.tasks.completed
-    ]
-    
-    // Remove duplicatas (uma task pode aparecer em múltiplas categorias)
-    const uniqueTasks = allTasks.filter((task, index, self) => 
-      index === self.findIndex(t => t.id === task.id)
-    )
-    
-    return filterTasks(uniqueTasks).sort((a, b) => {
-      // Ordenação: TODO primeiro, depois por prioridade, depois por data
-      const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 1, 'IN_REVIEW': 2, 'COMPLETED': 3 }
-      const priorityOrder = { 'URGENT': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 }
-      
-      if (a.status !== b.status) {
-        return statusOrder[a.status] - statusOrder[b.status]
-      }
-      
-      if (a.priority !== b.priority) {
-        return priorityOrder[a.priority] - priorityOrder[b.priority]
-      }
-      
-      if (a.dueDate && b.dueDate) {
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-      }
-      
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    })
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-card">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-card">
@@ -852,6 +539,313 @@ function TaskCard({
   formatElapsedTime
 }: TaskCardProps) {
   return (
+    <PageLoadingGate loading={!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Erro ao carregar dados')
+      }
+      
+      const result = await response.json()
+      setData(result)
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error)
+      setError(error instanceof Error ? error.message : 'Erro desconhecido')
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedDate, resolvedParams.token])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (activeTimer) {
+      interval = setInterval(() => {
+        setTimeTrackers(prev => {
+          const newTrackers = new Map(prev)
+          const tracker = newTrackers.get(activeTimer)
+          if (tracker && !tracker.isPaused) {
+            const currentTime = Date.now()
+            const totalElapsed = Math.floor((currentTime - tracker.startTime) / 1000)
+            tracker.elapsedTime = totalElapsed - tracker.totalPausedTime
+            tracker.duration = tracker.elapsedTime
+            newTrackers.set(activeTimer, tracker)
+          }
+          // Se estiver pausado, não atualiza o elapsedTime, mantém o valor atual
+          return newTrackers
+        })
+      }, 1000)
+    }
+    return () => clearInterval(interval)
+  }, [activeTimer])
+
+  const startTimer = async (taskId: string) => {
+    if (activeTimer && activeTimer !== taskId) {
+      await stopTimer(activeTimer)
+    }
+    
+    try {
+      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          taskId,
+          action: 'start'
+        })
+      })
+      
+      if (response.ok) {
+        const now = Date.now()
+        setTimeTrackers(prev => {
+          const newTrackers = new Map(prev)
+          newTrackers.set(taskId, {
+            taskId,
+            startTime: now,
+            elapsedTime: 0,
+            isPaused: false,
+            totalPausedTime: 0,
+            duration: 0
+          })
+          return newTrackers
+        })
+        setActiveTimer(taskId)
+      } else {
+        console.error('Erro ao iniciar cronômetro')
+      }
+    } catch (error) {
+      console.error('Erro ao iniciar cronômetro:', error)
+    }
+  }
+
+  const pauseTimer = async (taskId: string) => {
+    const tracker = timeTrackers.get(taskId)
+    if (tracker && !tracker.isPaused) {
+      try {
+        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            taskId,
+            action: 'pause'
+          })
+        })
+        
+        if (response.ok) {
+          setTimeTrackers(prev => {
+            const newTrackers = new Map(prev)
+            const currentTracker = newTrackers.get(taskId)
+            if (currentTracker) {
+              const pausedTime = Date.now()
+              newTrackers.set(taskId, {
+                ...currentTracker,
+                isPaused: true,
+                pausedAt: pausedTime
+              })
+            }
+            return newTrackers
+          })
+        } else {
+          console.error('Erro ao pausar cronômetro')
+        }
+      } catch (error) {
+        console.error('Erro ao pausar cronômetro:', error)
+      }
+    }
+  }
+
+  const resumeTimer = async (taskId: string) => {
+    const tracker = timeTrackers.get(taskId)
+    if (tracker && tracker.isPaused && tracker.pausedAt) {
+      try {
+        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            taskId,
+            action: 'resume'
+          })
+        })
+        
+        if (response.ok) {
+          setTimeTrackers(prev => {
+            const newTrackers = new Map(prev)
+            const currentTracker = newTrackers.get(taskId)
+            if (currentTracker && currentTracker.pausedAt) {
+              const pausedDuration = Math.floor((Date.now() - currentTracker.pausedAt) / 1000)
+              newTrackers.set(taskId, {
+                ...currentTracker,
+                totalPausedTime: currentTracker.totalPausedTime + pausedDuration,
+                isPaused: false,
+                pausedAt: undefined
+              })
+            }
+            return newTrackers
+          })
+        } else {
+          console.error('Erro ao retomar cronômetro')
+        }
+      } catch (error) {
+        console.error('Erro ao retomar cronômetro:', error)
+      }
+    }
+  }
+
+  const stopTimer = async (taskId: string) => {
+    const tracker = timeTrackers.get(taskId)
+    if (tracker) {
+      try {
+        const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}/time-entries`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            taskId,
+            action: 'stop'
+          })
+        })
+        
+        if (response.ok) {
+          fetchData() // Refresh data
+        } else {
+          console.error('Erro ao parar cronômetro')
+        }
+      } catch (error) {
+        console.error('Erro ao parar cronômetro:', error)
+      }
+    }
+    
+    setTimeTrackers(prev => {
+      const newTrackers = new Map(prev)
+      newTrackers.delete(taskId)
+      return newTrackers
+    })
+    
+    if (activeTimer === taskId) {
+      setActiveTimer(null)
+    }
+  }
+
+  const updateTaskStatus = async (taskId: string, status: string) => {
+    try {
+      const response = await fetch(`/api/collaborator-portal/${resolvedParams.token}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ taskId, status })
+      })
+      
+      if (response.ok) {
+        fetchData()
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error)
+    }
+  }
+
+  const getCurrentTask = (taskId: string): Task | undefined => {
+    if (!data) return undefined
+    return [...data.tasks.today, ...data.tasks.overdue, ...data.tasks.inProgress, ...data.tasks.completed]
+      .find(task => task.id === taskId)
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'URGENT': return 'bg-red-500'
+      case 'HIGH': return 'bg-orange-500'
+      case 'MEDIUM': return 'bg-yellow-500'
+      case 'LOW': return 'bg-green-500'
+      default: return 'bg-card0'
+    }
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'TODO': return 'bg-card0'
+      case 'IN_PROGRESS': return 'bg-blue-500'
+      case 'IN_REVIEW': return 'bg-purple-500'
+      case 'COMPLETED': return 'bg-green-500'
+      default: return 'bg-card0'
+    }
+  }
+
+  const formatTime = (hours: number) => {
+    const totalSeconds = Math.floor(hours * 3600)
+    const h = Math.floor(totalSeconds / 3600)
+    const m = Math.floor((totalSeconds % 3600) / 60)
+    const s = totalSeconds % 60
+    
+    if (h > 0) {
+      return `${h}h ${m}m ${s}s`
+    } else if (m > 0) {
+      return `${m}m ${s}s`
+    } else {
+      return `${s}s`
+    }
+  }
+
+  const formatElapsedTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainingSeconds = seconds % 60
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+  }
+
+  // Função para filtrar tasks
+  const filterTasks = (tasks: Task[]) => {
+    return tasks.filter(task => {
+      const statusMatch = statusFilter === 'all' || task.status === statusFilter
+      const priorityMatch = priorityFilter === 'all' || task.priority === priorityFilter
+      return statusMatch && priorityMatch
+    })
+  }
+
+  // Função para obter todas as tasks filtradas
+  const getAllFilteredTasks = () => {
+    if (!data) return []
+    
+    const allTasks = [
+      ...data.tasks.today,
+      ...data.tasks.overdue,
+      ...data.tasks.inProgress,
+      ...data.tasks.completed
+    ]
+    
+    // Remove duplicatas (uma task pode aparecer em múltiplas categorias)
+    const uniqueTasks = allTasks.filter((task, index, self) => 
+      index === self.findIndex(t => t.id === task.id)
+    )
+    
+    return filterTasks(uniqueTasks).sort((a, b) => {
+      // Ordenação: TODO primeiro, depois por prioridade, depois por data
+      const statusOrder = { 'TODO': 0, 'IN_PROGRESS': 1, 'IN_REVIEW': 2, 'COMPLETED': 3 }
+      const priorityOrder = { 'URGENT': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3 }
+      
+      if (a.status !== b.status) {
+        return statusOrder[a.status] - statusOrder[b.status]
+      }
+      
+      if (a.priority !== b.priority) {
+        return priorityOrder[a.priority] - priorityOrder[b.priority]
+      }
+      
+      if (a.dueDate && b.dueDate) {
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+      }
+      
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    })
+  }
+
+  if (loading}>
     <Card className={`transition-all duration-200 ${isActive ? 'ring-2 ring-blue-500 shadow-lg' : 'shadow-sm'} hover:shadow-md`}>
       <CardHeader>
         <div className="flex items-start justify-between">
@@ -988,5 +982,6 @@ function TaskCard({
         )}
       </CardContent>
     </Card>
+    </PageLoadingGate>
   )
 }

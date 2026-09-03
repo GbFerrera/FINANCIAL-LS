@@ -15,15 +15,24 @@ export async function GET() {
     }
 
     // Buscar notificações reais do banco de dados
-    const notifications = await prisma.notification.findMany({
+    const rows = await prisma.notification.findMany({
       where: {
         userId: session.user.id
       },
       orderBy: {
         createdAt: 'desc'
       },
-      take: 50 // Limitar a 50 notificações mais recentes
+      take: 50
     })
+
+    const notifications = rows.map((n) => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      type: n.type,
+      read: n.isRead,
+      createdAt: n.createdAt.toISOString(),
+    }))
 
     return NextResponse.json({
       notifications

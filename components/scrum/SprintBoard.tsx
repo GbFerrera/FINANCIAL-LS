@@ -14,8 +14,11 @@ import { CreateTaskModal } from './CreateTaskModal'
 import { CreateSprintModal } from './CreateSprintModal'
 import { EditSprintStatusModal } from './EditSprintStatusModal'
 import { SprintTimeline } from './SprintTimeline'
+import { isSprintArchivable } from '@/lib/sprint-archive'
 import Link from 'next/link'
+import { SprintKanbanColumns } from './SprintKanbanColumns'
 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 interface Task {
   id: string
   title: string
@@ -73,6 +76,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
   const [showDailyProgress, setShowDailyProgress] = useState(false)
   const [selectedTasks, setSelectedTasks] = useState<string[]>([])
   const [selectionMode, setSelectionMode] = useState(false)
+  const [archiveLoadingId, setArchiveLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -325,6 +329,28 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
     setShowEditSprintStatus(true)
   }
 
+  const handleArchiveSprint = async (sprintId: string) => {
+    try {
+      setArchiveLoadingId(sprintId)
+      const res = await fetch('/api/sprints/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sprintIds: [sprintId], archived: true }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.updatedCount === 0) {
+        throw new Error(data.message || 'Falha ao arquivar sprint')
+      }
+      setSprints((prev) => prev.filter((s) => s.id !== sprintId))
+      toast.success('Sprint arquivada')
+    } catch (error) {
+      console.error('Erro ao arquivar sprint:', error)
+      toast.error('Erro ao arquivar sprint')
+    } finally {
+      setArchiveLoadingId(null)
+    }
+  }
+
   // Funções para seleção múltipla de tarefas
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTasks(prev => 
@@ -486,15 +512,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
     }).filter(day => day.collaborators.length > 0)
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -577,58 +596,12 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     />
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {[
-                        { key: 'TODO', label: 'A Fazer' },
-                        { key: 'IN_PROGRESS', label: 'Em Progresso' },
-                        { key: 'IN_REVIEW', label: 'Testar' },
-                        { key: 'COMPLETED', label: 'Concluído' }
-                      ].map((col) => {
-                        const tasksInColumn = sprint.tasks
-                          .filter(t => t.status === col.key)
-                          .sort((a, b) => a.order - b.order)
-                          .sort((a, b) => a.order - b.order)
-                        
-                        return (
-                          <div key={col.key} className="bg-slate-100/50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-800/60 p-1.5">
-                            <div className="px-3 py-3 flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-foreground/80">{col.label}</span>
-                              <Badge variant="secondary" className="text-xs font-mono bg-background/80 shadow-sm">{tasksInColumn.length}</Badge>
-                            </div>
-                            <Droppable droppableId={`${sprint.id}|${col.key}`} direction="vertical">
-                              {(provided) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.droppableProps}
-                                  className="min-h-[160px] px-3 pb-3 space-y-3"
-                                >
-                                  {tasksInColumn.map((task, index) => (
-                                    <Draggable key={task.id} draggableId={task.id} index={index}>
-                                      {(provided, snapshot) => (
-                                        <div
-                                          ref={provided.innerRef}
-                                          {...provided.draggableProps}
-                                          {...provided.dragHandleProps}
-                                          className={`${snapshot.isDragging ? 'rotate-3 shadow-lg z-50' : ''}`}
-                                        >
-                                          <TaskCard 
-                                            task={task} 
-                                            onEdit={handleEditTask}
-                                            onDelete={handleDeleteTask}
-                                            onClick={() => handleEditTask(task)}
-                                          />
-                                        </div>
-                                      )}
-                                    </Draggable>
-                                  ))}
-                                  {provided.placeholder}
-                                </div>
-                              )}
-                            </Droppable>
-                          </div>
-                        )
-                      })}
-                    </div>
+                    <SprintKanbanColumns
+                      sprintId={sprint.id}
+                      tasks={sprint.tasks}
+                      onEdit={handleEditTask}
+                      onDelete={handleDeleteTask}
+                    />
                   </CardContent>
                   
                   {/* Visualização Diária por Colaborador */}
@@ -827,58 +800,12 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                     />
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {[
-                        { key: 'TODO', label: 'A Fazer' },
-                        { key: 'IN_PROGRESS', label: 'Em Progresso' },
-                        { key: 'IN_REVIEW', label: 'Testar' },
-                        { key: 'COMPLETED', label: 'Concluído' }
-                      ].map((col) => {
-                        const tasksInColumn = sprint.tasks
-                          .filter(t => t.status === col.key)
-                          .sort((a, b) => a.order - b.order)
-                          .sort((a, b) => a.order - b.order)
-                        
-                        return (
-                          <div key={col.key} className="bg-slate-100/50 dark:bg-slate-900/50 rounded-xl border border-slate-200/60 dark:border-slate-800/60 p-1.5">
-                            <div className="px-3 py-3 flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold text-foreground/80">{col.label}</span>
-                              <Badge variant="secondary" className="text-xs font-mono bg-background/80 shadow-sm">{tasksInColumn.length}</Badge>
-                            </div>
-                            <Droppable droppableId={`${sprint.id}|${col.key}`} direction="vertical">
-                              {(provided) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.droppableProps}
-                                  className="min-h-[160px] px-3 pb-3 space-y-3"
-                                >
-                                  {tasksInColumn.map((task, index) => (
-                                    <Draggable key={task.id} draggableId={task.id} index={index}>
-                                      {(provided, snapshot) => (
-                                        <div
-                                          ref={provided.innerRef}
-                                          {...provided.draggableProps}
-                                          {...provided.dragHandleProps}
-                                          className={`${snapshot.isDragging ? 'rotate-3 shadow-lg z-50' : ''}`}
-                                        >
-                                          <TaskCard 
-                                            task={task} 
-                                            onEdit={handleEditTask}
-                                            onDelete={handleDeleteTask}
-                                            onClick={() => handleEditTask(task)}
-                                          />
-                                        </div>
-                                      )}
-                                    </Draggable>
-                                  ))}
-                                  {provided.placeholder}
-                                </div>
-                              )}
-                            </Droppable>
-                          </div>
-                        )
-                      })}
-                    </div>
+                    <SprintKanbanColumns
+                      sprintId={sprint.id}
+                      tasks={sprint.tasks}
+                      onEdit={handleEditTask}
+                      onDelete={handleDeleteTask}
+                    />
                   </CardContent>
                 </Card>
               )
@@ -1116,6 +1043,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                       progress={progress}
                       storyPoints={storyPoints}
                       onEdit={() => handleEditSprint(sprint)}
+                      onArchive={() => handleArchiveSprint(sprint.id)}
+                      archiveLoading={archiveLoadingId === sprint.id}
                       isCompleted
                     />
                   </CardHeader>
@@ -1135,6 +1064,9 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
         projectId={projectId}
         sprintId={selectedSprintId}
         onSuccess={fetchData}
+        onEditingTaskSync={(patch) => {
+          setEditingTask((prev) => (prev ? { ...prev, ...patch } : prev))
+        }}
         editingTask={editingTask}
         sprintProjects={sprintProjects}
         milestones={milestones}
@@ -1156,5 +1088,6 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
         onSuccess={fetchData}
       />
     </div>
+    </PageLoadingGate>
   )
 }

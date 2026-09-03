@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
+import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+import {
   BarChart3, 
   TrendingUp, 
   Clock, 
@@ -100,7 +101,21 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
 
       // Selecionar sprint ativa por padrão
       const activeSprint = sprints.find((s: any) => s.status === 'ACTIVE')
-      if (activeSprint) {
+  if (!data) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Erro ao carregar dados do dashboard</p>
+      </div>
+    )
+  }
+
+  const velocityData = getVelocityChartData()
+  const taskStatusData = getTaskStatusData()
+  const teamProductivityData = getTeamProductivityData()
+  const selectedSprintData = data.sprints.find(s => s.id === selectedSprint)
+
+  return (
+    <PageLoadingGate loading={activeSprint) {
         setSelectedSprint(activeSprint.id)
       }
     } catch (error) {
@@ -184,28 +199,7 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
     })
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground">Erro ao carregar dados do dashboard</p>
-      </div>
-    )
-  }
-
-  const velocityData = getVelocityChartData()
-  const taskStatusData = getTaskStatusData()
-  const teamProductivityData = getTeamProductivityData()
-  const selectedSprintData = data.sprints.find(s => s.id === selectedSprint)
-
-  return (
+  if (loading}>
     <div className="space-y-6">
       {/* Métricas Gerais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -466,5 +460,6 @@ export function ScrumDashboard({ projectId }: ScrumDashboardProps) {
         </TabsContent>
       </Tabs>
     </div>
+    </PageLoadingGate>
   )
 }

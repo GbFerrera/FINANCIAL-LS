@@ -9,6 +9,7 @@ export type RouteItem = {
 export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "dashboard", label: "Dashboard", path: "/dashboard" },
   { key: "projects", label: "Projetos", path: "/projects" },
+  { key: "agent_pm", label: "Agente PM", path: "/agent" },
   { key: "projects_backlog", label: "Projetos • Backlog", path: "/projects/backlog" },
   { key: "projects_sprints", label: "Projetos • Sprints", path: "/projects/sprints" },
   { key: "projects_scrum", label: "Projetos • Scrum", path: "/projects/scrum" },
@@ -29,6 +30,8 @@ export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "reports", label: "Relatórios", path: "/reports" },
   { key: "notifications", label: "Notificações", path: "/notifications" },
   { key: "settings", label: "Configurações", path: "/settings" },
+  { key: "settings_workspaces", label: "Espaços de trabalho", path: "/settings/workspaces" },
+  { key: "workspace", label: "Espaços", path: "/workspace" },
   { key: "supervisor_dashboard", label: "Supervisor • Dashboard", path: "/supervisor/dashboard" },
   { key: "excalidraw", label: "Excalidraw", path: "/excalidraw" },
   { key: "profile", label: "Perfil", path: "/profile" },
@@ -43,6 +46,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
   [UserRole.TEAM]: [
     "/dashboard",
     "/projects",
+    "/agent",
     "/projects/backlog",
     "/projects/sprints",
     "/projects/scrum",
@@ -58,6 +62,7 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     "/reports",
     "/profile",
     "/excalidraw",
+    "/workspace",
   ],
   [UserRole.CLIENT]: [
     "/dashboard",

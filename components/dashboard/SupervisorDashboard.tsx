@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
+import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+import {
   Users, 
   Clock, 
   Play, 
@@ -96,7 +97,13 @@ export function SupervisorDashboard() {
 
   // Processar eventos em tempo real
   useEffect(() => {
-    if (lastEvent) {
+  const activeCollaborators = activities.filter(a => a.isActive).length
+  const totalTasksInProgress = activities.reduce((sum, a) => sum + a.todayStats.tasksInProgress, 0)
+  const totalTasksCompleted = activities.reduce((sum, a) => sum + a.todayStats.tasksCompleted, 0)
+  const totalTimeWorked = activities.reduce((sum, a) => sum + a.todayStats.timeWorked, 0)
+
+  return (
+    <PageLoadingGate loading={lastEvent) {
       setLastUpdate(new Date())
       
       // Atualizar atividades baseado no evento
@@ -225,20 +232,7 @@ export function SupervisorDashboard() {
     return `${minutes}:${secs.toString().padStart(2, '0')}`
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  const activeCollaborators = activities.filter(a => a.isActive).length
-  const totalTasksInProgress = activities.reduce((sum, a) => sum + a.todayStats.tasksInProgress, 0)
-  const totalTasksCompleted = activities.reduce((sum, a) => sum + a.todayStats.tasksCompleted, 0)
-  const totalTimeWorked = activities.reduce((sum, a) => sum + a.todayStats.timeWorked, 0)
-
-  return (
+  if (loading}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -464,5 +458,6 @@ export function SupervisorDashboard() {
        
       </div>
     </div>
+    </PageLoadingGate>
   )
 }

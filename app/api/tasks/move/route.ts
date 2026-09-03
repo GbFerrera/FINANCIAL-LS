@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
+import { broadcastTaskEvent, serializeTaskForSocket } from '@/lib/task-socket-server'
 
 const prisma = new PrismaClient()
 
@@ -105,6 +106,29 @@ export async function POST(request: NextRequest) {
 
       return updatedTask
     })
+
+    const fullTask = await prisma.task.findUnique({
+      where: { id: result.id },
+      include: {
+        assignee: { select: { id: true, name: true, email: true, avatar: true } },
+        project: { select: { id: true, name: true } },
+        milestone: { select: { id: true, name: true, status: true } },
+      },
+    })
+
+    if (fullTask && session.user) {
+      broadcastTaskEvent({
+        action: 'moved',
+        taskId: fullTask.id,
+        projectId: fullTask.projectId,
+        userId: (session.user as { id?: string }).id || 'unknown',
+        userName: (session.user as { name?: string }).name,
+        task: serializeTaskForSocket(fullTask as Record<string, unknown>),
+        changes: {
+          sprintId: { from: sourceSprintId || null, to: destinationSprintId || null },
+        },
+      }).catch(console.error)
+    }
 
     return NextResponse.json(result)
   } catch (error) {

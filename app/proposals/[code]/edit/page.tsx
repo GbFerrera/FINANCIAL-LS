@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 import {
   Select,
   SelectContent,
@@ -109,7 +110,7 @@ export default function EditProposalPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[calc(100vh-200px)]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <LoadingInline size="md" className="text-primary" />
       </div>
     )
   }
@@ -222,7 +223,7 @@ export default function EditProposalPage() {
               <Button disabled={saving} type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground min-w-[150px]">
                 {saving ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <LoadingInline size="xs" className="mr-2" />
                     Salvando...
                   </>
                 ) : (

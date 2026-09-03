@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 import {
   Calendar,
   Clock,
@@ -219,7 +220,28 @@ export default function ClientPortalPage() {
   };
 
   useEffect(() => {
-    if (tokenParam) {
+  if (!client) {
+    return (
+      <div className="min-h-screen bg-card flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+          <h3 className="mt-2 text-lg font-medium text-foreground">Link inválido</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Este link não é válido ou pode ter expirado.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const selectedProjectData = projects.find(p => p.id === selectedProject)
+  const totalProjects = projects.length
+  const completedProjects = projects.filter(p => p.status === 'COMPLETED').length
+  const inProgressProjects = projects.filter(p => p.status === 'IN_PROGRESS').length
+  const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0)
+
+  return (
+    <PageLoadingGate loading={tokenParam) {
       fetchClientData(tokenParam)
     }
   }, [tokenParam])
@@ -482,35 +504,7 @@ export default function ClientPortalPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-card flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  if (!client) {
-    return (
-      <div className="min-h-screen bg-card flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
-          <h3 className="mt-2 text-lg font-medium text-foreground">Link inválido</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Este link não é válido ou pode ter expirado.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const selectedProjectData = projects.find(p => p.id === selectedProject)
-  const totalProjects = projects.length
-  const completedProjects = projects.filter(p => p.status === 'COMPLETED').length
-  const inProgressProjects = projects.filter(p => p.status === 'IN_PROGRESS').length
-  const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0)
-
-  return (
+  if (loading}>
     <div className="min-h-screen bg-card">
       {/* Header */}
       <div className="bg-card shadow">
@@ -1490,7 +1484,7 @@ export default function ClientPortalPage() {
                           className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {sendingComment ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                            <LoadingInline size="xs" className="text-white" />
                           ) : (
                             <Send className="h-4 w-4" />
                           )}
@@ -1505,5 +1499,6 @@ export default function ClientPortalPage() {
         </div>
       </div>
     </div>
+    </PageLoadingGate>
   )
 }

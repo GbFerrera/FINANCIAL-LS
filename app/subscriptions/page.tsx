@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { Calendar, CheckCircle2, CreditCard, Edit, MoreVertical, Trash2, Wallet } from "lucide-react"
+import { CreditCard, Edit, MoreVertical, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -99,6 +99,40 @@ function formatDateTimeBR(d: Date) {
   const hh = String(d.getHours()).padStart(2, "0")
   const mi = String(d.getMinutes()).padStart(2, "0")
   return `${dd}/${mm}/${yyyy} ${hh}:${mi}`
+}
+
+type SubscriptionSummary = {
+  total: number
+  receivedThisMonth: number
+  remainingThisMonth: number
+  receivedCountThisMonth: number
+  remainingCountThisMonth: number
+  nextDueInMonth: Date | null
+  nextDueInMonthLabel: string
+  nextDueInMonthAmount: number
+}
+
+function SubscriptionSummaryCards({ summary }: { summary: SubscriptionSummary }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <StatsCard title="Total em assinaturas" value={formatBRL2(summary.total)} />
+      <StatsCard
+        title="Recebido (mês)"
+        value={formatBRL2(summary.receivedThisMonth)}
+        description={`${summary.receivedCountThisMonth} assinatura(s)`}
+      />
+      <StatsCard
+        title="Restante (mês)"
+        value={formatBRL2(summary.remainingThisMonth)}
+        description={`${summary.remainingCountThisMonth} assinatura(s)`}
+      />
+      <StatsCard
+        title="Próximo vencimento (mês)"
+        value={summary.nextDueInMonthLabel}
+        description={summary.nextDueInMonth ? formatBRL2(summary.nextDueInMonthAmount) : undefined}
+      />
+    </div>
+  )
 }
 
 export default function SubscriptionsPage() {
@@ -551,30 +585,7 @@ export default function SubscriptionsPage() {
         </TabsList>
 
         <TabsContent value="subscriptions" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatsCard title="Total em assinaturas" value={formatBRL2(subscriptionSummary.total)} icon={Wallet} color="blue" />
-            <StatsCard
-              title="Recebido (mês)"
-              value={formatBRL2(subscriptionSummary.receivedThisMonth)}
-              icon={CheckCircle2}
-              color="green"
-              description={`${subscriptionSummary.receivedCountThisMonth} assinatura(s)`}
-            />
-            <StatsCard
-              title="Restante (mês)"
-              value={formatBRL2(subscriptionSummary.remainingThisMonth)}
-              icon={CreditCard}
-              color="red"
-              description={`${subscriptionSummary.remainingCountThisMonth} assinatura(s)`}
-            />
-            <StatsCard
-              title="Próximo vencimento (mês)"
-              value={subscriptionSummary.nextDueInMonthLabel}
-              icon={Calendar}
-              color={subscriptionSummary.nextDueInMonth ? "purple" : "blue"}
-              description={subscriptionSummary.nextDueInMonth ? formatBRL2(subscriptionSummary.nextDueInMonthAmount) : undefined}
-            />
-          </div>
+          <SubscriptionSummaryCards summary={subscriptionSummary} />
 
           <Card>
             <CardHeader>
@@ -888,30 +899,7 @@ export default function SubscriptionsPage() {
         </TabsContent>
 
         <TabsContent value="groups" className="mt-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatsCard title="Total em assinaturas" value={formatBRL2(subscriptionSummary.total)} icon={Wallet} color="blue" />
-            <StatsCard
-              title="Recebido (mês)"
-              value={formatBRL2(subscriptionSummary.receivedThisMonth)}
-              icon={CheckCircle2}
-              color="green"
-              description={`${subscriptionSummary.receivedCountThisMonth} assinatura(s)`}
-            />
-            <StatsCard
-              title="Restante (mês)"
-              value={formatBRL2(subscriptionSummary.remainingThisMonth)}
-              icon={CreditCard}
-              color="red"
-              description={`${subscriptionSummary.remainingCountThisMonth} assinatura(s)`}
-            />
-            <StatsCard
-              title="Próximo vencimento (mês)"
-              value={subscriptionSummary.nextDueInMonthLabel}
-              icon={Calendar}
-              color={subscriptionSummary.nextDueInMonth ? "purple" : "blue"}
-              description={subscriptionSummary.nextDueInMonth ? formatBRL2(subscriptionSummary.nextDueInMonthAmount) : undefined}
-            />
-          </div>
+          <SubscriptionSummaryCards summary={subscriptionSummary} />
 
           <Card>
             <CardHeader>

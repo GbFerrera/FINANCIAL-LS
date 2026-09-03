@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { LoadingAnimation } from "@/components/ui/loading-animation"
 import {
   Dialog,
   DialogContent,
@@ -279,7 +280,7 @@ export function ReminderWhatsAppSection({ onInstancesChange }: Props) {
           </DialogHeader>
           <div className="flex flex-col items-center gap-4 py-2">
             {qrLoading ? (
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+              <LoadingAnimation size="lg" />
             ) : qrImageSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={qrImageSrc} alt="QR Code WhatsApp" className="w-64 h-64 object-contain border rounded-lg" />

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Select,
   SelectContent,
@@ -483,15 +484,8 @@ export default function FinancialRemindersPage() {
     }
   }
 
-  if (status === "loading" || loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={status === "loading" || loading}>
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -982,5 +976,6 @@ Header: x-cron-secret: <CRON_SECRET>`}
         </DialogContent>
       </Dialog>
     </div>
+    </PageLoadingGate>
   )
 }

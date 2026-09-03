@@ -4,23 +4,26 @@ import { parseISO } from "date-fns"
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Bell,
   Mail,
   MessageSquare,
-  Phone,
   Settings,
   Check,
-  X,
   Clock,
-  AlertCircle,
   CheckCircle,
   Info,
   Trash2,
-  CheckCheck
+  CheckCheck,
+  UserPlus,
+  CalendarClock,
+  Milestone,
 } from "lucide-react"
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import toast from "react-hot-toast"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface NotificationSettings {
   emailEnabled: boolean
@@ -35,19 +38,22 @@ interface NotificationSettings {
   whatsappNumber?: string
 }
 
+type NotificationType =
+  | 'TASK_ASSIGNED'
+  | 'TASK_COMPLETED'
+  | 'PROJECT_UPDATE'
+  | 'MILESTONE_COMPLETED'
+  | 'CLIENT_COMMENT'
+  | 'PAYMENT_RECEIVED'
+  | 'DEADLINE_APPROACHING'
+
 interface Notification {
   id: string
   title: string
   message: string
-  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR'
+  type: NotificationType | string
   read: boolean
   createdAt: string
-  actionUrl?: string
-  metadata?: {
-    projectId?: string
-    taskId?: string
-    clientId?: string
-  }
 }
 
 export default function NotificationsPage() {
@@ -64,14 +70,14 @@ export default function NotificationsPage() {
     teamMessages: true,
     clientMessages: true,
     systemAlerts: true,
-    weeklyReports: false
+    weeklyReports: false,
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (status === "loading") return
-    
+
     if (!session) {
       router.push("/auth/signin")
       return
@@ -85,13 +91,13 @@ export default function NotificationsPage() {
     try {
       setLoading(true)
       const response = await fetch('/api/notifications')
-      
+
       if (!response.ok) {
         throw new Error('Falha ao carregar notificações')
       }
-      
+
       const data = await response.json()
-      setNotifications(data.notifications)
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
     } catch (error) {
       console.error('Erro ao buscar notificações:', error)
       toast.error('Erro ao carregar notificações')
@@ -103,16 +109,15 @@ export default function NotificationsPage() {
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/notifications/settings')
-      
+
       if (!response.ok) {
         throw new Error('Falha ao carregar configurações')
       }
-      
+
       const data = await response.json()
       setSettings(data.settings)
     } catch (error) {
       console.error('Erro ao buscar configurações:', error)
-      toast.error('Erro ao carregar configurações')
     }
   }
 
@@ -121,16 +126,14 @@ export default function NotificationsPage() {
       setSaving(true)
       const response = await fetch('/api/notifications/settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(settings)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
       })
-      
+
       if (!response.ok) {
         throw new Error('Falha ao salvar configurações')
       }
-      
+
       toast.success('Configurações salvas com sucesso!')
     } catch (error) {
       console.error('Erro ao salvar configurações:', error)
@@ -143,15 +146,15 @@ export default function NotificationsPage() {
   const markAsRead = async (notificationId: string) => {
     try {
       const response = await fetch(`/api/notifications/${notificationId}/read`, {
-        method: 'PUT'
+        method: 'PUT',
       })
-      
+
       if (!response.ok) {
         throw new Error('Falha ao marcar como lida')
       }
-      
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
       )
     } catch (error) {
       console.error('Erro ao marcar como lida:', error)
@@ -162,14 +165,14 @@ export default function NotificationsPage() {
   const markAllAsRead = async () => {
     try {
       const response = await fetch('/api/notifications/read-all', {
-        method: 'PUT'
+        method: 'PUT',
       })
-      
+
       if (!response.ok) {
         throw new Error('Falha ao marcar todas como lidas')
       }
-      
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
       toast.success('Todas as notificações foram marcadas como lidas')
     } catch (error) {
       console.error('Erro ao marcar todas como lidas:', error)
@@ -180,14 +183,14 @@ export default function NotificationsPage() {
   const deleteNotification = async (notificationId: string) => {
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         throw new Error('Falha ao excluir notificação')
       }
-      
-      setNotifications(prev => prev.filter(n => n.id !== notificationId))
+
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
       toast.success('Notificação excluída')
     } catch (error) {
       console.error('Erro ao excluir notificação:', error)
@@ -197,14 +200,21 @@ export default function NotificationsPage() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'SUCCESS':
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      case 'WARNING':
-        return <AlertCircle className="h-5 w-5 text-yellow-500" />
-      case 'ERROR':
-        return <X className="h-5 w-5 text-red-500" />
+      case 'TASK_ASSIGNED':
+        return <UserPlus className="h-5 w-5 text-primary" />
+      case 'TASK_COMPLETED':
+        return <CheckCircle className="h-5 w-5 text-green-600" />
+      case 'DEADLINE_APPROACHING':
+        return <CalendarClock className="h-5 w-5 text-amber-600" />
+      case 'MILESTONE_COMPLETED':
+        return <Milestone className="h-5 w-5 text-green-600" />
+      case 'CLIENT_COMMENT':
+        return <MessageSquare className="h-5 w-5 text-blue-600" />
+      case 'PAYMENT_RECEIVED':
+        return <CheckCircle className="h-5 w-5 text-emerald-600" />
+      case 'PROJECT_UPDATE':
       default:
-        return <Info className="h-5 w-5 text-blue-500" />
+        return <Info className="h-5 w-5 text-muted-foreground" />
     }
   }
 
@@ -212,318 +222,223 @@ export default function NotificationsPage() {
     const date = parseISO(dateString)
     const now = new Date()
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
-    
-    if (diffInMinutes < 1) {
-      return 'Agora'
-    } else if (diffInMinutes < 60) {
-      return `${diffInMinutes} min atrás`
-    } else if (diffInMinutes < 1440) {
-      const hours = Math.floor(diffInMinutes / 60)
-      return `${hours}h atrás`
-    } else {
-      const days = Math.floor(diffInMinutes / 1440)
-      return `${days}d atrás`
-    }
+
+    if (diffInMinutes < 1) return 'Agora'
+    if (diffInMinutes < 60) return `${diffInMinutes} min atrás`
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h atrás`
+    return `${Math.floor(diffInMinutes / 1440)}d atrás`
   }
 
-  const unreadCount = notifications.filter(n => !n.read).length
-
-  if (status === "loading" || loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        </div>
-      </DashboardLayout>
-    )
-  }
+  const unreadCount = notifications.filter((n) => !n.read).length
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
+    <PageLoadingGate loading={status === "loading" || loading}>
+      <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Notificações</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Gerencie suas notificações e preferências
             </p>
           </div>
-          <div className="flex items-center space-x-2">
-            {unreadCount > 0 && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                {unreadCount} não lida{unreadCount !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
+          {unreadCount > 0 && (
+            <Badge variant="destructive" className="text-xs">
+              {unreadCount} não lida{unreadCount !== 1 ? 's' : ''}
+            </Badge>
+          )}
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-muted">
-          <nav className="-mb-px flex space-x-8">
+        <div className="border-b border-border">
+          <nav className="-mb-px flex gap-6">
             <button
+              type="button"
               onClick={() => setActiveTab('notifications')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={cn(
+                'flex items-center gap-2 border-b-2 py-2 text-sm font-medium transition-colors',
                 activeTab === 'notifications'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
-              }`}
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
             >
-              <div className="flex items-center">
-                <Bell className="h-4 w-4 mr-2" />
-                Notificações
-                {unreadCount > 0 && (
-                  <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
-                    {unreadCount}
-                  </span>
-                )}
-              </div>
+              <Bell className="h-4 w-4" />
+              Notificações
+              {unreadCount > 0 && (
+                <Badge variant="secondary" className="h-5 min-w-5 px-1.5 text-[10px]">
+                  {unreadCount}
+                </Badge>
+              )}
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('settings')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              className={cn(
+                'flex items-center gap-2 border-b-2 py-2 text-sm font-medium transition-colors',
                 activeTab === 'settings'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-muted-foreground hover:text-gray-700 hover:border-gray-300'
-              }`}
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
             >
-              <div className="flex items-center">
-                <Settings className="h-4 w-4 mr-2" />
-                Configurações
-              </div>
+              <Settings className="h-4 w-4" />
+              Configurações
             </button>
           </nav>
         </div>
 
-        {/* Content */}
         {activeTab === 'notifications' ? (
-          <div className="bg-card shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg leading-6 font-medium text-foreground">
-                  Suas Notificações
-                </h3>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={markAllAsRead}
-                    className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-card hover:bg-card"
-                  >
-                    <CheckCheck className="h-4 w-4 mr-1" />
-                    Marcar todas como lidas
-                  </button>
-                )}
-              </div>
-              
+          <div className="rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
+              <h2 className="text-base font-semibold text-foreground">Suas notificações</h2>
+              {unreadCount > 0 && (
+                <Button type="button" variant="outline" size="sm" onClick={markAllAsRead}>
+                  <CheckCheck className="mr-1.5 h-4 w-4" />
+                  Marcar todas como lidas
+                </Button>
+              )}
+            </div>
+
+            <div className="p-4 sm:p-6">
               {notifications.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-4 rounded-lg border transition-colors ${
+                      className={cn(
+                        'rounded-lg border p-4 transition-colors',
                         notification.read
-                          ? 'bg-card border-muted'
-                          : 'bg-blue-50 border-blue-200'
-                      }`}
+                          ? 'border-border bg-background'
+                          : 'border-primary/20 bg-primary/5'
+                      )}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-3 flex-1">
-                          {getNotificationIcon(notification.type)}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <h4 className={`text-sm font-medium ${
-                                notification.read ? 'text-gray-700' : 'text-foreground'
-                              }`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                          <span className="mt-0.5 shrink-0">{getNotificationIcon(notification.type)}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h3
+                                className={cn(
+                                  'text-sm font-medium',
+                                  notification.read ? 'text-muted-foreground' : 'text-foreground'
+                                )}
+                              >
                                 {notification.title}
-                              </h4>
-                              <div className="flex items-center space-x-2">
-                                <span className={`text-xs ${
-                                  notification.read ? 'text-gray-400' : 'text-muted-foreground'
-                                }`}>
-                                  <Clock className="h-3 w-3 inline mr-1" />
-                                  {formatTime(notification.createdAt)}
-                                </span>
-                              </div>
+                              </h3>
+                              <span className="flex shrink-0 items-center text-xs text-muted-foreground">
+                                <Clock className="mr-1 h-3 w-3" />
+                                {formatTime(notification.createdAt)}
+                              </span>
                             </div>
-                            <p className={`mt-1 text-sm ${
-                              notification.read ? 'text-muted-foreground' : 'text-gray-700'
-                            }`}>
+                            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                               {notification.message}
                             </p>
-                            {notification.actionUrl && (
-                              <button
-                                onClick={() => router.push(notification.actionUrl!)}
-                                className="mt-2 text-sm text-indigo-600 hover:text-indigo-500"
-                              >
-                                Ver detalhes →
-                              </button>
-                            )}
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2 ml-4">
+
+                        <div className="flex shrink-0 items-center gap-1">
                           {!notification.read && (
-                            <button
-                              onClick={() => markAsRead(notification.id)}
-                              className="p-1 text-gray-400 hover:text-muted-foreground"
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
                               title="Marcar como lida"
+                              onClick={() => markAsRead(notification.id)}
                             >
                               <Check className="h-4 w-4" />
-                            </button>
+                            </Button>
                           )}
-                          <button
-                            onClick={() => deleteNotification(notification.id)}
-                            className="p-1 text-gray-400 hover:text-red-600"
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
                             title="Excluir notificação"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => deleteNotification(notification.id)}
                           >
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Bell className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma notificação</h3>
+                <div className="py-12 text-center">
+                  <Bell className="mx-auto h-12 w-12 text-muted-foreground/40" />
+                  <h3 className="mt-3 text-sm font-medium text-foreground">Nenhuma notificação</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Você está em dia! Não há notificações pendentes.
+                    Você está em dia. Não há notificações pendentes.
                   </p>
                 </div>
               )}
             </div>
           </div>
         ) : (
-          <div className="bg-card shadow rounded-lg">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg leading-6 font-medium text-foreground mb-6">
-                Configurações de Notificação
-              </h3>
-              
-              <div className="space-y-6">
-                {/* Canais de Notificação */}
-                <div>
-                  <h4 className="text-sm font-medium text-foreground mb-4">Canais de Notificação</h4>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Mail className="h-5 w-5 text-gray-400 mr-3" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Email</p>
-                          <p className="text-sm text-muted-foreground">Receber notificações por email</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.emailEnabled}
-                          onChange={(e) => setSettings(prev => ({ ...prev, emailEnabled: e.target.checked }))}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <MessageSquare className="h-5 w-5 text-gray-400 mr-3" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">WhatsApp</p>
-                          <p className="text-sm text-muted-foreground">Receber notificações via WhatsApp</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.whatsappEnabled}
-                          onChange={(e) => setSettings(prev => ({ ...prev, whatsappEnabled: e.target.checked }))}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                      </label>
-                    </div>
-                    
-                    {settings.whatsappEnabled && (
-                      <div className="ml-8">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Número do WhatsApp
-                        </label>
-                        <input
-                          type="tel"
-                          value={settings.whatsappNumber || ''}
-                          onChange={(e) => setSettings(prev => ({ ...prev, whatsappNumber: e.target.value }))}
-                          placeholder="+55 11 99999-9999"
-                          className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Bell className="h-5 w-5 text-gray-400 mr-3" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Push Notifications</p>
-                          <p className="text-sm text-muted-foreground">Notificações no navegador</p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.pushEnabled}
-                          onChange={(e) => setSettings(prev => ({ ...prev, pushEnabled: e.target.checked }))}
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                      </label>
-                    </div>
-                  </div>
+          <div className="rounded-xl border border-border bg-card shadow-sm p-4 sm:p-6">
+            <h2 className="mb-6 text-base font-semibold text-foreground">Configurações de notificação</h2>
+
+            <div className="space-y-8">
+              <section>
+                <h3 className="mb-4 text-sm font-medium text-foreground">Canais</h3>
+                <div className="space-y-4">
+                  {[
+                    { key: 'emailEnabled' as const, icon: Mail, label: 'E-mail', desc: 'Receber notificações por e-mail' },
+                    { key: 'whatsappEnabled' as const, icon: MessageSquare, label: 'WhatsApp', desc: 'Receber via WhatsApp' },
+                    { key: 'pushEnabled' as const, icon: Bell, label: 'Push no navegador', desc: 'Alertas em tempo real no PM' },
+                  ].map(({ key, icon: Icon, label, desc }) => (
+                    <label key={key} className="flex cursor-pointer items-center justify-between gap-4">
+                      <span className="flex items-center gap-3">
+                        <Icon className="h-5 w-5 text-muted-foreground" />
+                        <span>
+                          <span className="block text-sm font-medium">{label}</span>
+                          <span className="block text-sm text-muted-foreground">{desc}</span>
+                        </span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settings[key]}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, [key]: e.target.checked }))}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                    </label>
+                  ))}
                 </div>
-                
-                {/* Tipos de Notificação */}
-                <div>
-                  <h4 className="text-sm font-medium text-foreground mb-4">Tipos de Notificação</h4>
-                  <div className="space-y-4">
-                    {[
-                      { key: 'projectUpdates', label: 'Atualizações de Projetos', desc: 'Mudanças de status, novos marcos' },
-                      { key: 'taskDeadlines', label: 'Prazos de Tarefas', desc: 'Lembretes de tarefas próximas do vencimento' },
-                      { key: 'teamMessages', label: 'Mensagens da Equipe', desc: 'Novas mensagens no chat da equipe' },
-                      { key: 'clientMessages', label: 'Mensagens de Clientes', desc: 'Comentários e solicitações de clientes' },
-                      { key: 'systemAlerts', label: 'Alertas do Sistema', desc: 'Notificações importantes do sistema' },
-                      { key: 'weeklyReports', label: 'Relatórios Semanais', desc: 'Resumo semanal de atividades' }
-                    ].map((item) => (
-                      <div key={item.key} className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{item.label}</p>
-                          <p className="text-sm text-muted-foreground">{item.desc}</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={settings[item.key as keyof NotificationSettings] as boolean}
-                            onChange={(e) => setSettings(prev => ({ ...prev, [item.key]: e.target.checked }))}
-                            className="sr-only peer"
-                          />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+              </section>
+
+              <section>
+                <h3 className="mb-4 text-sm font-medium text-foreground">Tipos</h3>
+                <div className="space-y-4">
+                  {[
+                    { key: 'projectUpdates', label: 'Atualizações de projetos', desc: 'Mudanças de status e marcos' },
+                    { key: 'taskDeadlines', label: 'Prazos de tarefas', desc: 'Lembretes de vencimento' },
+                    { key: 'teamMessages', label: 'Mensagens da equipe', desc: 'Comentários em tarefas' },
+                    { key: 'clientMessages', label: 'Mensagens de clientes', desc: 'Solicitações no portal' },
+                    { key: 'systemAlerts', label: 'Alertas do sistema', desc: 'Avisos importantes' },
+                    { key: 'weeklyReports', label: 'Relatórios semanais', desc: 'Resumo semanal' },
+                  ].map((item) => (
+                    <label key={item.key} className="flex cursor-pointer items-center justify-between gap-4">
+                      <span>
+                        <span className="block text-sm font-medium">{item.label}</span>
+                        <span className="block text-sm text-muted-foreground">{item.desc}</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={settings[item.key as keyof NotificationSettings] as boolean}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, [item.key]: e.target.checked }))}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                    </label>
+                  ))}
                 </div>
-                
-                {/* Save Button */}
-                <div className="pt-4 border-t border-muted">
-                  <button
-                    onClick={saveSettings}
-                    disabled={saving}
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {saving ? 'Salvando...' : 'Salvar Configurações'}
-                  </button>
-                </div>
+              </section>
+
+              <div className="border-t border-border pt-4">
+                <Button type="button" onClick={saveSettings} disabled={saving}>
+                  {saving ? 'Salvando...' : 'Salvar configurações'}
+                </Button>
               </div>
             </div>
           </div>
         )}
       </div>
-    </DashboardLayout>
+    </PageLoadingGate>
   )
 }

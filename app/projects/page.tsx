@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Plus,
   Search,
@@ -388,15 +389,8 @@ export default function ProjectsPage() {
     return parts[0] || ''
   }
 
-  if (status === "loading" || loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={status === "loading" || loading}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 md:flex-nowrap">
@@ -1247,5 +1241,6 @@ export default function ProjectsPage() {
       </div>
 
 
+    </PageLoadingGate>
   )
 }

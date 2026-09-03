@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       where.status = status
     }
 
-    const [clients, total] = await Promise.all([
+    const [clients, total, projectStats] = await Promise.all([
       prisma.client.findMany({
         where,
         skip,
@@ -57,6 +57,7 @@ export async function GET(request: NextRequest) {
               id: true,
               name: true,
               status: true,
+              budget: true,
             }
           },
           _count: {
@@ -66,7 +67,12 @@ export async function GET(request: NextRequest) {
           }
         }
       }),
-      prisma.client.count({ where })
+      prisma.client.count({ where }),
+      prisma.project.aggregate({
+        where: Object.keys(where).length > 0 ? { client: where } : {},
+        _count: { id: true },
+        _sum: { budget: true },
+      }),
     ])
 
     return NextResponse.json({
@@ -75,8 +81,12 @@ export async function GET(request: NextRequest) {
         page,
         limit: fetchAll ? total : parsedLimit,
         total,
-        pages: fetchAll ? 1 : Math.ceil(total / parsedLimit)
-      }
+        pages: fetchAll ? 1 : Math.max(1, Math.ceil(total / parsedLimit))
+      },
+      summary: {
+        totalProjects: projectStats._count.id,
+        totalValue: projectStats._sum.budget ?? 0,
+      },
     })
   } catch (error) {
     console.error('Erro ao buscar clientes:', error)

@@ -1,5 +1,6 @@
 'use client'
 
+import { PageLoadingGate } from '@/components/ui/loading-animation'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -29,13 +30,9 @@ export default function Home() {
     }
   }, [session, status, router])
 
-  // Mostrar loading enquanto verifica autenticação
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    </div>
+    <PageLoadingGate loading={status === 'loading'}>
+      <span className="sr-only">Redirecionando</span>
+    </PageLoadingGate>
   )
 }

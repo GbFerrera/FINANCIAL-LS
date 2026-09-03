@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+import {
   Play, 
   Pause, 
   Square, 
@@ -198,7 +199,7 @@ export function TimerEventHistory({ userId, taskId, limit = 50 }: TimerEventHist
     return (
       <Card>
         <CardContent className="p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <LoadingAnimation size="md" />
           <p className="mt-2 text-muted-foreground">Carregando histórico...</p>
         </CardContent>
       </Card>

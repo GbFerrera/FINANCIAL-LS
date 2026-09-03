@@ -31,11 +31,21 @@ import {
   Calendar,
   DollarSign,
   FolderOpen,
-  ExternalLink
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { parseISO } from 'date-fns'
 import { FileUpload } from '@/components/ui/file-upload'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+const PAGE_SIZE = 10
+
+interface ClientSummary {
+  totalProjects: number
+  totalValue: number
+}
 
 interface Client {
   id: string
@@ -60,8 +70,13 @@ interface NewClient {
 export default function ClientsPage() {
   const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
-  const [filteredClients, setFilteredClients] = useState<Client[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalClients, setTotalClients] = useState(0)
+  const [summary, setSummary] = useState<ClientSummary>({ totalProjects: 0, totalValue: 0 })
+  const [loading, setLoading] = useState(true)
 
   const [isAddClientOpen, setIsAddClientOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
@@ -85,56 +100,59 @@ export default function ClientsPage() {
   const [uploadingAttachment, setUploadingAttachment] = useState(false)
   const fileUploadRef = useRef<{ handleUpload: (idOverride?: string) => Promise<any> }>(null)
 
-  // Load clients from API
+  // Debounce busca
   useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const response = await fetch('/api/clients?limit=all')
-        if (response.ok) {
-          const data = await response.json()
-          const transformedClients = data.clients.map((client: any) => ({
-            id: client.id,
-            name: client.name,
-            email: client.email,
-            phone: client.phone || '',
-            company: client.company || '',
-            address: client.address || '',
-            createdAt: new Date(client.createdAt).toISOString().split('T')[0],
-            totalProjects: client._count?.projects || 0,
-            totalValue: client.projects?.reduce((sum: number, project: any) => sum + (project.budget || 0), 0) || 0,
-            accessToken: client.accessToken,
-            lastAccess: client.lastAccess ? new Date(client.lastAccess).toISOString().split('T')[0] : undefined
-          }))
-          setClients(transformedClients)
-          setFilteredClients(transformedClients)
-        } else {
-          toast.error('Erro ao carregar clientes')
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const fetchClients = async (pageToLoad = page) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: String(pageToLoad),
+        limit: String(PAGE_SIZE),
+      })
+      if (debouncedSearch.trim()) {
+        params.set('search', debouncedSearch.trim())
+      }
+
+      const response = await fetch(`/api/clients?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        const transformedClients = data.clients.map((client: any) => ({
+          id: client.id,
+          name: client.name,
+          email: client.email,
+          phone: client.phone || '',
+          company: client.company || '',
+          address: client.address || '',
+          createdAt: new Date(client.createdAt).toISOString().split('T')[0],
+          totalProjects: client._count?.projects || 0,
+          totalValue: client.projects?.reduce((sum: number, project: any) => sum + (project.budget || 0), 0) || 0,
+          accessToken: client.accessToken,
+          lastAccess: client.lastAccess ? new Date(client.lastAccess).toISOString().split('T')[0] : undefined
+        }))
+        setClients(transformedClients)
+        setTotalClients(data.pagination.total)
+        setTotalPages(data.pagination.pages)
+        if (data.summary) {
+          setSummary(data.summary)
         }
-      } catch (error) {
-        console.error('Erro ao buscar clientes:', error)
+      } else {
         toast.error('Erro ao carregar clientes')
       }
+    } catch (error) {
+      console.error('Erro ao buscar clientes:', error)
+      toast.error('Erro ao carregar clientes')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    fetchClients()
-  }, [])
-
-  // Filter clients based on search and status
   useEffect(() => {
-    let filtered = clients
-
-    if (searchTerm) {
-      filtered = filtered.filter(client =>
-        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.company.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    }
-
-
-
-    setFilteredClients(filtered)
-  }, [clients, searchTerm])
+    fetchClients(page)
+  }, [page, debouncedSearch])
 
   useEffect(() => {
     const loadAttachments = async () => {
@@ -194,21 +212,7 @@ export default function ClientsPage() {
       })
 
       if (response.ok) {
-        const createdClient = await response.json()
-        const transformedClient = {
-          id: createdClient.id,
-          name: createdClient.name,
-          email: createdClient.email,
-          phone: createdClient.phone || '',
-          company: createdClient.company || '',
-          address: createdClient.address || '',
-          createdAt: new Date(createdClient.createdAt).toISOString().split('T')[0],
-          totalProjects: createdClient._count?.projects || 0,
-          totalValue: 0,
-          accessToken: createdClient.accessToken
-        }
-        
-        setClients(prev => [...prev, transformedClient])
+        await response.json()
         setNewClient({
           name: '',
           email: '',
@@ -216,6 +220,8 @@ export default function ClientsPage() {
           company: ''
         })
         setIsAddClientOpen(false)
+        setPage(1)
+        fetchClients(1)
         toast.success('Cliente adicionado com sucesso!')
       } else {
         const errorData = await response.json()
@@ -235,7 +241,11 @@ export default function ClientsPage() {
         })
 
         if (response.ok) {
-          setClients(prev => prev.filter(client => client.id !== clientId))
+          if (clients.length === 1 && page > 1) {
+            setPage(page - 1)
+          } else {
+            fetchClients(page)
+          }
           toast.success('Cliente excluído com sucesso!')
         } else {
           const errorData = await response.json()
@@ -284,13 +294,6 @@ export default function ClientsPage() {
           phone: updatedClient.phone || '',
           company: updatedClient.company || ''
         } : c))
-        setFilteredClients(prev => prev.map(c => c.id === updatedClient.id ? {
-          ...c,
-          name: updatedClient.name,
-          email: updatedClient.email,
-          phone: updatedClient.phone || '',
-          company: updatedClient.company || ''
-        } : c))
         setSelectedClient(prev => prev ? {
           ...prev,
           name: updatedClient.name,
@@ -314,7 +317,7 @@ export default function ClientsPage() {
   const stats = [
     {
       title: 'Total de Clientes',
-      value: clients.length.toString(),
+      value: totalClients.toString(),
       icon: Users,
       change: {
          value: '+12%',
@@ -323,7 +326,7 @@ export default function ClientsPage() {
     },
     {
       title: 'Clientes Ativos',
-      value: clients.length.toString(),
+      value: totalClients.toString(),
       icon: Users,
       change: {
          value: '+8%',
@@ -332,7 +335,7 @@ export default function ClientsPage() {
     },
     {
       title: 'Valor Total',
-      value: `R$ ${clients.reduce((sum, c) => sum + c.totalValue, 0).toLocaleString()}`,
+      value: `R$ ${summary.totalValue.toLocaleString('pt-BR')}`,
       icon: DollarSign,
       change: {
          value: '+15%',
@@ -341,7 +344,7 @@ export default function ClientsPage() {
     },
     {
       title: 'Projetos Ativos',
-      value: clients.reduce((sum, c) => sum + c.totalProjects, 0).toString(),
+      value: summary.totalProjects.toString(),
       icon: FolderOpen,
       change: {
          value: '+5%',
@@ -457,7 +460,10 @@ export default function ClientsPage() {
               type="text"
               placeholder="Buscar clientes..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setPage(1)
+              }}
               className="pl-10 pr-4 py-2 w-full border border-input rounded-md focus:ring-2 focus:ring-primary bg-background text-foreground"
             />
           </div>
@@ -496,8 +502,8 @@ export default function ClientsPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-card divide-y divide-border">
-                {filteredClients.map((client) => (
+              <tbody className={cn('bg-card divide-y divide-border', loading && 'opacity-50')}>
+                {clients.map((client) => (
                   <tr key={client.id} className="hover:bg-muted/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -589,14 +595,47 @@ export default function ClientsPage() {
               </tbody>
             </table>
           </div>
+
+          {totalClients > 0 && (
+            <div className="flex flex-col gap-3 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalClients)} de {totalClients} clientes
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <span className="min-w-[4.5rem] text-center text-sm text-muted-foreground">
+                  {page} / {totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Próxima
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {filteredClients.length === 0 && (
+        {!loading && clients.length === 0 && (
           <div className="text-center py-12">
             <Users className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum cliente encontrado</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {searchTerm 
+              {searchTerm
                 ? 'Tente ajustar os filtros de busca.'
                 : 'Comece adicionando um novo cliente.'
               }

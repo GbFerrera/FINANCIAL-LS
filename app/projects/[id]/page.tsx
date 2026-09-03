@@ -1,5 +1,6 @@
 "use client"
 
+import { PageLoadingGate, LoadingAnimation } from '@/components/ui/loading-animation'
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
@@ -617,15 +618,7 @@ export default function ProjectDetailsPage() {
     return formatEstimatedTime(hours)
   }
 
-  if (status === "loading" || loading) {
-    return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-    )
-  }
-
-  if (!project) {
+  if (!project && status !== "loading" && !loading) {
     return (
         <div className="text-center py-12">
           <h3 className="text-lg font-medium text-foreground">Projeto não encontrado</h3>
@@ -640,11 +633,13 @@ export default function ProjectDetailsPage() {
     )
   }
 
-  const completedMilestones = project.milestones.filter(m => m.status === 'COMPLETED' || !!m.completedAt).length
-  const completedTasks = project.tasks.filter(t => t.status === 'DONE' || t.status === 'COMPLETED').length
-  const progress = calculateBasicProjectProgress(project.milestones, project.tasks)
+  const completedMilestones = project?.milestones.filter(m => m.status === 'COMPLETED' || !!m.completedAt).length ?? 0
+  const completedTasks = project?.tasks.filter(t => t.status === 'DONE' || t.status === 'COMPLETED').length ?? 0
+  const progress = project ? calculateBasicProjectProgress(project.milestones, project.tasks) : 0
 
   return (
+    <PageLoadingGate loading={status === "loading" || loading || !project}>
+      {project ? (
       <div className="space-y-6">
         {/* Header */}
         <div className="bg-card shadow rounded-lg">
@@ -1595,5 +1590,7 @@ export default function ProjectDetailsPage() {
 
 
       </div>
+      ) : null}
+    </PageLoadingGate>
   )
 }

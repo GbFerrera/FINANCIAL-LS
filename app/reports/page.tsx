@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { StatsCard } from '@/components/ui/stats-card'
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Dialog,
   DialogContent,
@@ -273,18 +274,8 @@ export default function ReportsPage() {
     }
   ]
 
-  if (loading) {
-    return (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-muted-foreground">Carregando relatórios...</p>
-          </div>
-        </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -539,5 +530,6 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+    </PageLoadingGate>
   )
 }

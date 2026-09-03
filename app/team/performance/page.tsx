@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 import {
   Select,
   SelectContent,
@@ -118,7 +119,19 @@ export default function TeamPerformancePage() {
   const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
-    if (status === 'loading') return
+  if (!performanceData) {
+    return (
+        <div className="text-center py-12">
+          <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">Erro ao carregar dados</h3>
+          <p className="text-muted-foreground mb-4">Não foi possível carregar os dados de performance.</p>
+          <Button onClick={fetchPerformanceData}>Tentar novamente</Button>
+        </div>
+    )
+  }
+
+  return (
+    <PageLoadingGate loading={status === 'loading') return
     if (!session) {
       router.push('/auth/signin')
       return
@@ -185,26 +198,7 @@ export default function TeamPerformancePage() {
     ? performanceData?.teamMembers || []
     : performanceData?.teamMembers.filter(member => member.id === selectedMember) || []
 
-  if (loading) {
-    return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-        </div>
-    )
-  }
-
-  if (!performanceData) {
-    return (
-        <div className="text-center py-12">
-          <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">Erro ao carregar dados</h3>
-          <p className="text-muted-foreground mb-4">Não foi possível carregar os dados de performance.</p>
-          <Button onClick={fetchPerformanceData}>Tentar novamente</Button>
-        </div>
-    )
-  }
-
-  return (
+  if (loading}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -608,5 +602,6 @@ export default function TeamPerformancePage() {
           </div>
         )}
       </div>
+    </PageLoadingGate>
   )
 }

@@ -2,6 +2,7 @@ import { Server as NetServer } from 'http'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { Server as ServerIO } from 'socket.io'
 import TimerEventService from './timer-event-service'
+import { getUserNotificationRoom } from '@/lib/user-notification-types'
 
 export type NextApiResponseServerIO = NextApiResponse & {
   socket: {
@@ -56,6 +57,19 @@ const activeSessions = new Map<string, UserSession>()
 const activeTimers = new Map<string, TimerEvent>() // taskId -> timer event
 // Store para colaboradores ativos no Excalidraw por projeto
 const excalidrawCollaborators = new Map<string, Map<string, CollaboratorInfo>>() // projectId -> userId -> info
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __socketIO: ServerIO | undefined
+}
+
+export function getSocketIO(): ServerIO | undefined {
+  return global.__socketIO
+}
+
+export function setSocketIO(io: ServerIO) {
+  global.__socketIO = io
+}
 
 // Cores para colaboradores
 const collaboratorColors = [
@@ -112,7 +126,21 @@ export function initializeSocket(res: NextApiResponseServerIO) {
           console.log(`Colaborador ${userName} conectado`)
         }
 
+        socket.join('tasks')
+        socket.join(getUserNotificationRoom(userId))
         socket.emit('authenticated', { success: true })
+      })
+
+      socket.on('join-task-room', (data: { room: string }) => {
+        if (!data?.room) return
+        socket.join(data.room)
+        console.log(`Socket ${socket.id} entrou na sala ${data.room}`)
+      })
+
+      socket.on('leave-task-room', (data: { room: string }) => {
+        if (!data?.room) return
+        socket.leave(data.room)
+        console.log(`Socket ${socket.id} saiu da sala ${data.room}`)
       })
 
       // Eventos de timer
@@ -327,6 +355,7 @@ export function initializeSocket(res: NextApiResponseServerIO) {
       })
     })
 
+    setSocketIO(io)
     res.socket.server.io = io
   }
 

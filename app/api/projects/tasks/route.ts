@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
+import { broadcastTaskEvent, serializeTaskForSocket } from '@/lib/task-socket-server'
 
 const prisma = new PrismaClient()
 
@@ -122,6 +123,18 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Tarefa criada com sucesso:', task.id, task.title)
+
+    if (session.user) {
+      broadcastTaskEvent({
+        action: 'created',
+        taskId: task.id,
+        projectId: task.projectId,
+        userId: (session.user as { id?: string }).id || 'unknown',
+        userName: (session.user as { name?: string }).name,
+        task: serializeTaskForSocket(task as Record<string, unknown>),
+      }).catch(console.error)
+    }
+
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar tarefa:', error)

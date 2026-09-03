@@ -172,8 +172,14 @@ export async function PATCH(
       }
       if (Array.isArray(itemsOrder)) {
         await Promise.all(
-          itemsOrder.map((payload: { id: string; order: number }) =>
-            prisma.taskChecklistItem.update({ where: { id: payload.id }, data: { order: payload.order } })
+          itemsOrder.map((payload: { id: string; order: number; groupId?: string }) =>
+            prisma.taskChecklistItem.update({
+              where: { id: payload.id },
+              data: {
+                order: payload.order,
+                ...(payload.groupId ? { groupId: payload.groupId } : {}),
+              },
+            })
           )
         )
       }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { parseISO } from "date-fns"
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Plus,
   Edit,
@@ -170,15 +171,8 @@ export default function ClientsAdminPage() {
     return `${day}/${month}/${year}`
   }
 
-  if (status === "loading" || loading) {
-    return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={status === "loading" || loading}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -475,5 +469,6 @@ export default function ClientsAdminPage() {
           </div>
         )}
       </div>
+    </PageLoadingGate>
   )
 }

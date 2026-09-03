@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form'
 import { DateRange } from 'react-day-picker'
 import { ptBR } from 'date-fns/locale'
@@ -127,19 +127,81 @@ function ActionChip({
   )
 }
 
+function SummaryPopoverRow({
+  open,
+  onOpenChange,
+  title,
+  children,
+  emptyHint,
+  hasContent,
+  content,
+  contentClassName,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  children: React.ReactNode
+  emptyHint: string
+  hasContent: boolean
+  content: React.ReactNode
+  contentClassName?: string
+}) {
+  return (
+    <Popover modal={false} open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="grid w-full grid-cols-[120px_1fr] items-start gap-3 border-b border-border/50 py-3 text-left transition-colors last:border-0 hover:bg-muted/30"
+        >
+          <span className="text-sm text-muted-foreground">{title}</span>
+          <div className="min-w-0 text-sm">
+            {hasContent ? children : <span className="text-muted-foreground/70">{emptyHint}</span>}
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="bottom"
+        align="start"
+        collisionPadding={16}
+        className={contentClassName}
+        {...popoverFocusHandlers}
+      >
+        {content}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function SummaryBlock({
   title,
   onEdit,
   children,
   emptyHint,
   hasContent,
+  planeLayout,
 }: {
   title: string
   onEdit: () => void
   children: React.ReactNode
   emptyHint: string
   hasContent: boolean
+  planeLayout?: boolean
 }) {
+  if (planeLayout) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        className="grid w-full grid-cols-[120px_1fr] items-start gap-3 border-b border-border/50 py-3 text-left transition-colors last:border-0 hover:bg-muted/30"
+      >
+        <span className="text-sm text-muted-foreground">{title}</span>
+        <div className="min-w-0 text-sm">
+          {hasContent ? children : <span className="text-muted-foreground/70">{emptyHint}</span>}
+        </div>
+      </button>
+    )
+  }
+
   return (
     <button
       type="button"
@@ -170,7 +232,12 @@ type TaskMetadataControlsProps = {
   onProjectChange: (id: string) => void
   estimatedEndTime: string
   showSummary?: boolean
+  hideToolbar?: boolean
   className?: string
+  onDatesCommit?: (dates: {
+    startDate?: string
+    dueDate?: string
+  }) => void | Promise<void>
 }
 
 export function TaskMetadataControls({
@@ -184,12 +251,20 @@ export function TaskMetadataControls({
   onProjectChange,
   estimatedEndTime,
   showSummary = false,
+  hideToolbar = false,
   className,
+  onDatesCommit,
 }: TaskMetadataControlsProps) {
   const [openPanel, setOpenPanel] = useState<PanelId | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState<PanelId | null>(null)
+  const [draftRange, setDraftRange] = useState<DateRange | undefined>()
+  const [datesSaving, setDatesSaving] = useState(false)
+  const datesPanelWasOpenRef = useRef(false)
 
   const setPanel = (panel: PanelId | null) => setOpenPanel(panel)
+  const setSummaryPanel = (panel: PanelId | null) => setSummaryOpen(panel)
   const isOpen = (panel: PanelId) => openPanel === panel
+  const isSummaryOpen = (panel: PanelId) => summaryOpen === panel
 
   const priority = watch('priority')
   const storyPoints = watch('storyPoints')
@@ -205,8 +280,48 @@ export function TaskMetadataControls({
     const from = fromIsoDate(startDate)
     const to = fromIsoDate(dueDate)
     if (!from && !to) return undefined
-    return { from, to }
+    return { from, to: to ?? from }
   }, [startDate, dueDate])
+
+  const draftDatesPayload = useMemo((): {
+    startDate?: string
+    dueDate?: string
+  } | null => {
+    if (!draftRange?.from) {
+      return { startDate: undefined, dueDate: undefined }
+    }
+    if (!draftRange.to) return null
+    return {
+      startDate: toIsoDate(draftRange.from),
+      dueDate: toIsoDate(draftRange.to),
+    }
+  }, [draftRange])
+
+  const datesDraftDirty = useMemo(() => {
+    if (draftDatesPayload === null) return false
+    const savedStart = startDate || undefined
+    const savedDue = dueDate || undefined
+    return (
+      draftDatesPayload.startDate !== savedStart ||
+      draftDatesPayload.dueDate !== savedDue
+    )
+  }, [draftDatesPayload, startDate, dueDate])
+
+  const canApplyDates = draftDatesPayload !== null
+
+  const datesPanelOpen = isOpen('dates') || isSummaryOpen('dates')
+
+  useEffect(() => {
+    if (datesPanelOpen && !datesPanelWasOpenRef.current) {
+      setDraftRange(dateRange)
+    }
+    datesPanelWasOpenRef.current = datesPanelOpen
+  }, [datesPanelOpen, dateRange])
+
+  useEffect(() => {
+    if (!datesPanelOpen || datesDraftDirty) return
+    setDraftRange(dateRange)
+  }, [startDate, dueDate, datesPanelOpen, datesDraftDirty, dateRange])
 
   const assignee = teamMembers.find((m) => m.id === assigneeId)
   const milestone = milestones.find((m) => m.id === milestoneId)
@@ -314,6 +429,34 @@ export function TaskMetadataControls({
     </>
   )
 
+  const setDateField = (
+    field: 'startDate' | 'dueDate',
+    value: string | undefined
+  ) => {
+    setValue(field, value ?? '', { shouldDirty: true, shouldTouch: true })
+  }
+
+  const handleDateRangeSelect = (range: DateRange | undefined) => {
+    setDraftRange(range)
+  }
+
+  const applyDraftDates = async () => {
+    if (!draftDatesPayload) return
+
+    const { startDate: nextStart, dueDate: nextDue } = draftDatesPayload
+    setDateField('startDate', nextStart)
+    setDateField('dueDate', nextDue)
+
+    if (!onDatesCommit) return
+
+    setDatesSaving(true)
+    try {
+      await onDatesCommit({ startDate: nextStart, dueDate: nextDue })
+    } finally {
+      setDatesSaving(false)
+    }
+  }
+
   const datesEditor = (
     <>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -322,29 +465,37 @@ export function TaskMetadataControls({
       <Calendar
         mode="range"
         locale={ptBR}
-        selected={dateRange}
-        defaultMonth={dateRange?.from ?? dateRange?.to}
-        onSelect={(range) => {
-          setValue('startDate', range?.from ? toIsoDate(range.from) : undefined)
-          setValue('dueDate', range?.to ? toIsoDate(range.to) : undefined)
-        }}
+        selected={draftRange}
+        defaultMonth={draftRange?.from ?? draftRange?.to ?? dateRange?.from}
+        onSelect={handleDateRangeSelect}
         numberOfMonths={1}
         className="rounded-md border bg-background p-2 mx-auto"
       />
-      {(startDate || dueDate) && (
+      {draftDatesPayload === null && draftRange?.from && (
+        <p className="mt-2 text-xs text-muted-foreground text-center">
+          Selecione a data de entrega para concluir o intervalo.
+        </p>
+      )}
+      {(draftRange?.from || startDate || dueDate) && (
         <Button
           type="button"
           variant="ghost"
           size="sm"
           className="mt-2 h-7 w-full text-xs text-muted-foreground"
-          onClick={() => {
-            setValue('startDate', undefined)
-            setValue('dueDate', undefined)
-          }}
+          onClick={() => setDraftRange(undefined)}
         >
-          Limpar datas
+          Limpar seleção
         </Button>
       )}
+      <Button
+        type="button"
+        size="sm"
+        className="mt-3 w-full"
+        disabled={!canApplyDates || !datesDraftDirty || datesSaving}
+        onClick={() => void applyDraftDates()}
+      >
+        {datesSaving ? 'Salvando...' : 'Atualizar'}
+      </Button>
       <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground flex items-center gap-1">
@@ -385,7 +536,7 @@ export function TaskMetadataControls({
             Etiquetas
           </ActionChip>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64" {...popoverFocusHandlers}>
+        <PopoverContent align="start" side="bottom" collisionPadding={16} className="w-64" {...popoverFocusHandlers}>
           {labelsEditor}
         </PopoverContent>
       </Popover>
@@ -401,7 +552,7 @@ export function TaskMetadataControls({
             Membros
           </ActionChip>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 p-2" {...popoverFocusHandlers}>
+        <PopoverContent align="start" side="bottom" collisionPadding={16} className="w-72 p-2" {...popoverFocusHandlers}>
           {membersEditor}
         </PopoverContent>
       </Popover>
@@ -417,7 +568,7 @@ export function TaskMetadataControls({
             Datas
           </ActionChip>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-3" {...popoverFocusHandlers}>
+        <PopoverContent align="start" side="bottom" collisionPadding={16} className="w-auto max-w-[calc(100vw-2rem)] p-3" {...popoverFocusHandlers}>
           {datesEditor}
         </PopoverContent>
       </Popover>
@@ -495,106 +646,241 @@ export function TaskMetadataControls({
     </div>
   )
 
-  const summary = showSummary && (
-    <div className="space-y-1 mt-4 border-t border-border/50 pt-3">
-      <SummaryBlock
-        title="Etiquetas"
-        onEdit={() => setPanel('labels')}
-        hasContent={hasLabels}
-        emptyHint="Clique para definir prioridade e story points"
-      >
-        <div className="flex flex-wrap gap-1.5 pointer-events-none">
-          {priorityMeta && (
-            <span
-              className={cn(
-                'text-xs font-semibold px-2.5 py-1 rounded-md min-w-[4.5rem] text-center',
-                priorityMeta.pill
+  const summary = (showSummary || hideToolbar) && (
+    <div className={cn('space-y-0', !hideToolbar && 'mt-4 border-t border-border/50 pt-3')}>
+      {hideToolbar ? (
+        <>
+          <SummaryPopoverRow
+            open={isSummaryOpen('labels')}
+            onOpenChange={(open) => setSummaryPanel(open ? 'labels' : null)}
+            title="Estado"
+            hasContent={hasLabels}
+            emptyHint="Definir prioridade"
+            content={labelsEditor}
+            contentClassName="w-64"
+          >
+            <div className="flex flex-wrap gap-1.5 pointer-events-none">
+              {priorityMeta && (
+                <span
+                  className={cn(
+                    'text-xs font-semibold px-2.5 py-1 rounded-md min-w-[4.5rem] text-center',
+                    priorityMeta.pill
+                  )}
+                >
+                  {priorityMeta.label}
+                </span>
               )}
+              {(storyPoints ?? 0) > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-900 dark:text-amber-100">
+                  SP {storyPoints}
+                </span>
+              )}
+              {hasBonus && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200">
+                  Bônus
+                </span>
+              )}
+            </div>
+          </SummaryPopoverRow>
+
+          <SummaryPopoverRow
+            open={isSummaryOpen('members')}
+            onOpenChange={(open) => setSummaryPanel(open ? 'members' : null)}
+            title="Responsáveis"
+            hasContent={!!assigneeId}
+            emptyHint="Adicionar responsáveis"
+            content={membersEditor}
+            contentClassName="w-72 p-2"
+          >
+            <div className="flex items-center gap-2 pointer-events-none">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-xs bg-primary/10">
+                  {(assignee?.name ?? '?').charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium">{assignee?.name ?? 'Membro atribuído'}</span>
+            </div>
+          </SummaryPopoverRow>
+
+          <SummaryPopoverRow
+            open={isSummaryOpen('dates')}
+            onOpenChange={(open) => setSummaryPanel(open ? 'dates' : null)}
+            title="Datas"
+            hasContent={hasDates}
+            emptyHint="Adicionar data de início"
+            content={datesEditor}
+            contentClassName="w-auto max-w-[calc(100vw-2rem)] p-3"
+          >
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pointer-events-none">
+              {startDate && (
+                <span>
+                  <span className="text-muted-foreground">Início: </span>
+                  {formatDateLabel(startDate)}
+                </span>
+              )}
+              {dueDate && (
+                <span>
+                  <span className="text-muted-foreground">Entrega: </span>
+                  {formatDateLabel(dueDate)}
+                </span>
+              )}
+              {startTime && (
+                <span>
+                  <span className="text-muted-foreground">Hora: </span>
+                  {startTime}
+                </span>
+              )}
+              {estimatedMinutes != null && estimatedMinutes > 0 && (
+                <span>
+                  <span className="text-muted-foreground">Estimado: </span>
+                  {estimatedMinutes} min
+                </span>
+              )}
+            </div>
+          </SummaryPopoverRow>
+
+          {milestone && (
+            <SummaryPopoverRow
+              open={isSummaryOpen('milestone')}
+              onOpenChange={(open) => setSummaryPanel(open ? 'milestone' : null)}
+              title="Milestone"
+              hasContent
+              emptyHint=""
+              content={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setValue('milestoneId', undefined)}
+                    className={cn(
+                      'w-full rounded-md px-2 py-2 text-sm text-left hover:bg-muted',
+                      !milestoneId && 'bg-muted'
+                    )}
+                  >
+                    Nenhuma
+                  </button>
+                  {milestones.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setValue('milestoneId', m.id)}
+                      className={cn(
+                        'w-full rounded-md px-2 py-2 text-sm text-left hover:bg-muted truncate',
+                        milestoneId === m.id && 'bg-muted'
+                      )}
+                    >
+                      {m.title}
+                    </button>
+                  ))}
+                </>
+              }
+              contentClassName="w-64 p-2"
             >
-              {priorityMeta.label}
-            </span>
+              <p className="text-sm pointer-events-none">{milestone.title}</p>
+            </SummaryPopoverRow>
           )}
-          {(storyPoints ?? 0) > 0 && (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-900 dark:text-amber-100">
-              SP {storyPoints}
-            </span>
-          )}
-          {hasBonus && (
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200">
-              Bônus
-            </span>
-          )}
-        </div>
-      </SummaryBlock>
+        </>
+      ) : (
+        <>
+          <SummaryBlock
+            title="Estado"
+            onEdit={() => setPanel('labels')}
+            hasContent={hasLabels}
+            emptyHint="Definir prioridade"
+          >
+            <div className="flex flex-wrap gap-1.5 pointer-events-none">
+              {priorityMeta && (
+                <span
+                  className={cn(
+                    'text-xs font-semibold px-2.5 py-1 rounded-md min-w-[4.5rem] text-center',
+                    priorityMeta.pill
+                  )}
+                >
+                  {priorityMeta.label}
+                </span>
+              )}
+              {(storyPoints ?? 0) > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-500/20 text-amber-900 dark:text-amber-100">
+                  SP {storyPoints}
+                </span>
+              )}
+              {hasBonus && (
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200">
+                  Bônus
+                </span>
+              )}
+            </div>
+          </SummaryBlock>
 
-      <SummaryBlock
-        title="Membros"
-        onEdit={() => setPanel('members')}
-        hasContent={!!assigneeId}
-        emptyHint="Clique para atribuir um membro"
-      >
-        <div className="flex items-center gap-2 pointer-events-none">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs bg-primary/10">
-              {(assignee?.name ?? '?').charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-sm font-medium">
-            {assignee?.name ?? 'Membro atribuído'}
-          </span>
-        </div>
-      </SummaryBlock>
+          <SummaryBlock
+            title="Responsáveis"
+            onEdit={() => setPanel('members')}
+            hasContent={!!assigneeId}
+            emptyHint="Adicionar responsáveis"
+          >
+            <div className="flex items-center gap-2 pointer-events-none">
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="text-xs bg-primary/10">
+                  {(assignee?.name ?? '?').charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium">
+                {assignee?.name ?? 'Membro atribuído'}
+              </span>
+            </div>
+          </SummaryBlock>
 
-      <SummaryBlock
-        title="Datas"
-        onEdit={() => setPanel('dates')}
-        hasContent={hasDates}
-        emptyHint="Clique para definir prazos e estimativa"
-      >
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pointer-events-none">
-          {startDate && (
-            <span>
-              <span className="text-muted-foreground">Início: </span>
-              {formatDateLabel(startDate)}
-            </span>
-          )}
-          {dueDate && (
-            <span>
-              <span className="text-muted-foreground">Entrega: </span>
-              {formatDateLabel(dueDate)}
-            </span>
-          )}
-          {startTime && (
-            <span>
-              <span className="text-muted-foreground">Hora: </span>
-              {startTime}
-            </span>
-          )}
-          {estimatedMinutes != null && estimatedMinutes > 0 && (
-            <span>
-              <span className="text-muted-foreground">Estimado: </span>
-              {estimatedMinutes} min
-            </span>
-          )}
-        </div>
-      </SummaryBlock>
+          <SummaryBlock
+            title="Datas"
+            onEdit={() => setPanel('dates')}
+            hasContent={hasDates}
+            emptyHint="Adicionar data de início"
+          >
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm pointer-events-none">
+              {startDate && (
+                <span>
+                  <span className="text-muted-foreground">Início: </span>
+                  {formatDateLabel(startDate)}
+                </span>
+              )}
+              {dueDate && (
+                <span>
+                  <span className="text-muted-foreground">Entrega: </span>
+                  {formatDateLabel(dueDate)}
+                </span>
+              )}
+              {startTime && (
+                <span>
+                  <span className="text-muted-foreground">Hora: </span>
+                  {startTime}
+                </span>
+              )}
+              {estimatedMinutes != null && estimatedMinutes > 0 && (
+                <span>
+                  <span className="text-muted-foreground">Estimado: </span>
+                  {estimatedMinutes} min
+                </span>
+              )}
+            </div>
+          </SummaryBlock>
 
-      {milestone && (
-        <SummaryBlock
-          title="Milestone"
-          onEdit={() => setPanel('milestone')}
-          hasContent
-          emptyHint=""
-        >
-          <p className="text-sm pointer-events-none">{milestone.title}</p>
-        </SummaryBlock>
+          {milestone && (
+            <SummaryBlock
+              title="Milestone"
+              onEdit={() => setPanel('milestone')}
+              hasContent
+              emptyHint=""
+            >
+              <p className="text-sm pointer-events-none">{milestone.title}</p>
+            </SummaryBlock>
+          )}
+        </>
       )}
     </div>
   )
 
   return (
     <div className={className}>
-      {toolbar}
+      {!hideToolbar && toolbar}
       {summary}
     </div>
   )

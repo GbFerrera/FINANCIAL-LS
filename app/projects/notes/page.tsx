@@ -15,6 +15,7 @@ import ExcalidrawClient, { ExcalidrawClientHandle } from "@/components/Excalidra
 import { FileUpload } from "@/components/ui/file-upload"
 import toast from "react-hot-toast"
 
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 type ProjectOption = { id: string; name: string }
 type TeamMember = { user: { id: string; name: string; email: string } }
 
@@ -653,7 +654,7 @@ export default function NotesPage() {
   return (
     <Suspense fallback={
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <LoadingAnimation size="md" />
       </div>
     }>
       <ProjectNotesPage />

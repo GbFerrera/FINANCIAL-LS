@@ -1,18 +1,19 @@
 
 import { useState, useEffect } from "react";
-import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { DragDropContext, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Archive, ArchiveRestore, CheckSquare, MoreVertical, Square } from "lucide-react";
 import { TaskCard } from "../scrum/TaskCard";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { KanbanColumn, useKanbanColumnCollapse } from "@/components/kanban/KanbanColumn";
+import { KANBAN_COLUMNS } from "@/lib/pipeline/task-utils";
 
 interface ProjectTask {
   id: string;
@@ -49,6 +50,8 @@ interface KanbanBoardProps {
   onTaskClick: (taskId: string) => void;
   onTaskEdit?: (task: any) => void;
   onTaskDelete?: (taskId: string) => void;
+  onTaskArchive?: (taskId: string) => void;
+  onTaskRestore?: (taskId: string) => void;
   selectionMode?: boolean;
   selectedTaskIds?: string[];
   onToggleTaskSelection?: (taskId: string) => void;
@@ -59,34 +62,11 @@ interface KanbanBoardProps {
   onStartArchiveSelection?: () => void;
   onToggleArchivedView?: () => void;
   canCompleteTasks?: boolean;
+  collapseStorageKey?: string;
+  className?: string;
 }
 
-const COLUMNS = [
-  { 
-    id: "TODO", 
-    title: "A Fazer", 
-    color: "bg-secondary/50 border-secondary",
-    headerColor: "bg-secondary text-secondary-foreground"
-  },
-  { 
-    id: "IN_PROGRESS", 
-    title: "Em Andamento", 
-    color: "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900",
-    headerColor: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
-  },
-  { 
-    id: "IN_REVIEW", 
-    title: "Em Teste", 
-    color: "bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900",
-    headerColor: "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
-  },
-  { 
-    id: "COMPLETED", 
-    title: "Concluído", 
-    color: "bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-900",
-    headerColor: "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
-  },
-];
+const COLUMNS = KANBAN_COLUMNS;
 
 export function KanbanBoard({
   tasks,
@@ -94,6 +74,8 @@ export function KanbanBoard({
   onTaskClick,
   onTaskEdit,
   onTaskDelete,
+  onTaskArchive,
+  onTaskRestore,
   selectionMode = false,
   selectedTaskIds = [],
   onToggleTaskSelection,
@@ -104,8 +86,11 @@ export function KanbanBoard({
   onStartArchiveSelection,
   onToggleArchivedView,
   canCompleteTasks = true,
+  collapseStorageKey = "kanban-columns-pipeline",
+  className,
 }: KanbanBoardProps) {
   const [boardTasks, setBoardTasks] = useState<ProjectTask[]>(tasks);
+  const { isCollapsed, toggle } = useKanbanColumnCollapse(collapseStorageKey);
 
   useEffect(() => {
     setBoardTasks(tasks);
@@ -129,8 +114,7 @@ export function KanbanBoard({
       return;
     }
     const originalTasks = [...boardTasks];
-    
-    // Atualização otimista
+
     const updatedTasks = boardTasks.map((task) => {
       if (task.id === draggableId) {
         return { ...task, status: newStatus };
@@ -142,170 +126,151 @@ export function KanbanBoard({
 
     try {
       await onTaskUpdate(draggableId, newStatus);
-    } catch (error) {
-      // Reverter em caso de erro
+    } catch {
       setBoardTasks(originalTasks);
       toast.error("Erro ao atualizar status da tarefa");
     }
   };
 
-  // Helper to map ProjectTask to TaskCard's Task interface
-  const mapToCardTask = (task: ProjectTask, index: number) => {
-    return {
-      id: task.id,
-      title: task.title,
-      description: task.description || undefined,
-      status: task.status as 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED',
-      priority: task.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT',
-      storyPoints: undefined,
-      project: task.project ? { id: task.project.id, name: task.project.name } : undefined,
-      assignee: task.assignee ? {
-        id: task.assignee.id,
-        name: task.assignee.name,
-        email: task.assignee.email,
-        avatar: task.assignee.avatar || undefined
-      } : undefined,
-      dueDate: task.dueDate || undefined,
-      startDate: task.startDate || undefined,
-      startTime: task.startTime || undefined,
-      estimatedMinutes: task.estimatedMinutes || undefined,
-      order: index,
-      coverImageUrl: task.coverImageUrl || undefined,
-    };
-  };
+  const mapToCardTask = (task: ProjectTask, index: number) => ({
+    id: task.id,
+    title: task.title,
+    description: task.description || undefined,
+    status: task.status as 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED',
+    priority: task.priority as 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT',
+    storyPoints: undefined,
+    project: task.project ? { id: task.project.id, name: task.project.name } : undefined,
+    assignee: task.assignee ? {
+      id: task.assignee.id,
+      name: task.assignee.name,
+      email: task.assignee.email,
+      avatar: task.assignee.avatar || undefined
+    } : undefined,
+    dueDate: task.dueDate || undefined,
+    startDate: task.startDate || undefined,
+    startTime: task.startTime || undefined,
+    estimatedMinutes: task.estimatedMinutes || undefined,
+    order: index,
+    coverImageUrl: task.coverImageUrl || undefined,
+  });
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100vh-240px)] min-h-[500px] px-1 snap-x">
+      <div className={cn("flex h-full min-h-0 gap-4 overflow-x-auto px-1 pb-2 snap-x", className)}>
         {COLUMNS.map((column) => {
           const columnTasks = boardTasks.filter((task) => {
-              if (column.id === 'COMPLETED' && (task.status === 'DONE' || task.status === 'COMPLETED')) return true;
-              return task.status === column.id;
+            if (column.id === 'COMPLETED' && (task.status === 'DONE' || task.status === 'COMPLETED')) return true;
+            return task.status === column.id;
           });
 
-          return (
-            <div 
-              key={column.id} 
-              className={cn(
-                "flex-shrink-0 w-80 flex flex-col rounded-xl border p-1.5 h-full transition-colors duration-200 snap-center",
-                column.color
-              )}
-            >
-              <div className={cn("px-3 py-3 flex items-center justify-between mb-2 rounded-lg", column.headerColor)}>
-                <span className="text-sm font-bold">{column.title}</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="text-xs font-mono bg-background/50 backdrop-blur-sm shadow-sm border-0">
-                    {columnTasks.length}
-                  </Badge>
-                  {column.id === "COMPLETED" && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-current hover:bg-background/20"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        {!showArchived && (
-                          <DropdownMenuItem onClick={onArchiveCompleted} disabled={archiveLoading}>
-                            <Archive className="mr-2 h-4 w-4" />
-                            Arquivar todas concluídas
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={onStartArchiveSelection}>
-                          <CheckSquare className="mr-2 h-4 w-4" />
-                          {showArchived ? "Selecionar para restaurar" : "Selecionar para arquivar"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={onToggleArchivedView}>
-                          {showArchived ? (
-                            <ArchiveRestore className="mr-2 h-4 w-4" />
-                          ) : (
-                            <Archive className="mr-2 h-4 w-4" />
-                          )}
-                          {showArchived ? "Voltar para ativas" : "Ver todas arquivadas"}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+          const completedMenu = column.id === "COMPLETED" ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {!showArchived && (
+                  <DropdownMenuItem onClick={onArchiveCompleted} disabled={archiveLoading}>
+                    <Archive className="mr-2 h-4 w-4" />
+                    Arquivar todas concluídas
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={onStartArchiveSelection}>
+                  <CheckSquare className="mr-2 h-4 w-4" />
+                  {showArchived ? "Selecionar para restaurar" : "Selecionar para arquivar"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onToggleArchivedView}>
+                  {showArchived ? (
+                    <ArchiveRestore className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Archive className="mr-2 h-4 w-4" />
                   )}
-                </div>
-              </div>
-              
-              <Droppable droppableId={column.id}>
-                {(provided, snapshot) => (
-                  <div
-                    {...provided.droppableProps}
-                    ref={provided.innerRef}
-                    className={cn(
-                      "flex-1 px-1 pb-2 space-y-3 overflow-y-auto transition-all duration-200 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent rounded-lg",
-                      snapshot.isDraggingOver ? "bg-black/5 dark:bg-white/5 ring-2 ring-inset ring-primary/20" : ""
-                    )}
-                  >
-                    {columnTasks.map((task, index) => (
-                      <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={disableDrag}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            style={{
-                              ...provided.draggableProps.style,
-                            }}
-                            className={cn(
-                              "outline-none transition-transform",
-                              snapshot.isDragging ? "rotate-2 z-50 scale-105 shadow-2xl" : ""
-                            )}
-                            onClick={(e) => {
-                              if (selectionMode && column.id === "COMPLETED") {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                onToggleTaskSelection?.(task.id)
-                              }
-                            }}
-                          >
-                            <div className="relative">
-                              {selectionMode && column.id === "COMPLETED" && (
-                                <div className="absolute top-2 left-2 z-10">
-                                  {selectedTaskIds.includes(task.id) ? (
-                                    <CheckSquare className="w-5 h-5 text-blue-600 bg-card rounded border-2 border-blue-600" />
-                                  ) : (
-                                    <Square className="w-5 h-5 text-gray-400 bg-card rounded border-2 border-gray-300" />
-                                  )}
-                                </div>
-                              )}
-                              <div
-                                className={cn(
-                                  "rounded-lg",
-                                  selectionMode && column.id === "COMPLETED" && selectedTaskIds.includes(task.id)
-                                    ? "ring-2 ring-blue-500 ring-offset-2"
-                                    : ""
+                  {showArchived ? "Voltar para ativas" : "Ver todas arquivadas"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null;
+
+          return (
+            <KanbanColumn
+              key={column.id}
+              columnId={column.id}
+              title={column.title}
+              count={columnTasks.length}
+              collapsed={isCollapsed(column.id)}
+              onToggleCollapse={() => toggle(column.id)}
+              droppableId={column.id}
+              headerActions={completedMenu}
+              className="h-full snap-center"
+            >
+              {(_, snapshot) => (
+                <>
+                  {columnTasks.map((task, index) => (
+                    <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={disableDrag}>
+                      {(provided, dragSnapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          style={provided.draggableProps.style}
+                          className={cn(
+                            "outline-none",
+                            dragSnapshot.isDragging && "z-50 rotate-1 scale-[1.02] shadow-xl"
+                          )}
+                          onClick={(e) => {
+                            if (selectionMode && column.id === "COMPLETED") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onToggleTaskSelection?.(task.id);
+                            }
+                          }}
+                        >
+                          <div className="relative">
+                            {selectionMode && column.id === "COMPLETED" && (
+                              <div className="absolute top-2 left-2 z-10">
+                                {selectedTaskIds.includes(task.id) ? (
+                                  <CheckSquare className="h-5 w-5 rounded border-2 border-primary bg-card text-primary" />
+                                ) : (
+                                  <Square className="h-5 w-5 rounded border-2 border-border bg-card text-muted-foreground" />
                                 )}
-                              >
-                                <TaskCard 
-                                  task={mapToCardTask(task, index)}
-                                  onClick={() => onTaskClick(task.id)}
-                                  onEdit={selectionMode ? undefined : onTaskEdit ? () => onTaskEdit(task) : undefined}
-                                  onDelete={selectionMode ? undefined : onTaskDelete ? () => onTaskDelete(task.id) : undefined}
-                                />
                               </div>
+                            )}
+                            <div
+                              className={cn(
+                                selectionMode && column.id === "COMPLETED" && selectedTaskIds.includes(task.id)
+                                  ? "rounded-lg ring-2 ring-primary ring-offset-2"
+                                  : ""
+                              )}
+                            >
+                              <TaskCard
+                                task={mapToCardTask(task, index)}
+                                onClick={() => onTaskClick(task.id)}
+                                onEdit={selectionMode ? undefined : onTaskEdit ? () => onTaskEdit(task) : undefined}
+                                onDelete={selectionMode ? undefined : onTaskDelete ? () => onTaskDelete(task.id) : undefined}
+                                onArchive={selectionMode || showArchived ? undefined : onTaskArchive ? () => onTaskArchive(task.id) : undefined}
+                                onRestore={selectionMode || !showArchived ? undefined : onTaskRestore ? () => onTaskRestore(task.id) : undefined}
+                              />
                             </div>
                           </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                    {columnTasks.length === 0 && !snapshot.isDraggingOver && (
-                      <div className="h-24 flex items-center justify-center text-muted-foreground/40 border-2 border-dashed border-muted-foreground/10 rounded-lg m-2">
-                        <span className="text-xs">Solte uma tarefa aqui</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Droppable>
-            </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {columnTasks.length === 0 && !snapshot.isDraggingOver && (
+                    <div className="mx-1 flex h-24 items-center justify-center rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground/50">
+                      Solte aqui
+                    </div>
+                  )}
+                </>
+              )}
+            </KanbanColumn>
           );
         })}
       </div>

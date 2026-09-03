@@ -7,6 +7,7 @@ import { parseISO, format, startOfMonth, endOfMonth, subMonths, startOfYear, end
 import { ptBR } from "date-fns/locale"
 import { DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Plus,
   Download,
@@ -329,17 +330,8 @@ export default function FinancialPage() {
     return type === 'INCOME' ? TrendingUp : TrendingDown
   }
 
-  if (status === "loading" || loading) {
-    return (
-   
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-
-    )
-  }
-
   return (
+    <PageLoadingGate loading={status === "loading" || loading}>
  <>
       <div className="space-y-6">
         {/* Header */}
@@ -826,5 +818,6 @@ export default function FinancialPage() {
         </AlertDialog>
       </div>
     </>
+    </PageLoadingGate>
   )
 }

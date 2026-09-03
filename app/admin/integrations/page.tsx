@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Settings,
   Plus,
@@ -152,17 +153,8 @@ export default function IntegrationsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -429,5 +421,6 @@ export default function IntegrationsPage() {
         )}
       </div>
     </DashboardLayout>
+    </PageLoadingGate>
   )
 }

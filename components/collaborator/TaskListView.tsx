@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { 
+import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+import {
   Calendar, 
   Target, 
   Clock, 
@@ -26,7 +27,10 @@ import { AddTaskImagesModal } from './AddTaskImagesModal'
 // Função para formatar data sem problemas de fuso horário
 const formatDateSafe = (dateString: string) => {
   // Se a data já está no formato ISO, extrair apenas a parte da data
-  if (dateString.includes('T')) {
+  const groupedTasks = groupTasksBySprint()
+
+  return (
+    <PageLoadingGate loading={dateString.includes('T')) {
     dateString = dateString.split('T')[0]
   }
   
@@ -269,17 +273,7 @@ export function TaskListView({ token }: TaskListViewProps) {
     return grouped
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border"></div>
-      </div>
-    )
-  }
-
-  const groupedTasks = groupTasksBySprint()
-
-  return (
+  if (loading}>
     <div className="space-y-6">
       {/* Header e Filtros */}
       <div className="space-y-4">
@@ -508,5 +502,6 @@ export function TaskListView({ token }: TaskListViewProps) {
           token={token}
         />
     </div>
+    </PageLoadingGate>
   )
 }

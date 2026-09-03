@@ -1,9 +1,9 @@
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from '@/components/ui/dialog'
+import { PlaneRichText } from '@/components/ui/plane-editor'
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
@@ -245,11 +245,15 @@ export function TaskDetailsModal({ task, open, onOpenChange, token }: TaskDetail
                 <FileText className="w-5 h-5 text-primary" />
                 Descrição
               </h3>
-              <div className="prose prose-sm max-w-none text-muted-foreground leading-relaxed whitespace-pre-wrap pl-1">
-                {getDescriptionWithoutAttachments() || (
-                  <span className="italic text-muted-foreground/60">Nenhuma descrição fornecida para esta tarefa.</span>
-                )}
-              </div>
+              <PlaneRichText
+                value={getDescriptionWithoutAttachments()}
+                className="text-muted-foreground pl-1"
+              />
+              {!getDescriptionWithoutAttachments() && (
+                <span className="italic text-muted-foreground/60">
+                  Nenhuma descrição fornecida para esta tarefa.
+                </span>
+              )}
             </div>
 
             {/* Anexos */}

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { z } from "zod"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { broadcastTaskEvent } from "@/lib/task-socket-server"
 
 const bodySchema = z.object({
   taskIds: z.array(z.string().min(1)).optional(),
@@ -57,8 +58,9 @@ export async function POST(request: NextRequest) {
         id: true,
         status: true,
         isArchived: true,
+        projectId: true,
       } as any,
-    })) as unknown as Array<{ id: string; status: string; isArchived: boolean }>
+    })) as unknown as Array<{ id: string; status: string; isArchived: boolean; projectId: string }>
 
     const eligibleTaskIds = tasks
       .filter((task) => {
@@ -87,6 +89,22 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date(),
       } as any,
     })
+
+    const affectedProjectIds = [...new Set(tasks.filter((t) => eligibleTaskIds.includes(t.id)).map((t) => t.projectId))]
+    for (const projectId of affectedProjectIds) {
+      const idsForProject = tasks
+        .filter((t) => t.projectId === projectId && eligibleTaskIds.includes(t.id))
+        .map((t) => t.id)
+
+      broadcastTaskEvent({
+        action: archived ? 'archived' : 'restored',
+        taskId: idsForProject[0],
+        taskIds: idsForProject,
+        projectId,
+        userId: session.user.id,
+        userName: session.user.name || undefined,
+      }).catch(console.error)
+    }
 
     return NextResponse.json({
       updatedCount: eligibleTaskIds.length,

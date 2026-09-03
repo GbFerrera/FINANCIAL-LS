@@ -9,7 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
@@ -22,6 +23,13 @@ import {
 import { toast } from 'react-hot-toast'
 import { Calendar as UiCalendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from "@/lib/utils"
 import { 
   Target, 
@@ -29,19 +37,23 @@ import {
   TrendingUp, 
   Search,
   Eye,
-  Edit,
   Trash,
   Play,
   Pause,
   CheckCircle2,
   Plus,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Archive,
+  ArchiveRestore,
+  MoreHorizontal,
+  Pencil,
 } from 'lucide-react'
 import Link from 'next/link'
 import { format, differenceInDays, isWithinInterval, startOfDay, endOfDay, parse, startOfWeek, getDay, isSameDay, eachDayOfInterval, isWeekend, isBefore, isAfter } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
+import { isSprintArchivable, sprintArchiveBlockedReason } from '@/lib/sprint-archive'
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -56,6 +68,8 @@ interface Sprint {
   endDate: string
   goal?: string
   capacity?: number
+  isArchived?: boolean
+  archivedAt?: string | null
   project?: {
     id: string
     name: string
@@ -119,6 +133,8 @@ function SprintsPageContent() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState((searchParams && searchParams.get('search')) || '')
   const [statusFilter, setStatusFilter] = useState<string>((searchParams && searchParams.get('status')) || 'all')
+  const [showArchived, setShowArchived] = useState(false)
+  const [archiveLoading, setArchiveLoading] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'mkt' | 'dev' | 'all'>('dev')
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined)
   const [showCreateSprint, setShowCreateSprint] = useState(false)
@@ -326,7 +342,7 @@ function SprintsPageContent() {
   }), [tasksByDate])
   useEffect(() => {
     fetchSprints()
-  }, [])
+  }, [showArchived])
 
   useEffect(() => {
     filterSprints()
@@ -340,13 +356,14 @@ function SprintsPageContent() {
     router.push(`${pathname}${queryString ? `?${queryString}` : ''}`, { scroll: false })
   }, [sprints, searchTerm, statusFilter])
 
-  const fetchSprints = async () => {
+  const fetchSprints = async (options?: { silent?: boolean }) => {
     try {
-      setLoading(true)
-      const response = await fetch('/api/sprints/all')
+      if (!options?.silent) setLoading(true)
+      const params = new URLSearchParams()
+      if (showArchived) params.set('archivedOnly', 'true')
+      const response = await fetch(`/api/sprints/all${params.toString() ? `?${params}` : ''}`)
       if (response.ok) {
         const data = await response.json()
-        console.log('Sprints carregadas:', data)
         setSprints(data)
       } else {
         console.error('Erro na resposta:', response.status, response.statusText)
@@ -354,7 +371,7 @@ function SprintsPageContent() {
     } catch (error) {
       console.error('Erro ao carregar sprints:', error)
     } finally {
-      setLoading(false)
+      if (!options?.silent) setLoading(false)
     }
   }
 
@@ -451,7 +468,7 @@ function SprintsPageContent() {
       toast.success('Sprint atualizada')
       setShowEditSprint(false)
       setSprintToEdit(null)
-      fetchSprints()
+      fetchSprints({ silent: true })
     } catch (e) {
       toast.error('Erro ao atualizar sprint')
     }
@@ -459,14 +476,39 @@ function SprintsPageContent() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return
+    const deletedId = deleteTarget.id
     try {
-      const res = await fetch(`/api/sprints/${deleteTarget.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/sprints/${deletedId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Falha ao deletar sprint')
+      setSprints((prev) => prev.filter((s) => s.id !== deletedId))
       toast.success('Sprint deletada')
       setDeleteTarget(null)
-      fetchSprints()
     } catch (e) {
       toast.error('Erro ao deletar sprint')
+    }
+  }
+
+  const handleArchiveSprint = async (sprint: Sprint, archived: boolean) => {
+    try {
+      setArchiveLoading(sprint.id)
+      const res = await fetch('/api/sprints/archive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sprintIds: [sprint.id], archived }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Falha ao arquivar sprint')
+      if (data.updatedCount === 0) {
+        toast.error(data.message || 'Sprint não elegível para arquivar')
+        return
+      }
+
+      setSprints((prev) => prev.filter((s) => s.id !== sprint.id))
+      toast.success(archived ? 'Sprint arquivada' : 'Sprint restaurada')
+    } catch (e) {
+      toast.error(archived ? 'Erro ao arquivar sprint' : 'Erro ao restaurar sprint')
+    } finally {
+      setArchiveLoading(null)
     }
   }
 
@@ -590,21 +632,20 @@ function SprintsPageContent() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Todas as Sprints</h1>
-          <p className="text-muted-foreground">Visualize e gerencie todas as sprints dos seus projetos</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            {showArchived ? 'Sprints Arquivadas' : 'Todas as Sprints'}
+          </h1>
+          <p className="text-muted-foreground">
+            {showArchived
+              ? 'Sprints concluídas ou canceladas que foram arquivadas'
+              : 'Visualize e gerencie todas as sprints dos seus projetos'}
+          </p>
         </div>
         <div className="flex gap-2">
           <div className="bg-muted p-1 rounded-lg flex gap-1">
@@ -636,6 +677,7 @@ function SprintsPageContent() {
           <Button
             onClick={() => setShowCreateSprint(true)}
             className="bg-primary text-primary-foreground hover:bg-primary/90 h-10"
+            disabled={showArchived}
           >
             <Plus className="w-4 h-4 mr-2" />
             Nova Sprint
@@ -705,6 +747,15 @@ function SprintsPageContent() {
                 <option value="COMPLETED">Concluída</option>
                 <option value="CANCELLED">Cancelada</option>
               </select>
+              <Button
+                variant={showArchived ? 'default' : 'outline'}
+                size="sm"
+                className="h-10"
+                onClick={() => setShowArchived((v) => !v)}
+              >
+                <Archive className="w-4 h-4 mr-2" />
+                {showArchived ? 'Ver ativas' : 'Arquivadas'}
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -1001,35 +1052,71 @@ function SprintsPageContent() {
                             </div>
 
                             {/* Ações */}
-                            <div className="flex items-center gap-1 w-full md:w-auto justify-end border-t md:border-t-0 pt-2 md:pt-0 mt-2 md:mt-0">
-                              <Link href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`}>
-                                <Button variant="outline" size="sm" className="h-8 text-xs">
-                                  <Eye className="w-3 h-3 mr-1.5" />
-                                  Ver
-                                </Button>
-                              </Link>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(sprint)}>
-                                <Edit className="w-3 h-3" />
-                              </Button>
-                              <AlertDialog open={deleteTarget?.id === sprint.id} onOpenChange={(open) => setDeleteTarget(open ? sprint : null)}>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(sprint)}>
-                                  <Trash className="w-3 h-3" />
-                                </Button>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Deletar Sprint</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Esta ação removerá a sprint e desvinculará suas tarefas. Deseja continuar?
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
-                                      Deletar
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                            <div className="flex items-center w-full md:w-auto justify-end border-t md:border-t-0 pt-2 md:pt-0 mt-2 md:mt-0">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                    aria-label="Ações da sprint"
+                                  >
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  {!showArchived && (
+                                    <>
+                                      <DropdownMenuItem asChild>
+                                        <Link
+                                          href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`}
+                                          className="cursor-pointer"
+                                        >
+                                          <Eye className="w-4 h-4 mr-2" />
+                                          Ver quadro
+                                        </Link>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openEdit(sprint)}>
+                                        <Pencil className="w-4 h-4 mr-2" />
+                                        Editar
+                                      </DropdownMenuItem>
+                                      {(() => {
+                                        const blocked = sprintArchiveBlockedReason(sprint)
+                                        return (
+                                          <DropdownMenuItem
+                                            disabled={!!blocked || archiveLoading === sprint.id}
+                                            title={blocked ?? undefined}
+                                            onClick={() => {
+                                              if (blocked) return
+                                              handleArchiveSprint(sprint, true)
+                                            }}
+                                          >
+                                            <Archive className="w-4 h-4 mr-2" />
+                                            Arquivar
+                                          </DropdownMenuItem>
+                                        )
+                                      })()}
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={() => setDeleteTarget(sprint)}
+                                      >
+                                        <Trash className="w-4 h-4 mr-2" />
+                                        Excluir
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                  {showArchived && (
+                                    <DropdownMenuItem
+                                      disabled={archiveLoading === sprint.id}
+                                      onClick={() => handleArchiveSprint(sprint, false)}
+                                    >
+                                      <ArchiveRestore className="w-4 h-4 mr-2" />
+                                      Restaurar
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </CardContent>
                         </Card>
@@ -1048,17 +1135,39 @@ function SprintsPageContent() {
           <CardContent className="p-8 text-center">
             <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
-              {searchTerm || statusFilter !== 'all' ? 'Nenhuma sprint encontrada' : 'Nenhuma sprint criada'}
+              {showArchived
+                ? 'Nenhuma sprint arquivada'
+                : searchTerm || statusFilter !== 'all'
+                  ? 'Nenhuma sprint encontrada'
+                  : 'Nenhuma sprint criada'}
             </h3>
             <p className="text-muted-foreground">
-              {searchTerm || statusFilter !== 'all' 
-                ? 'Tente ajustar os filtros de busca' 
-                : 'Crie sprints nos seus projetos para vê-las aqui'
-              }
+              {showArchived
+                ? 'Arquive sprints concluídas ou canceladas para organizar a lista'
+                : searchTerm || statusFilter !== 'all'
+                  ? 'Tente ajustar os filtros de busca'
+                  : 'Crie sprints nos seus projetos para vê-las aqui'}
             </p>
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar Sprint</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá a sprint &quot;{deleteTarget?.name}&quot; e desvinculará suas tarefas. Deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <CreateSprintModal
         isOpen={showCreateSprint}
@@ -1116,11 +1225,12 @@ export default function SprintsPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
+          <LoadingAnimation size="md" />
         </div>
       }
     >
       <SprintsPageContent />
     </Suspense>
+    </PageLoadingGate>
   )
 }

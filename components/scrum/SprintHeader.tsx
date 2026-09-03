@@ -12,7 +12,8 @@ import {
   Pause, 
   CheckCircle2,
   Clock,
-  Trash2
+  Trash2,
+  Archive
 } from 'lucide-react'
 import { format, differenceInDays, isAfter, isBefore } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -37,7 +38,9 @@ interface SprintHeaderProps {
   }
   onEdit: () => void
   onDelete?: () => void
+  onArchive?: () => void
   isCompleted?: boolean
+  archiveLoading?: boolean
 }
 
 export function SprintHeader({ 
@@ -46,7 +49,9 @@ export function SprintHeader({
   storyPoints, 
   onEdit, 
   onDelete,
-  isCompleted = false 
+  onArchive,
+  isCompleted = false,
+  archiveLoading = false
 }: SprintHeaderProps) {
   const getStatusColor = () => {
     switch (sprint.status) {
@@ -175,6 +180,17 @@ export function SprintHeader({
               Editar
             </Button>
           </div>
+        )}
+        {isCompleted && onArchive && isSprintArchivable(sprint) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onArchive}
+            disabled={archiveLoading}
+          >
+            <Archive className="w-4 h-4 mr-2" />
+            Arquivar
+          </Button>
         )}
       </div>
 

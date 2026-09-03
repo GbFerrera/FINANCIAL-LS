@@ -29,9 +29,11 @@ type ApiSubscription = {
 }
 
 async function main() {
-  const dbUrl = process.env.PROD_DATABASE_URL || process.env.DATABASE_URL
+  const dbUrl = process.env.PROD_DATABASE_URL
   if (!dbUrl) {
-    throw new Error('Defina PROD_DATABASE_URL (ou DATABASE_URL) apontando para o Postgres de produção')
+    throw new Error(
+      'Defina PROD_DATABASE_URL apontando para o Postgres de produção (Coolify → projects → Environment → DATABASE_URL)'
+    )
   }
 
   const { base, cookies } = await pmSession()

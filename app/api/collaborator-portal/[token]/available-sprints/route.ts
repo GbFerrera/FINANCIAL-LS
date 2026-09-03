@@ -34,6 +34,7 @@ export async function GET(
     // (não apenas as que o colaborador já participa)
     const sprints = await prisma.sprint.findMany({
       where: {
+        isArchived: false,
         status: {
           in: ['PLANNING', 'ACTIVE']
         }

@@ -5,7 +5,8 @@ import { ptBR } from "date-fns/locale"
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   Users, 
   UserPlus, 
   Search, 
@@ -382,15 +383,8 @@ export default function TeamPage() {
   const departments = members.length > 0 ? [...new Set(members.map(m => m.department))] : []
   const roles = members.length > 0 ? [...new Set(members.map(m => m.role))] : []
 
-  if (loading) {
-    return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -984,5 +978,6 @@ export default function TeamPage() {
           </DialogContent>
         </Dialog>
       </div>
+    </PageLoadingGate>
   )
 }

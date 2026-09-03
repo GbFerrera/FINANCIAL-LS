@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { notifySprintStatusChange } from '@/lib/notifications'
+import { isSprintArchivable } from '@/lib/sprint-archive'
 
 const prisma = new PrismaClient()
 
@@ -28,6 +29,8 @@ export async function GET(
         "endDate",
         goal,
         capacity,
+        "isArchived",
+        "archivedAt",
         "createdAt",
         "updatedAt"
       FROM sprints
@@ -140,7 +143,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { name, description, status, startDate, endDate, goal, capacity } = body
+    const { name, description, status, startDate, endDate, goal, capacity, isArchived } = body
 
     // Buscar sprint atual para comparar status
     const currentSprint = await prisma.sprint.findUnique({
@@ -153,6 +156,16 @@ export async function PUT(
 
     const oldStatus = currentSprint.status
 
+    if (isArchived === true && !isSprintArchivable({ status: currentSprint.status, endDate: currentSprint.endDate, isArchived: currentSprint.isArchived })) {
+      return NextResponse.json(
+        { error: 'Esta sprint não pode ser arquivada no status atual' },
+        { status: 400 }
+      )
+    }
+
+    const setArchivedAt =
+      isArchived === true ? new Date() : isArchived === false ? null : undefined
+
     const sprint = await prisma.sprint.update({
       where: { id: params.id },
       data: {
@@ -162,7 +175,9 @@ export async function PUT(
         ...(startDate && { startDate: new Date(startDate) }),
         ...(endDate && { endDate: new Date(endDate) }),
         ...(goal !== undefined && { goal }),
-        ...(capacity !== undefined && { capacity })
+        ...(capacity !== undefined && { capacity }),
+        ...(isArchived !== undefined && { isArchived: !!isArchived }),
+        ...(setArchivedAt !== undefined && { archivedAt: setArchivedAt }),
       },
       include: {
         tasks: {

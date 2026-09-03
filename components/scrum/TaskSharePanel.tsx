@@ -7,11 +7,13 @@ import { Badge } from '@/components/ui/badge'
 import { Bot, Copy, Link2, Loader2, Power, PowerOff } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 interface TaskSharePanelProps {
   taskId: string
+  compact?: boolean
 }
 
-export function TaskSharePanel({ taskId }: TaskSharePanelProps) {
+export function TaskSharePanel({ taskId, compact = false }: TaskSharePanelProps) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [shareEnabled, setShareEnabled] = useState(false)
@@ -64,10 +66,41 @@ export function TaskSharePanel({ taskId }: TaskSharePanelProps) {
     }
   }
 
+  if (loading && compact) {
+    return (
+      <Button type="button" variant="ghost" size="icon-sm" disabled className="text-muted-foreground">
+        <LoadingInline size="xs" />
+      </Button>
+    )
+  }
+
+  if (compact) {
+    const handleCompactClick = async () => {
+      if (shareUrl) {
+        await copy(shareUrl, 'Link')
+        return
+      }
+      await toggleShare(true)
+    }
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-muted-foreground"
+        disabled={saving}
+        onClick={handleCompactClick}
+        aria-label="Copiar link"
+      >
+        <Link2 className="h-4 w-4" />
+      </Button>
+    )
+  }
+
   if (loading) {
     return (
       <div className="pl-8 flex items-center gap-2 text-sm text-muted-foreground py-2">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <LoadingInline size="xs" />
         Carregando link da task...
       </div>
     )

@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   Calendar, 
   Target, 
   Clock, 
@@ -204,15 +205,8 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
     return format(date, 'EEEE', { locale: ptBR })
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <div className="space-y-6">
       {/* Header com navegação da semana */}
       <div className="flex items-center justify-between">
@@ -431,5 +425,6 @@ export function WeeklySprintView({ token }: WeeklySprintViewProps) {
         token={token}
       />
     </div>
+    </PageLoadingGate>
   )
 }

@@ -1,5 +1,6 @@
- 'use client'
- 
+'use client'
+
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
  import { use, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -261,7 +262,7 @@ function TaskList({
       <CardContent className="p-0 flex-1 min-h-[300px] max-h-[500px] overflow-y-auto custom-scrollbar">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-border"></div>
+            <LoadingAnimation size="md" />
             <p className="text-sm">Carregando tarefas...</p>
           </div>
         ) : tasks.length === 0 ? (

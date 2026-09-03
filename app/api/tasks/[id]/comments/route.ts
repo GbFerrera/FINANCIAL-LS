@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { emitTaskCommentEvent } from '@/lib/task-comments-socket-server';
+import { notifyTaskComment } from '@/lib/notifications';
 
 export async function GET(
   _request: NextRequest,
@@ -92,6 +94,24 @@ export async function POST(
         }
       }
     });
+
+    emitTaskCommentEvent({
+      action: 'created',
+      taskId: task.id,
+      comment: {
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt.toISOString(),
+        author: comment.author,
+      },
+    });
+
+    notifyTaskComment(
+      task.id,
+      session.user.id,
+      comment.author?.name || session.user.name || 'Usuário',
+      comment.content
+    ).catch(console.error);
 
     return NextResponse.json(comment, { status: 201 });
 

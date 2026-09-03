@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   Users, 
   Key, 
   Copy, 
@@ -215,17 +216,8 @@ export default function CollaboratorsPage() {
     }
   }
 
-  if (status === 'loading' || loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={status === 'loading' || loading}>
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
@@ -491,5 +483,6 @@ export default function CollaboratorsPage() {
         </div>
       </div>
     </DashboardLayout>
+    </PageLoadingGate>
   )
 }

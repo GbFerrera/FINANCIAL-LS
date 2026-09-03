@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { notifyTaskStatusChange, notifyTaskAssignment } from '@/lib/notifications';
+import { broadcastTaskEvent, resolveTaskUpdateAction, serializeTaskForSocket, shouldBroadcastTaskPatch } from '@/lib/task-socket-server';
 
 export async function PATCH(
   request: NextRequest,
@@ -51,6 +52,39 @@ export async function PATCH(
     // Guardar valores antigos para notificações
     const oldStatus = existingTask.status
     const oldAssigneeId = existingTask.assigneeId
+    const oldTitle = existingTask.title
+    const oldPriority = existingTask.priority
+
+    const taskUpdateInclude = {
+      assignee: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatar: true
+        }
+      },
+      project: {
+        select: {
+          id: true,
+          name: true
+        }
+      },
+      sprint: {
+        select: {
+          id: true,
+          name: true,
+          status: true
+        }
+      },
+      milestone: {
+        select: {
+          id: true,
+          name: true,
+          status: true
+        }
+      }
+    } as const
 
     // Regras de completedAt conforme mudança de status
     const statusUpdate = updates.status as string | undefined
@@ -85,14 +119,18 @@ export async function PATCH(
       updatedTask = await prisma.task.update({
         where: { id: taskId },
         data: {
-          ...(updates.title && { title: updates.title }),
+          ...(updates.title !== undefined && { title: updates.title }),
           ...(updates.description !== undefined && { description: updates.description }),
           ...(updates.status && { status: updates.status }),
-          ...(updates.priority && { priority: updates.priority }),
+          ...(updates.priority !== undefined && { priority: updates.priority }),
           ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
           ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
-          ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
-          ...(updates.startDate && { startDate: new Date(updates.startDate) }),
+          ...(updates.dueDate !== undefined && {
+            dueDate: updates.dueDate ? new Date(updates.dueDate) : null,
+          }),
+          ...(updates.startDate !== undefined && {
+            startDate: updates.startDate ? new Date(updates.startDate) : null,
+          }),
           ...(updates.startTime !== undefined && { startTime: updates.startTime }),
           ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
           ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
@@ -103,42 +141,24 @@ export async function PATCH(
           ...(updates.order !== undefined && { order: updates.order }),
           updatedAt: new Date()
         },
-        include: {
-          assignee: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              avatar: true
-            }
-          },
-          project: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          sprint: {
-            select: {
-              id: true,
-              name: true,
-              status: true
-            }
-          }
-        }
+        include: taskUpdateInclude
       });
     } catch (e) {
       updatedTask = await prisma.task.update({
         where: { id: taskId },
         data: {
-          ...(updates.title && { title: updates.title }),
+          ...(updates.title !== undefined && { title: updates.title }),
           ...(updates.description !== undefined && { description: updates.description }),
           ...(updates.status && { status: updates.status }),
-          ...(updates.priority && { priority: updates.priority }),
+          ...(updates.priority !== undefined && { priority: updates.priority }),
           ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
           ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
-          ...(updates.dueDate && { dueDate: new Date(updates.dueDate) }),
-          ...(updates.startDate && { startDate: new Date(updates.startDate) }),
+          ...(updates.dueDate !== undefined && {
+            dueDate: updates.dueDate ? new Date(updates.dueDate) : null,
+          }),
+          ...(updates.startDate !== undefined && {
+            startDate: updates.startDate ? new Date(updates.startDate) : null,
+          }),
           ...(updates.startTime !== undefined && { startTime: updates.startTime }),
           ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
           ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
@@ -148,29 +168,7 @@ export async function PATCH(
           ...(updates.order !== undefined && { order: updates.order }),
           updatedAt: new Date()
         },
-        include: {
-          assignee: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              avatar: true
-            }
-          },
-          project: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          sprint: {
-            select: {
-              id: true,
-              name: true,
-              status: true
-            }
-          }
-        }
+        include: taskUpdateInclude
       });
     }
 
@@ -183,6 +181,25 @@ export async function PATCH(
       if (updates.assigneeId) {
         notifyTaskAssignment(taskId, updates.assigneeId, session.user.id).catch(console.error)
       }
+    }
+
+    if (shouldBroadcastTaskPatch(updates, existingTask)) {
+      const { action: resolvedAction, changes } = resolveTaskUpdateAction(updates, {
+        title: oldTitle,
+        priority: oldPriority,
+        status: oldStatus,
+        isArchived: existingTask.isArchived,
+      })
+
+      broadcastTaskEvent({
+        action: resolvedAction,
+        taskId,
+        projectId: updatedTask.project.id,
+        userId: session.user.id,
+        userName: session.user.name || undefined,
+        task: serializeTaskForSocket(updatedTask as Record<string, unknown>),
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+      }).catch(console.error)
     }
 
     return NextResponse.json(updatedTask);
@@ -242,6 +259,14 @@ export async function DELETE(
     await prisma.task.delete({
       where: { id: taskId }
     });
+
+    broadcastTaskEvent({
+      action: 'deleted',
+      taskId,
+      projectId: existingTask.projectId,
+      userId: session.user.id,
+      userName: session.user.name || undefined,
+    }).catch(console.error)
 
     return NextResponse.json({ message: 'Tarefa deletada com sucesso' });
   } catch (error) {

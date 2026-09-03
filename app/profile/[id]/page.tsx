@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   Card, 
   CardContent, 
   CardHeader, 
@@ -102,15 +103,8 @@ export default function ProfileDetailPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <div className="mx-auto space-y-8 p-6">
       <div className="flex flex-col md:flex-row items-start justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -282,5 +276,6 @@ export default function ProfileDetailPage() {
         </div>
       </div>
     </div>
+    </PageLoadingGate>
   )
 }

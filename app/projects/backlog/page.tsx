@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   Calendar, 
   Search,
   Filter,
@@ -174,15 +175,8 @@ export default function BacklogPage() {
 
   const stats = getBacklogStats()
 
-  if (loading) {
-    return (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
       <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -406,5 +400,6 @@ export default function BacklogPage() {
         </Card>
       )}
       </div>
+    </PageLoadingGate>
   )
 }

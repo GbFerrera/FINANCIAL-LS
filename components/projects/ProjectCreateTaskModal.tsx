@@ -28,6 +28,7 @@ interface ProjectCreateTaskModalProps {
   projectId: string
   milestones: Milestone[]
   onSuccess: () => void
+  onEditingTaskSync?: (patch: Partial<Task>) => void
   editingTask?: Task | null
 }
 
@@ -37,6 +38,7 @@ export function ProjectCreateTaskModal({
   projectId,
   milestones,
   onSuccess,
+  onEditingTaskSync,
   editingTask,
 }: ProjectCreateTaskModalProps) {
   const mappedMilestones = (milestones || []).map((m) => ({
@@ -52,6 +54,7 @@ export function ProjectCreateTaskModal({
       sprintId={null}
       milestones={mappedMilestones}
       onSuccess={onSuccess}
+      onEditingTaskSync={onEditingTaskSync}
       editingTask={editingTask}
     />
   )

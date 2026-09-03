@@ -1,38 +1,45 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import toast from "react-hot-toast"
-import { Archive, ArchiveRestore, Filter, Plus, X } from "lucide-react"
+import { Archive, ArchiveRestore } from "lucide-react"
 import { KanbanBoard } from "@/components/projects/KanbanBoard"
+import { PipelineHeader } from "@/components/pipeline/PipelineHeader"
+import { PipelineListView } from "@/components/pipeline/PipelineListView"
+import { PipelineTableView } from "@/components/pipeline/PipelineTableView"
+import { PipelineCalendarView } from "@/components/pipeline/PipelineCalendarView"
+import { PipelineTimelineView } from "@/components/pipeline/PipelineTimelineView"
+import { TaskFilterBadges } from "@/components/tasks/TaskFiltersPanel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProjectCreateTaskModal } from "@/components/projects/ProjectCreateTaskModal"
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
+  EMPTY_TASK_FILTERS,
+  TaskFilterState,
+  UNASSIGNED_ASSIGNEE,
+  searchParamsToTaskFilters,
+  taskFiltersToSearchParams,
+} from "@/lib/task-filters"
+import { PipelineTask, PipelineViewMode } from "@/lib/pipeline/types"
+import { useTaskUpdates } from "@/hooks/useTaskUpdates"
+import { OPEN_TASK_EVENT } from "@/lib/active-task-view"
+import { applyPipelineTaskEvent } from "@/lib/task-socket-client"
+import type { TaskUpdateEvent } from "@/lib/task-socket-types"
 
 type ProjectOption = { id: string; name: string }
 type MilestoneOption = { id: string; name: string }
 
-type BoardTask = {
-  id: string
-  title: string
-  description: string | null
-  status: string
-  priority: string
-  dueDate: string | null
-  estimatedMinutes: number | null
-  startDate: string | null
-  startTime: string | null
-  endTime: string | null
-  assignee: { id: string; name: string; email: string; avatar: string | null } | null
-  milestone: { id: string; name: string; status: string } | null
-  project: { id: string; name: string }
+const VALID_VIEWS: PipelineViewMode[] = ["list", "board", "calendar", "table", "timeline"]
+
+function parseView(raw: string | null): PipelineViewMode {
+  if (raw && VALID_VIEWS.includes(raw as PipelineViewMode)) return raw as PipelineViewMode
+  return "board"
 }
 
 export default function PipelinePage() {
@@ -41,10 +48,12 @@ export default function PipelinePage() {
   const searchParams = useSearchParams()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
-  const [selectedPriorities, setSelectedPriorities] = useState<string[]>([])
-  const [tasks, setTasks] = useState<BoardTask[]>([])
+  const [taskFilters, setTaskFilters] = useState<TaskFilterState>(EMPTY_TASK_FILTERS)
+  const [view, setView] = useState<PipelineViewMode>("board")
+  const [filterUsers, setFilterUsers] = useState<{ id: string; label: string }[]>([])
+  const [filterSprints, setFilterSprints] = useState<{ id: string; label: string }[]>([])
+  const [filterMilestones, setFilterMilestones] = useState<{ id: string; label: string }[]>([])
+  const [tasks, setTasks] = useState<PipelineTask[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [createPickOpen, setCreatePickOpen] = useState(false)
   const [createTaskOpen, setCreateTaskOpen] = useState(false)
@@ -58,77 +67,84 @@ export default function PipelinePage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [archiveLoading, setArchiveLoading] = useState(false)
-  const [projectSearch, setProjectSearch] = useState("")
 
   useEffect(() => {
-    const rawIds = searchParams?.get("projectIds")
-    const legacyId = searchParams?.get("projectId")
-    const ids = rawIds
-      ? rawIds
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : legacyId
-        ? [legacyId]
-        : []
-    setSelectedProjectIds(ids)
-
-    const rawStatuses = searchParams?.get("statuses")
-    const statuses = rawStatuses
-      ? rawStatuses
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : []
-    setSelectedStatuses(statuses)
-
-    const rawPriorities = searchParams?.get("priorities")
-    const priorities = rawPriorities
-      ? rawPriorities
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : []
-    setSelectedPriorities(priorities)
+    const params = new URLSearchParams(searchParams?.toString() || "")
+    const legacyId = params.get("projectId")
+    if (legacyId && !params.get("projectIds")) {
+      params.set("projectIds", legacyId)
+    }
+    setTaskFilters(searchParamsToTaskFilters(params))
+    setView(parseView(params.get("view")))
+    setShowArchived(params.get("archivedOnly") === "true")
   }, [searchParams])
 
-  const fetchProjects = async () => {
+  const fetchProjects = async (): Promise<ProjectOption[]> => {
     const res = await fetch("/api/projects?limit=1000&page=1", { method: "GET" })
     if (!res.ok) {
       const err = await res.json().catch(() => ({} as { error?: string }))
       throw new Error(err.error || "Falha ao buscar projetos")
     }
     const data = await res.json().catch(() => ({} as { projects?: unknown }))
-    const list: any[] = Array.isArray((data as any).projects) ? ((data as any).projects as any[]) : []
-    setProjects(list.map((p: any) => ({ id: String(p.id), name: String(p.name) })))
+    const list: ProjectOption[] = (Array.isArray((data as any).projects) ? ((data as any).projects as any[]) : []).map(
+      (p: any) => ({ id: String(p.id), name: String(p.name) })
+    )
+    setProjects(list)
+    return list
   }
 
-  const fetchTasks = async (
-    projectIds: string[],
-    statuses: string[] = [],
-    priorities: string[] = []
-  ) => {
-    const params = new URLSearchParams()
-    if (projectIds.length > 0) {
-      params.set("projectIds", projectIds.join(","))
-    }
-    if (statuses.length > 0) {
-      params.set("statuses", statuses.join(","))
-    }
-    if (priorities.length > 0) {
-      params.set("priorities", priorities.join(","))
-    }
-    if (showArchived) {
-      params.set("archivedOnly", "true")
-    }
+  const fetchTasks = async (filters: TaskFilterState) => {
+    const params = taskFiltersToSearchParams(filters)
+    if (showArchived) params.set("archivedOnly", "true")
     const qs = params.toString() ? `?${params.toString()}` : ""
     const res = await fetch(`/api/tasks${qs}`, { method: "GET" })
     if (!res.ok) {
       const err = await res.json().catch(() => ({} as { error?: string }))
       throw new Error(err.error || "Falha ao buscar tarefas")
     }
-    const data = await res.json().catch(() => ({} as { tasks?: BoardTask[] }))
-    setTasks(Array.isArray(data.tasks) ? data.tasks : [])
+    const data = await res.json().catch(() => ({} as { tasks?: PipelineTask[] }))
+    setTasks(Array.isArray(data.tasks) ? (data.tasks as PipelineTask[]) : [])
+  }
+
+  const fetchFilterOptions = async (projectList: ProjectOption[]) => {
+    const [teamRes, sprintsRes] = await Promise.all([
+      fetch("/api/team?limit=200"),
+      fetch("/api/sprints/all"),
+    ])
+
+    if (teamRes.ok) {
+      const teamData = await teamRes.json().catch(() => ({} as { users?: { id: string; name: string }[] }))
+      const users = Array.isArray(teamData.users) ? teamData.users : []
+      setFilterUsers(users.map((u) => ({ id: u.id, label: u.name })))
+    }
+
+    if (sprintsRes.ok) {
+      const sprintsData = await sprintsRes.json().catch(() => [])
+      const list = Array.isArray(sprintsData) ? sprintsData : []
+      setFilterSprints(list.map((s: { id: string; name: string }) => ({ id: s.id, label: s.name })))
+    }
+
+    const projectIds =
+      taskFilters.projectIds.length > 0 ? taskFilters.projectIds : projectList.map((p) => p.id)
+
+    if (projectIds.length === 0) {
+      setFilterMilestones([])
+      return
+    }
+
+    const milestoneResults = await Promise.all(
+      projectIds.map((id) =>
+        fetch(`/api/projects/${id}/milestones`)
+          .then((r) => (r.ok ? r.json() : []))
+          .catch(() => [])
+      )
+    )
+
+    const milestoneMap = new Map<string, string>()
+    milestoneResults.flat().forEach((m: { id: string; name: string }) => {
+      if (m?.id && m?.name) milestoneMap.set(m.id, m.name)
+    })
+    setFilterMilestones([...milestoneMap.entries()].map(([id, label]) => ({ id, label })))
   }
 
   useEffect(() => {
@@ -142,8 +158,11 @@ export default function PipelinePage() {
     const run = async () => {
       try {
         setInitialLoading(true)
-        await fetchProjects()
-        if (!cancelled) await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
+        const list = await fetchProjects()
+        if (!cancelled) {
+          await fetchFilterOptions(list)
+          await fetchTasks(taskFilters)
+        }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Erro ao carregar pipeline")
       } finally {
@@ -159,145 +178,106 @@ export default function PipelinePage() {
   useEffect(() => {
     if (status !== "authenticated") return
     if (initialLoading) return
-    let cancelled = false
-    const run = async () => {
-      try {
-        await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Erro ao carregar tarefas")
-      } finally {
-        if (cancelled) return
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [selectedProjectIds, selectedStatuses, selectedPriorities, status, initialLoading, showArchived])
+    fetchTasks(taskFilters).catch((e) =>
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar tarefas")
+    )
+  }, [taskFilters, status, initialLoading, showArchived])
 
-  const mappedTasks = useMemo(() => {
-    return tasks.map((t) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description,
-      status: t.status,
-      priority: t.priority,
-      project: t.project,
-      dueDate: t.dueDate,
-      estimatedMinutes: t.estimatedMinutes,
-      startDate: t.startDate,
-      startTime: t.startTime,
-      endTime: t.endTime,
-      assignee: t.assignee,
-      milestone: t.milestone,
-    }))
-  }, [tasks])
+  useEffect(() => {
+    if (status !== "authenticated" || initialLoading || projects.length === 0) return
+    fetchFilterOptions(projects).catch(() => {})
+  }, [taskFilters.projectIds, projects, status, initialLoading])
 
   const isAdmin = session?.user?.role === "ADMIN"
 
-  const STATUS_OPTIONS = [
-    { value: "TODO", label: "A Fazer" },
-    { value: "IN_PROGRESS", label: "Em Andamento" },
-    { value: "IN_REVIEW", label: "Em Teste" },
-    { value: "COMPLETED", label: "Concluído" },
-  ] as const
+  const filterLabelMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    filterUsers.forEach((u) => {
+      map[u.id] = u.label
+    })
+    projects.forEach((p) => {
+      map[p.id] = p.name
+    })
+    filterSprints.forEach((s) => {
+      map[s.id] = s.label
+    })
+    filterMilestones.forEach((m) => {
+      map[m.id] = m.label
+    })
+    map[UNASSIGNED_ASSIGNEE] = "Sem responsável"
+    return map
+  }, [filterUsers, projects, filterSprints, filterMilestones])
 
-  const PRIORITY_OPTIONS = [
-    { value: "LOW", label: "Baixa" },
-    { value: "MEDIUM", label: "Média" },
-    { value: "HIGH", label: "Alta" },
-    { value: "URGENT", label: "Urgente" },
-  ] as const
+  const handleRemoteTaskUpdate = useCallback((event: TaskUpdateEvent) => {
+    setTasks((prev) => applyPipelineTaskEvent(prev, event))
 
-  const activeFilterCount =
-    selectedProjectIds.length + selectedStatuses.length + selectedPriorities.length
+    if (event.task && editingTask?.id === event.taskId) {
+      setEditingTask((prev: { id: string; title?: string; priority?: string; status?: string; startDate?: string | null; dueDate?: string | null } | null) =>
+        prev
+          ? {
+              ...prev,
+              title: event.task!.title,
+              priority: event.task!.priority,
+              status: event.task!.status,
+              ...(event.task!.startDate !== undefined && {
+                startDate: event.task!.startDate
+                  ? event.task!.startDate.split('T')[0]
+                  : null,
+              }),
+              ...(event.task!.dueDate !== undefined && {
+                dueDate: event.task!.dueDate
+                  ? event.task!.dueDate.split('T')[0]
+                  : null,
+              }),
+            }
+          : prev
+      )
+    }
+  }, [editingTask?.id])
 
-  const availableProjects = useMemo(() => {
-    const q = projectSearch.trim().toLowerCase()
-    return projects
-      .filter((p) => !selectedProjectIds.includes(p.id))
-      .filter((p) => (q ? p.name.toLowerCase().includes(q) : true))
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-  }, [projects, selectedProjectIds, projectSearch])
+  useTaskUpdates({
+    joinPipeline: true,
+    enabled: status === "authenticated",
+    onTaskUpdate: handleRemoteTaskUpdate,
+  })
 
-  const selectedProjectBadges = useMemo(() => {
-    return selectedProjectIds
-      .map((id) => projects.find((p) => p.id === id))
-      .filter(Boolean) as ProjectOption[]
-  }, [projects, selectedProjectIds])
-
-  const syncURL = (opts: {
-    projectIds?: string[]
-    statuses?: string[]
-    priorities?: string[]
-  }) => {
-    const pIds = opts.projectIds ?? selectedProjectIds
-    const sts = opts.statuses ?? selectedStatuses
-    const prs = opts.priorities ?? selectedPriorities
-    const params = new URLSearchParams()
-    if (pIds.length > 0) params.set("projectIds", pIds.join(","))
-    if (sts.length > 0) params.set("statuses", sts.join(","))
-    if (prs.length > 0) params.set("priorities", prs.join(","))
+  const syncURL = (nextFilters: TaskFilterState, nextView: PipelineViewMode, archived: boolean) => {
+    const params = taskFiltersToSearchParams(nextFilters)
+    if (nextView !== "board") params.set("view", nextView)
+    if (archived) params.set("archivedOnly", "true")
     const qs = params.toString()
     router.replace(qs ? `/pipeline?${qs}` : "/pipeline")
   }
 
-  const addProjectFilter = (projectId: string) => {
-    if (!projectId || selectedProjectIds.includes(projectId)) return
-    setSelectedProjectIds((prev) => {
-      const next = [...prev, projectId]
-      syncURL({ projectIds: next })
-      return next
-    })
+  const handleFiltersChange = (next: TaskFilterState) => {
+    setTaskFilters(next)
+    syncURL(next, view, showArchived)
   }
 
-  const removeProjectFilter = (projectId: string) => {
-    setSelectedProjectIds((prev) => {
-      const next = prev.filter((id) => id !== projectId)
-      syncURL({ projectIds: next })
-      return next
-    })
-  }
-
-  const clearProjectFilters = () => {
-    setSelectedProjectIds([])
-    syncURL({ projectIds: [] })
-  }
-
-  const toggleStatus = (statusValue: string) => {
-    setSelectedStatuses((prev) => {
-      const next = prev.includes(statusValue) ? prev.filter((s) => s !== statusValue) : [...prev, statusValue]
-      syncURL({ statuses: next })
-      return next
-    })
-  }
-
-  const togglePriority = (priority: string) => {
-    setSelectedPriorities((prev) => {
-      const next = prev.includes(priority) ? prev.filter((p) => p !== priority) : [...prev, priority]
-      syncURL({ priorities: next })
-      return next
-    })
+  const handleViewChange = (next: PipelineViewMode) => {
+    setView(next)
+    syncURL(taskFilters, next, showArchived)
   }
 
   const clearAllFilters = () => {
-    setSelectedProjectIds([])
-    setSelectedStatuses([])
-    setSelectedPriorities([])
-    router.replace("/pipeline")
+    setTaskFilters(EMPTY_TASK_FILTERS)
+    syncURL(EMPTY_TASK_FILTERS, view, showArchived)
   }
 
-  const clearSelection = () => {
+  const toggleArchivedView = () => {
+    const next = !showArchived
+    setShowArchived(next)
+    setSelectionMode(false)
     setSelectedTaskIds([])
+    syncURL(taskFilters, view, next)
   }
+
+  const clearSelection = () => setSelectedTaskIds([])
 
   const toggleSelectionMode = () => {
     setSelectionMode((prev) => {
-      const next = !prev
-      if (!next) {
-        setSelectedTaskIds([])
-      }
-      return next
+      if (prev) setSelectedTaskIds([])
+      return !prev
     })
   }
 
@@ -310,12 +290,6 @@ export default function PipelinePage() {
     if (!task) return false
     if (showArchived) return true
     return task.status === "COMPLETED" || task.status === "DONE"
-  }
-
-  const toggleArchivedView = () => {
-    setShowArchived((prev) => !prev)
-    setSelectionMode(false)
-    setSelectedTaskIds([])
   }
 
   const selectAllVisibleTasks = () => {
@@ -342,13 +316,12 @@ export default function PipelinePage() {
     setCreateProjectId(projectId)
     setCreateMilestones([])
     setCreateTaskOpen(true)
-    const ms = await fetchMilestones(projectId).catch(() => [])
-    setCreateMilestones(ms)
+    setCreateMilestones(await fetchMilestones(projectId).catch(() => []))
   }
 
   const openCreate = () => {
-    if (selectedProjectIds.length === 1) {
-      openCreateForProject(selectedProjectIds[0])
+    if (taskFilters.projectIds.length === 1) {
+      openCreateForProject(taskFilters.projectIds[0])
       return
     }
     setCreatePickOpen(true)
@@ -377,22 +350,16 @@ export default function PipelinePage() {
         toast.error("Projeto da tarefa não encontrado")
         return
       }
-
       setEditProjectId(projectId)
       setEditMilestones([])
-      setEditingTask(null)
-      setEditTaskOpen(true)
-
       const [taskRes, milestones] = await Promise.all([
         fetch(`/api/tasks/${taskId}`, { method: "GET" }),
         fetchMilestones(projectId).catch(() => []),
       ])
-
       if (!taskRes.ok) {
         const err = await taskRes.json().catch(() => ({} as { error?: string }))
         throw new Error(err.error || "Falha ao buscar detalhes da tarefa")
       }
-
       const full = await taskRes.json().catch(() => null)
       if (full) {
         setEditingTask({
@@ -412,17 +379,17 @@ export default function PipelinePage() {
         } as any)
       }
       setEditMilestones(milestones)
+      setEditTaskOpen(true)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao abrir edição")
       setEditTaskOpen(false)
+      setEditingTask(null)
     }
   }
 
   const handleTaskClick = (taskId: string) => {
     if (selectionMode) {
-      if (isSelectableTask(taskId)) {
-        toggleTaskSelection(taskId)
-      }
+      if (isSelectableTask(taskId)) toggleTaskSelection(taskId)
       return
     }
     const task = tasks.find((t) => t.id === taskId)
@@ -433,12 +400,107 @@ export default function PipelinePage() {
     openEditTask(taskId, task.project.id)
   }
 
+  useEffect(() => {
+    const handler = async (event: Event) => {
+      const detail = (event as CustomEvent<{ taskId: string; projectId?: string }>).detail
+      if (!detail?.taskId) return
+
+      let projectId = detail.projectId
+      if (!projectId) {
+        const local = tasks.find((t) => t.id === detail.taskId)
+        projectId = local?.project?.id
+      }
+      if (!projectId) {
+        const res = await fetch(`/api/tasks/${detail.taskId}`)
+        if (res.ok) {
+          const full = await res.json().catch(() => null)
+          projectId = full?.projectId || full?.project?.id
+        }
+      }
+      if (projectId) {
+        void openEditTask(detail.taskId, projectId)
+      }
+    }
+
+    window.addEventListener(OPEN_TASK_EVENT, handler)
+    return () => window.removeEventListener(OPEN_TASK_EVENT, handler)
+  }, [tasks])
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm("Excluir esta tarefa permanentemente? Esta ação não pode ser desfeita.")) return
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" })
+      const data = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok) throw new Error(data.error || "Erro ao excluir tarefa")
+
+      toast.success("Tarefa excluída")
+      if (editingTask?.id === taskId) {
+        setEditTaskOpen(false)
+        setEditingTask(null)
+      }
+      await fetchTasks(taskFilters)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir tarefa")
+    }
+  }
+
+  const handleArchiveSingleTask = async (taskId: string) => {
+    const task = tasks.find((t) => t.id === taskId)
+    if (task && task.status !== "COMPLETED" && task.status !== "DONE") {
+      toast.error("Apenas tarefas concluídas podem ser arquivadas")
+      return
+    }
+    if (!confirm("Arquivar esta tarefa? Ela sairá do quadro ativo.")) return
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: true }),
+      })
+      const data = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok) throw new Error(data.error || "Erro ao arquivar tarefa")
+
+      toast.success("Tarefa arquivada")
+      if (editingTask?.id === taskId) {
+        setEditTaskOpen(false)
+        setEditingTask(null)
+      }
+      await fetchTasks(taskFilters)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao arquivar tarefa")
+    }
+  }
+
+  const handleRestoreSingleTask = async (taskId: string) => {
+    if (!confirm("Restaurar esta tarefa para o quadro ativo?")) return
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived: false }),
+      })
+      const data = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok) throw new Error(data.error || "Erro ao restaurar tarefa")
+
+      toast.success("Tarefa restaurada")
+      if (editingTask?.id === taskId) {
+        setEditTaskOpen(false)
+        setEditingTask(null)
+      }
+      await fetchTasks(taskFilters)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao restaurar tarefa")
+    }
+  }
+
   const handleArchiveTasks = async (scope: "selected" | "completed", archived: boolean) => {
     if (scope === "selected" && selectedTaskIds.length === 0) {
       toast.error("Selecione ao menos uma tarefa")
       return
     }
-
     try {
       setArchiveLoading(true)
       const response = await fetch("/api/tasks/archive", {
@@ -448,37 +510,20 @@ export default function PipelinePage() {
           scope,
           archived,
           taskIds: scope === "selected" ? selectedTaskIds : undefined,
-          projectIds: selectedProjectIds,
+          projectIds: taskFilters.projectIds,
         }),
       })
-
       const data = await response.json().catch(() => ({} as { error?: string; updatedCount?: number; skippedCount?: number }))
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao atualizar arquivamento das tarefas")
-      }
-
+      if (!response.ok) throw new Error(data.error || "Erro ao atualizar arquivamento das tarefas")
       clearSelection()
-      if (scope === "selected") {
-        setSelectionMode(false)
-      }
-
+      if (scope === "selected") setSelectionMode(false)
       const updatedCount = Number(data.updatedCount || 0)
-      const skippedCount = Number(data.skippedCount || 0)
       if (updatedCount > 0) {
-        toast.success(
-          archived
-            ? `${updatedCount} tarefa(s) arquivada(s) com sucesso`
-            : `${updatedCount} tarefa(s) restaurada(s) com sucesso`
-        )
+        toast.success(archived ? `${updatedCount} tarefa(s) arquivada(s)` : `${updatedCount} tarefa(s) restaurada(s)`)
       } else {
         toast(data.message || "Nenhuma tarefa elegível encontrada")
       }
-
-      if (skippedCount > 0) {
-        toast(`${skippedCount} tarefa(s) não puderam ser processadas`)
-      }
-
-      await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
+      await fetchTasks(taskFilters)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao arquivar tarefas")
     } finally {
@@ -486,196 +531,36 @@ export default function PipelinePage() {
     }
   }
 
-  if (status === "loading" || initialLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="bg-card shadow rounded-lg p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Pipeline</h1>
-            <p className="text-sm text-muted-foreground">
-              {showArchived ? "Tarefas concluídas arquivadas" : "Kanban geral de todas as tarefas"}
-            </p>
-          </div>
-          <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap justify-end">
-            <Popover modal={false}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="whitespace-nowrap gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filtros
-                  {activeFilterCount > 0 && (
-                    <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 px-1.5">
-                      {activeFilterCount}
-                    </Badge>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-[380px] p-0 z-[200]">
-                <div className="flex items-center justify-between border-b px-4 py-3">
-                  <span className="text-sm font-semibold">Filtrar tarefas</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs"
-                    onClick={clearAllFilters}
-                    disabled={activeFilterCount === 0}
-                  >
-                    Limpar tudo
-                  </Button>
-                </div>
-                <div className="max-h-[min(420px,70vh)] overflow-y-auto p-4 space-y-5">
-                  <section>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Projetos
-                      </h3>
-                      {selectedProjectIds.length > 0 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={clearProjectFilters}
-                        >
-                          Limpar
-                        </Button>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      <Input
-                        placeholder="Buscar projeto..."
-                        value={projectSearch}
-                        onChange={(e) => setProjectSearch(e.target.value)}
-                        className="h-9"
-                      />
-                      <div className="rounded-md border max-h-44 overflow-y-auto">
-                        {availableProjects.length === 0 ? (
-                          <p className="p-3 text-sm text-muted-foreground text-center">
-                            {projects.length === 0
-                              ? "Sem projetos cadastrados"
-                              : selectedProjectIds.length === projects.length
-                                ? "Todos os projetos já estão no filtro"
-                                : projectSearch.trim()
-                                  ? "Nenhum projeto com esse nome — limpe a busca"
-                                  : "Nenhum projeto disponível"}
-                          </p>
-                        ) : (
-                          availableProjects.map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b last:border-b-0 transition-colors"
-                              onClick={() => addProjectFilter(p.id)}
-                            >
-                              {p.name}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                      {selectedProjectBadges.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {selectedProjectBadges.map((p) => (
-                            <Badge
-                              key={p.id}
-                              variant="secondary"
-                              className="pl-2 pr-1 py-1 gap-1 font-normal max-w-full"
-                            >
-                              <span className="truncate max-w-[220px]">{p.name}</span>
-                              <button
-                                type="button"
-                                className="rounded-sm p-0.5 hover:bg-muted-foreground/20 shrink-0"
-                                aria-label={`Remover ${p.name}`}
-                                onClick={() => removeProjectFilter(p.id)}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      {selectedProjectIds.length === 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Nenhum projeto selecionado — exibe todos.
-                        </p>
-                      )}
-                    </div>
-                  </section>
+    <PageLoadingGate loading={status === "loading" || initialLoading}>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-5 md:px-8">
+      <PipelineHeader
+        taskCount={tasks.length}
+        view={view}
+        onViewChange={handleViewChange}
+        filters={taskFilters}
+        onFiltersChange={handleFiltersChange}
+        onClearFilters={clearAllFilters}
+        filterOptions={{
+          users: filterUsers,
+          projects: projects.map((p) => ({ id: p.id, label: p.name })),
+          sprints: filterSprints,
+          milestones: filterMilestones,
+          showModuleFilter: true,
+        }}
+        onAddTask={openCreate}
+        showArchived={showArchived}
+        onToggleArchived={toggleArchivedView}
+      />
 
-                  <section>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Prioridade
-                    </h3>
-                    <div className="space-y-2">
-                      {PRIORITY_OPTIONS.map((opt) => {
-                        const checked = selectedPriorities.includes(opt.value)
-                        return (
-                          <div key={opt.value} className="flex items-center gap-2">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() => togglePriority(opt.value)}
-                              id={`filter-priority-${opt.value}`}
-                            />
-                            <Label
-                              htmlFor={`filter-priority-${opt.value}`}
-                              className="text-sm cursor-pointer font-normal"
-                            >
-                              {opt.label}
-                            </Label>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </section>
-
-                  <section>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                      Status
-                    </h3>
-                    <div className="space-y-2">
-                      {STATUS_OPTIONS.map((opt) => {
-                        const checked = selectedStatuses.includes(opt.value)
-                        return (
-                          <div key={opt.value} className="flex items-center gap-2">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() => toggleStatus(opt.value)}
-                              id={`filter-status-${opt.value}`}
-                            />
-                            <Label
-                              htmlFor={`filter-status-${opt.value}`}
-                              className="text-sm cursor-pointer font-normal"
-                            >
-                              {opt.label}
-                            </Label>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </section>
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button onClick={openCreate} className="whitespace-nowrap">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova tarefa
-            </Button>
-          </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden pb-4 pt-2">
+        <div className="shrink-0 px-1">
+          <TaskFilterBadges filters={taskFilters} onChange={handleFiltersChange} labels={filterLabelMap} />
         </div>
-        {selectionMode && (
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={selectAllVisibleTasks}
-              disabled={tasks.length === 0 || selectedTaskIds.length === tasks.length}
-            >
+
+        {selectionMode && view === "board" && (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 mx-1">
+            <Button variant="outline" size="sm" onClick={selectAllVisibleTasks} disabled={tasks.length === 0}>
               Selecionar todas
             </Button>
             <Button variant="outline" size="sm" onClick={clearSelection} disabled={selectedTaskIds.length === 0}>
@@ -686,34 +571,50 @@ export default function PipelinePage() {
               Cancelar seleção
             </Button>
             {selectedTaskIds.length > 0 && (
-              <Button
-                size="sm"
-                onClick={() => handleArchiveTasks("selected", !showArchived)}
-                disabled={archiveLoading}
-              >
-                {showArchived ? <ArchiveRestore className="h-4 w-4 mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
+              <Button size="sm" onClick={() => handleArchiveTasks("selected", !showArchived)} disabled={archiveLoading}>
+                {showArchived ? <ArchiveRestore className="mr-2 h-4 w-4" /> : <Archive className="mr-2 h-4 w-4" />}
                 {showArchived ? "Restaurar selecionadas" : "Arquivar selecionadas"}
               </Button>
             )}
           </div>
         )}
-      </div>
 
-      <KanbanBoard
-        tasks={mappedTasks as any}
-        onTaskUpdate={handleTaskUpdate}
-        onTaskClick={handleTaskClick}
-        selectionMode={selectionMode}
-        selectedTaskIds={selectedTaskIds}
-        onToggleTaskSelection={toggleTaskSelection}
-        disableDrag={selectionMode || showArchived}
-        showArchived={showArchived}
-        archiveLoading={archiveLoading}
-        onArchiveCompleted={() => handleArchiveTasks("completed", true)}
-        onStartArchiveSelection={startArchiveSelection}
-        onToggleArchivedView={toggleArchivedView}
-        canCompleteTasks={isAdmin}
-      />
+        <div className="min-h-0 flex-1 overflow-hidden px-1">
+        {view === "list" && (
+          <PipelineListView tasks={tasks} onTaskClick={handleTaskClick} onAddTask={openCreate} className="h-full" />
+        )}
+
+        {view === "board" && (
+          <KanbanBoard
+            className="h-full"
+            tasks={tasks as any}
+            onTaskUpdate={handleTaskUpdate}
+            onTaskClick={handleTaskClick}
+            onTaskDelete={isAdmin ? handleDeleteTask : undefined}
+            onTaskArchive={isAdmin ? handleArchiveSingleTask : undefined}
+            onTaskRestore={isAdmin ? handleRestoreSingleTask : undefined}
+            selectionMode={selectionMode}
+            selectedTaskIds={selectedTaskIds}
+            onToggleTaskSelection={toggleTaskSelection}
+            disableDrag={selectionMode || showArchived}
+            showArchived={showArchived}
+            archiveLoading={archiveLoading}
+            onArchiveCompleted={() => handleArchiveTasks("completed", true)}
+            onStartArchiveSelection={startArchiveSelection}
+            onToggleArchivedView={toggleArchivedView}
+            canCompleteTasks={isAdmin}
+          />
+        )}
+
+        {view === "calendar" && (
+          <PipelineCalendarView tasks={tasks} onTaskClick={handleTaskClick} onAddTask={openCreate} className="h-full" />
+        )}
+
+        {view === "table" && <PipelineTableView tasks={tasks} onTaskClick={handleTaskClick} className="h-full" />}
+
+        {view === "timeline" && <PipelineTimelineView tasks={tasks} onTaskClick={handleTaskClick} className="h-full" />}
+        </div>
+      </div>
 
       <Dialog open={createPickOpen} onOpenChange={setCreatePickOpen}>
         <DialogContent className="sm:max-w-[480px]">
@@ -763,7 +664,7 @@ export default function PipelinePage() {
           milestones={createMilestones}
           onSuccess={async () => {
             setCreateTaskOpen(false)
-            await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
+            await fetchTasks(taskFilters)
           }}
         />
       )}
@@ -771,16 +672,22 @@ export default function PipelinePage() {
       {editProjectId && (
         <ProjectCreateTaskModal
           isOpen={editTaskOpen}
-          onClose={() => setEditTaskOpen(false)}
+          onClose={() => {
+            setEditTaskOpen(false)
+            setEditingTask(null)
+          }}
           projectId={editProjectId}
           milestones={editMilestones}
           editingTask={editingTask}
+          onEditingTaskSync={(patch) => {
+            setEditingTask((prev) => (prev ? { ...prev, ...patch } : prev))
+          }}
           onSuccess={async () => {
-            setEditTaskOpen(false)
-            await fetchTasks(selectedProjectIds, selectedStatuses, selectedPriorities)
+            await fetchTasks(taskFilters)
           }}
         />
       )}
     </div>
+    </PageLoadingGate>
   )
 }

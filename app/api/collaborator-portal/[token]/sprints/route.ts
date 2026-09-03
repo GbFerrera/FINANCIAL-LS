@@ -30,6 +30,7 @@ export async function GET(
     // Buscar sprints onde o usuário tem tarefas atribuídas
     const sprints = await prisma.sprint.findMany({
       where: {
+        isArchived: false,
         tasks: {
           some: {
             assigneeId: user.id

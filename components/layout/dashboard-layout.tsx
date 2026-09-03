@@ -39,6 +39,9 @@ import {
   Megaphone,
   CreditCard,
   Mail,
+  Bot,
+  LayoutGrid,
+  PanelLeft,
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
@@ -46,6 +49,7 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { isPathAllowed } from "@/lib/access-control"
+import { cn } from "@/lib/utils"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -58,6 +62,29 @@ type NavItem = {
   submenu?: { name: string; href: string; icon: React.ElementType }[]
 }
 
+const SIDEBAR_PAD = 'px-3'
+const SIDEBAR_ICON = 'h-5 w-5'
+const SIDEBAR_SUB_ICON = 'h-4 w-4'
+
+function navItemClass(active: boolean, collapsed?: boolean) {
+  return cn(
+    'flex h-9 w-full items-center rounded-[6px] text-[13px] leading-none transition-colors',
+    collapsed ? 'justify-center px-2' : 'gap-2 px-2',
+    active
+      ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+      : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground'
+  )
+}
+
+function subNavItemClass(active: boolean) {
+  return cn(
+    'flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-[12px] transition-colors',
+    active
+      ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+      : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground'
+  )
+}
+
 const navigation: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: ChartNoAxesCombined },
   { 
@@ -66,6 +93,7 @@ const navigation: NavItem[] = [
     icon: FolderOpen,
     submenu: [
       { name: "Todos os Projetos", href: "/projects", icon: FolderGit2 },
+      { name: "Agente PM", href: "/agent", icon: Bot },
       { name: "Anotações", href: "/projects/notes", icon: FilePen },
       { name: "Sprints", href: "/projects/sprints", icon: GitBranch },
     ]
@@ -105,25 +133,38 @@ const navigation: NavItem[] = [
   },
   { name: "Supervisor", href: "/supervisor/dashboard", icon: HatGlasses },
   { name: "Relatórios", href: "/reports", icon: ChartNetwork },
-  { name: "Configurações", href: "/settings", icon: Settings },
+  { name: "Configurações", href: "/settings", icon: Settings,
+    submenu: [
+      { name: "Geral", href: "/settings", icon: Settings },
+      { name: "Espaços de trabalho", href: "/settings/workspaces", icon: LayoutGrid },
+    ]
+  },
 ]
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarHidden, setSidebarHidden] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const { data: session, status } = useSession()
   const [allowedPaths, setAllowedPaths] = useState<string[] | null>(null)
   const router = useRouter()
   const pathname = usePathname() || ""
-  const isFullBleed = pathname.startsWith("/projects/") && pathname.includes("/canvas")
+  const isFullBleed =
+    pathname === '/agent' ||
+    pathname === '/pipeline' ||
+    (pathname.startsWith("/projects/") && pathname.includes("/canvas"))
   const isAdmin = session?.user?.role === "ADMIN"
 
   // Carregar estado da sidebar do localStorage sem flicker
   useLayoutEffect(() => {
     const savedCollapsed = localStorage.getItem('sidebarCollapsed')
+    const savedHidden = localStorage.getItem('sidebarHidden')
     if (savedCollapsed !== null) {
       setSidebarCollapsed(JSON.parse(savedCollapsed))
+    }
+    if (savedHidden !== null) {
+      setSidebarHidden(JSON.parse(savedHidden))
     }
     setHydrated(true)
   }, [])
@@ -169,7 +210,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const toggleSidebarCollapsed = () => {
     const newState = !sidebarCollapsed
     setSidebarCollapsed(newState)
+    setSidebarHidden(false)
     localStorage.setItem('sidebarCollapsed', JSON.stringify(newState))
+    localStorage.setItem('sidebarHidden', JSON.stringify(false))
+  }
+
+  const toggleSidebarHidden = () => {
+    const newState = !sidebarHidden
+    setSidebarHidden(newState)
+    localStorage.setItem('sidebarHidden', JSON.stringify(newState))
   }
 
   // Fechar sidebar mobile ao navegar
@@ -199,17 +248,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <TooltipProvider>
-      <div className="h-screen flex overflow-hidden bg-background">
+      <div className="flex h-screen overflow-hidden bg-card">
       {/* Mobile sidebar */}
-      <div className={`fixed inset-0 flex z-40 md:hidden ${sidebarOpen ? '' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="relative flex-1 flex flex-col max-w-xs w-full bg-sidebar text-sidebar-foreground">
-          <div className="absolute top-0 right-0 -mr-12 pt-2">
+      <div className={`fixed inset-0 z-40 flex md:hidden ${sidebarOpen ? '' : 'hidden'}`}>
+        <div className="fixed inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
+        <div className="relative flex h-full w-[252px] max-w-[85vw] flex-col bg-sidebar text-sidebar-foreground">
+          <div className="absolute top-2 right-2">
             <button
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-black/[0.04]"
               onClick={() => setSidebarOpen(false)}
             >
-              <X className="h-6 w-6 text-white" />
+              <X className="h-5 w-5" />
             </button>
           </div>
           <SidebarContent items={filteredNavigation} onNavigate={closeMobileSidebar} />
@@ -217,32 +266,42 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Desktop sidebar */}
-      <div className={`hidden md:flex md:flex-shrink-0 ${hydrated ? 'transition-all duration-300' : ''} ${
-        sidebarCollapsed ? 'w-16' : 'w-64'
-      }`}>
-        <div className={`flex flex-col ${hydrated ? 'transition-all duration-300' : ''} ${
-          sidebarCollapsed ? 'w-16' : 'w-64'
-        } bg-sidebar text-sidebar-foreground border-r border-sidebar-border`}>
-          <SidebarContent items={filteredNavigation} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebarCollapsed} />
+      <div
+        className={cn(
+          'hidden shrink-0 overflow-hidden md:flex',
+          hydrated ? 'transition-all duration-300' : '',
+          sidebarHidden ? 'w-0' : sidebarCollapsed ? 'w-14' : 'w-[252px]'
+        )}
+      >
+        <div
+          className={cn(
+            'flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+            hydrated ? 'transition-all duration-300' : '',
+            sidebarHidden ? 'w-0 opacity-0' : sidebarCollapsed ? 'w-14' : 'w-[252px]'
+          )}
+        >
+          {!sidebarHidden && (
+            <SidebarContent
+              items={filteredNavigation}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={toggleSidebarCollapsed}
+            />
+          )}
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Mobile Header */}
-        <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3 bg-sidebar text-sidebar-foreground border-b border-sidebar-border">
-          <button
-            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-inset focus:ring-sidebar-ring"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <span className="sr-only">Open sidebar</span>
-            <Menu className="h-6 w-6" />
-          </button>
-        </div>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <DashboardTopBar
+          onMenuClick={() => setSidebarOpen(true)}
+          onToggleSidebar={toggleSidebarHidden}
+          sidebarHidden={sidebarHidden}
+          onSignOut={handleSignOut}
+        />
 
-        <main className={`flex-1 relative ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'} focus:outline-none`}>
-          <div className={isFullBleed ? '' : 'py-6'}>
-            <div className={isFullBleed ? '' : 'mx-auto px-4 sm:px-6 md:px-8'}>
+        <main className={`relative flex-1 bg-background ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'} focus:outline-none`}>
+          <div className={isFullBleed ? 'h-full' : 'py-5 md:py-6'}>
+            <div className={isFullBleed ? 'h-full' : 'mx-auto w-full px-5 md:px-8'}>
               {children}
             </div>
           </div>
@@ -253,19 +312,77 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   )
 }
 
-function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void; onToggleCollapse?: () => void }) {
+function DashboardTopBar({
+  onMenuClick,
+  onToggleSidebar,
+  sidebarHidden,
+  onSignOut,
+}: {
+  onMenuClick?: () => void
+  onToggleSidebar?: () => void
+  sidebarHidden?: boolean
+  onSignOut: () => void
+}) {
   const { data: session } = useSession()
+  const pathname = usePathname() || ''
+
+  return (
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        {onMenuClick && (
+          <button
+            type="button"
+            className="rounded-md p-2 hover:bg-muted md:hidden"
+            onClick={onMenuClick}
+            aria-label="Abrir menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        )}
+        {onToggleSidebar && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                className="hidden rounded-md p-2 text-muted-foreground hover:bg-muted md:inline-flex"
+                onClick={onToggleSidebar}
+                aria-label={sidebarHidden ? 'Abrir sidebar' : 'Fechar sidebar'}
+              >
+                <PanelLeft className={cn('h-4 w-4', sidebarHidden && 'opacity-60')} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{sidebarHidden ? 'Abrir sidebar' : 'Fechar sidebar'}</TooltipContent>
+          </Tooltip>
+        )}
+        <span className="truncate text-sm font-medium text-foreground">
+          {(pathname || '').startsWith('/workspace') ? 'Espaços' : 'Gestão CEO'}
+        </span>
+      </div>
+      <div className="flex items-center gap-1">
+        <button type="button" className="rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label="Buscar">
+          <Search className="h-4 w-4" />
+        </button>
+        <NextLink href="/notifications" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
+          <Bell className="h-4 w-4" />
+        </NextLink>
+        <ModeToggle />
+        <Avatar className="h-8 w-8">
+          <AvatarImage src={session?.user?.image || ''} />
+          <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
+        </Avatar>
+        <button type="button" onClick={onSignOut} className="rounded-md p-2 text-muted-foreground hover:bg-muted">
+          <LogOut className="h-4 w-4" />
+        </button>
+      </div>
+    </header>
+  )
+}
+
+function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void; onToggleCollapse?: () => void }) {
   const router = useRouter()
   const pathname = usePathname()
   const [currentPath, setCurrentPath] = useState(pathname || '')
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
-  const userInfo = session?.user as unknown as { name?: string; avatar?: string; image?: string }
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(userInfo?.avatar ?? userInfo?.image)
-
-  const handleSignOut = async () => {
-    await signOut({ redirect: false })
-    router.push("/auth/signin")
-  }
 
   // Atualizar caminho atual e expansão com base no pathname
   useEffect(() => {
@@ -281,21 +398,6 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
       }
     })
   }, [pathname, expandedMenus])
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch('/api/profile')
-        if (res.ok) {
-          const u = await res.json()
-          setAvatarUrl(u.avatar || userInfo?.image || userInfo?.avatar)
-        }
-      } catch {}
-    }
-    if (!avatarUrl) {
-      load()
-    }
-  }, [session, avatarUrl])
 
   const handleNavigation = (href: string) => {
     router.push(href)
@@ -315,36 +417,74 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
   }
 
   return (
-    <div className="flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
-      <div className={`flex ${collapsed ? 'flex-col items-center' : 'items-center justify-between'} flex-shrink-0 px-4 pt-5 pb-4`}>
-        <div className="flex items-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <NextLink href="/dashboard" aria-label="Dashboard" className="flex items-center">
-                <LinkIcon className="h-8 w-8 text-sidebar-primary" />
-                {!collapsed && (
-                  <div className="grid ml-2">
-                    <span className="text-2xl font-bold text-foreground">Link System</span>   
-                    <span className="text-sm text-muted-foreground">Software House</span>     
-                  </div>
-                )}
-              </NextLink>
-            </TooltipTrigger>
-            <TooltipContent side="right">Dashboard</TooltipContent>
-          </Tooltip>
-        </div>
+    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+      <div
+        className={cn(
+          'flex h-11 shrink-0 items-center border-b border-sidebar-border',
+          SIDEBAR_PAD,
+          collapsed ? 'justify-center' : 'justify-between gap-2'
+        )}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <NextLink href="/dashboard" aria-label="Dashboard" className="flex min-w-0 items-center gap-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-sidebar-border bg-card text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <LinkIcon className="h-4 w-4 text-foreground" />
+              </div>
+              {!collapsed && (
+                <div className="min-w-0">
+                  <span className="block truncate text-[13px] font-semibold text-foreground">Link System</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">Software House</span>
+                </div>
+              )}
+            </NextLink>
+          </TooltipTrigger>
+          <TooltipContent side="right">Dashboard</TooltipContent>
+        </Tooltip>
         {onToggleCollapse && (
           <button
+            type="button"
             onClick={onToggleCollapse}
-            className={`${collapsed ? 'mt-2 flex' : 'hidden md:flex'} p-1 rounded-md text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent`}
+            className="hidden rounded-[4px] p-1 text-muted-foreground hover:bg-black/[0.04] md:inline-flex"
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
           >
-            {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
         )}
       </div>
 
-      <div className="flex-1 flex flex-col overflow-y-auto">
-        <nav className="flex-1 px-2 space-y-1">
+      {!collapsed && (
+        <div className={cn('pb-3 pt-3', SIDEBAR_PAD)}>
+          <div className="grid grid-cols-2 gap-1 rounded-[6px] border border-sidebar-border bg-card p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <NextLink
+              href="/dashboard"
+              className={cn(
+                'rounded-[4px] px-2 py-1.5 text-center text-[11px] font-medium transition-colors',
+                (pathname || '').startsWith('/workspace')
+                  ? 'text-muted-foreground hover:bg-black/[0.04]'
+                  : 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+              )}
+            >
+              Gestão CEO
+            </NextLink>
+            <NextLink
+              href="/workspace"
+              className={cn(
+                'flex items-center justify-center gap-1 rounded-[4px] px-2 py-1.5 text-center text-[11px] font-medium transition-colors',
+                (pathname || '').startsWith('/workspace')
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-black/[0.04]'
+              )}
+            >
+              <LayoutGrid className="h-3 w-3" />
+              Espaços
+            </NextLink>
+          </div>
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto py-2">
+        <nav className={cn('space-y-0.5', SIDEBAR_PAD)}>
           {items.map((item) => {
             const isActive = currentPath === item.href
             const hasSubmenu = item.submenu && item.submenu.length > 0
@@ -362,44 +502,29 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                       <HoverCardTrigger asChild>
                         <button
                           onClick={() => handleNavigation(item.href)}
-                          className={`${
-                            isActive || hasActiveSubmenu
-                              ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-                              : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                          } w-full flex items-center justify-center px-2 py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                          className={navItemClass(isActive || !!hasActiveSubmenu, true)}
                           aria-label={item.name}
                         >
-                          <item.icon
-                            className={`${
-                              isActive || hasActiveSubmenu ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover/menu:text-sidebar-accent-foreground'
-                            } flex-shrink-0 h-5 w-5`}
-                          />
+                          <item.icon className={cn(SIDEBAR_ICON, 'shrink-0 opacity-70')} />
                         </button>
                       </HoverCardTrigger>
-                      <HoverCardContent side="right" align="start" sideOffset={10} className="w-48 p-2 bg-sidebar border border-sidebar-border shadow-lg z-50">
-                        <div className="text-sm font-semibold px-2 pb-2 mb-1 border-b border-sidebar-border text-sidebar-foreground">
+                      <HoverCardContent side="right" align="start" sideOffset={10} className="w-48 border border-border bg-popover p-2 shadow-lg">
+                        <div className="mb-1 border-b border-border px-2 pb-2 text-sm font-semibold">
                           {item.name}
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           {item.submenu?.map((subItem) => {
-                            const isSubActive = currentPath === subItem.href || 
+                            const isSubActive =
+                              currentPath === subItem.href ||
                               (subItem.href !== '/projects' && currentPath.startsWith(subItem.href))
-                            
+
                             return (
                               <button
                                 key={subItem.name}
                                 onClick={() => handleNavigation(subItem.href)}
-                                className={`${
-                                  isSubActive
-                                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium'
-                                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                                } w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200`}
+                                className={subNavItemClass(isSubActive)}
                               >
-                                <subItem.icon
-                                  className={`${
-                                    isSubActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground'
-                                  } mr-3 flex-shrink-0 h-4 w-4`}
-                                />
+                                <subItem.icon className={cn(SIDEBAR_SUB_ICON, 'shrink-0 opacity-70')} />
                                 {subItem.name}
                               </button>
                             )
@@ -412,23 +537,13 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                       <TooltipTrigger asChild>
                         <NextLink
                           href={item.href}
-                          className={`${
-                            isActive
-                              ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-                              : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                          } group w-full flex items-center justify-center px-2 py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                          className={navItemClass(isActive, true)}
                           aria-label={item.name}
                         >
-                          <item.icon
-                            className={`${
-                              isActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
-                            } flex-shrink-0 h-5 w-5`}
-                          />
+                          <item.icon className={cn(SIDEBAR_ICON, 'shrink-0 opacity-70')} />
                         </NextLink>
                       </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {item.name}
-                      </TooltipContent>
+                      <TooltipContent side="right">{item.name}</TooltipContent>
                     </Tooltip>
                   )
                 ) : (
@@ -440,67 +555,36 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                         handleNavigation(item.href)
                       }
                     }}
-                    className={`${
-                      isActive
-                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-                        : hasActiveSubmenu
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                    } group w-full flex items-center ${collapsed ? 'justify-center px-2' : 'px-3'} py-2 rounded-xl text-sm font-medium transition-all duration-200`}
+                    className={navItemClass(isActive || !!hasActiveSubmenu)}
                   >
-                    <item.icon
-                      className={`${
-                        isActive ? 'text-sidebar-primary-foreground' : hasActiveSubmenu ? 'text-sidebar-accent-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
-                      } ${collapsed ? '' : 'mr-3'} flex-shrink-0 h-5 w-5`}
-                    />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 text-left">{item.name}</span>
-                        {hasSubmenu && (
-                          <div className="ml-2">
-                            {isExpanded ? (
-                              <ChevronUp className="h-4 w-4" />
-                            ) : (
-                              <ChevronDown className="h-4 w-4" />
-                            )}
-                          </div>
-                        )}
-                      </>
+                    <item.icon className={cn(SIDEBAR_ICON, 'shrink-0 opacity-70')} />
+                    <span className="flex-1 truncate text-left">{item.name}</span>
+                    {hasSubmenu && (
+                      isExpanded ? (
+                        <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )
                     )}
                   </button>
                 )}
 
-                {/* Submenu */}
                 {hasSubmenu && !collapsed && isExpanded && (
-                  <div className="ml-4 mt-1 space-y-1">
+                  <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-border pl-2">
                     {item.submenu?.map((subItem) => {
-                      const isSubActive = currentPath === subItem.href || 
+                      const isSubActive =
+                        currentPath === subItem.href ||
                         (subItem.href !== '/projects' && currentPath.startsWith(subItem.href))
-                      
+
                       return (
-                        <Tooltip key={subItem.name}>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={() => handleNavigation(subItem.href)}
-                              className={`${
-                                isSubActive
-                                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-medium'
-                                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                              } group w-full flex items-center px-3 py-2 rounded-lg text-sm transition-all duration-200`}
-                              aria-label={subItem.name}
-                            >
-                              <subItem.icon
-                                className={`${
-                                  isSubActive ? 'text-sidebar-primary-foreground' : 'text-muted-foreground group-hover:text-sidebar-accent-foreground'
-                                } mr-3 flex-shrink-0 h-5 w-5`}
-                              />
-                              {subItem.name}
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right">
-                            {subItem.name}
-                          </TooltipContent>
-                        </Tooltip>
+                        <button
+                          key={subItem.name}
+                          onClick={() => handleNavigation(subItem.href)}
+                          className={subNavItemClass(isSubActive)}
+                        >
+                          <subItem.icon className={cn(SIDEBAR_SUB_ICON, 'shrink-0 opacity-70')} />
+                          {subItem.name}
+                        </button>
                       )
                     })}
                   </div>
@@ -510,60 +594,32 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
           })}
         </nav>
       </div>
-      <div className="px-2 py-2 border-t border-muted">
-        <div className={collapsed ? 'flex justify-center' : 'flex justify-end'}>
-          <ModeToggle />
-        </div>
-      </div>
-      <div className="border-t border-muted p-4">
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
-          {!collapsed && (
-            <div className="flex items-center min-w-0">
-              {avatarUrl ? (
-                <Avatar
-                  className="h-8 w-8 border flex-shrink-0 cursor-pointer hover:opacity-90"
-                  onClick={() => handleNavigation('/profile')}
-                >
-                  <AvatarImage
-                    src={avatarUrl}
-                    alt={session?.user?.name || ""}
-                    className="object-cover object-center h-full w-full"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                  />
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
-                    {session?.user?.name?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <div
-                  className="h-8 w-8 rounded-full bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground text-sm font-medium flex-shrink-0 cursor-pointer hover:opacity-90"
-                  onClick={() => handleNavigation('/profile')}
-                >
-                  {session?.user?.name?.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div className="ml-3 truncate grid">
-                <button
-                  onClick={() => handleNavigation('/profile')}
-                  className="text-sm font-medium text-foreground truncate text-left hover:underline hover:cursor-pointer"
-                  title="Abrir meu perfil"
-                >
-                  {session?.user?.name}
-                </button>
-                <span className="text-xs text-muted-foreground">({session?.user?.role})</span>
-              </div>
-            </div>
-          )}
-          
-          <button 
-            onClick={handleSignOut}
-            className={`p-2 rounded-md text-muted-foreground hover:text-sidebar-foreground hover:bg-sidebar-accent ${collapsed ? '' : 'ml-auto'}`}
-            title="Sair"
+
+      {!collapsed && onToggleCollapse && (
+        <div className={cn('shrink-0 border-t border-sidebar-border py-3', SIDEBAR_PAD)}>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex h-8 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-card px-3 text-[12px] font-medium text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-background"
           >
-            <LogOut className="h-5 w-5" />
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Recolher menu
           </button>
         </div>
-      </div>
+      )}
+
+      {collapsed && onToggleCollapse && (
+        <div className={cn('shrink-0 border-t border-sidebar-border py-3', SIDEBAR_PAD)}>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex h-8 w-full items-center justify-center rounded-[6px] border border-border bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-background"
+            aria-label="Expandir menu"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

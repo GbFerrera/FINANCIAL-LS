@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ClientPicker } from "@/components/clients/client-picker"
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   AlertDialog,
   AlertDialogContent,
   AlertDialogHeader,
@@ -963,15 +964,8 @@ function MktPageContent() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -1479,6 +1473,7 @@ function MktPageContent() {
         </DialogContent>
       </Dialog>
     </div>
+    </PageLoadingGate>
   )
 }
 
@@ -1487,7 +1482,7 @@ export default function MktPage() {
     <Suspense
       fallback={
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#161f46]"></div>
+          <LoadingAnimation size="md" />
         </div>
       }
     >

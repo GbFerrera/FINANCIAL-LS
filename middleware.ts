@@ -64,6 +64,6 @@ export async function middleware(request: NextRequest) {
 // Configurar quais rotas devem passar pelo middleware
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|_not-found|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|_not-found|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm|mov|m4v|json|ico)$).*)',
   ],
 }

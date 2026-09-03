@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import {
   Calendar, 
   Target, 
   Clock, 
@@ -169,15 +170,8 @@ export function SprintView({ token }: SprintViewProps) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
   return (
+    <PageLoadingGate loading={loading}>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -311,5 +305,6 @@ export function SprintView({ token }: SprintViewProps) {
         </div>
       )}
     </div>
+    </PageLoadingGate>
   )
 }

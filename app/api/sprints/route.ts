@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
     const sprints = await prisma.sprint.findMany({
       where: {
+        isArchived: false,
         projects: {
           some: {
             projectId: projectId

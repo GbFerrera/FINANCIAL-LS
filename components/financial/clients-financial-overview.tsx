@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { 
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+import {
   Users, 
   ChevronDown, 
   ChevronRight,
@@ -166,7 +167,7 @@ export function ClientsFinancialOverview({ onClientFilter }: ClientsFinancialOve
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <LoadingAnimation size="md" />
           </div>
         </CardContent>
       </Card>

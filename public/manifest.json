@@ -1,7 +1,7 @@
 {
-  "name": "Financial Management",
-  "short_name": "Financial",
-  "description": "Sistema de gestão financeira",
+  "name": "Link System - Administrativo",
+  "short_name": "Link System",
+  "description": "Gerenciador administrativo LS - projetos, finanças e equipe",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -9,16 +9,34 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo-cortada.png",
-      "sizes": "192x192",
+      "src": "/icon-code-96.png",
+      "sizes": "96x96",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/logo-cortada.png",
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

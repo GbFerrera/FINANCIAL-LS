@@ -1,10 +1,9 @@
 'use client'
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { useState, useEffect, useMemo } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 import {
   getAttachmentName,
   getAttachmentMime,
@@ -12,23 +11,25 @@ import {
   parseAttachmentsFromDescription,
   pickCoverUrl,
 } from '@/lib/task-attachments'
-import { 
-  Clock, 
-  Flag, 
+import {
   Calendar,
+  CalendarClock,
   CheckCircle2,
   Circle,
-  PlayCircle,
-  PauseCircle,
+  LayoutGrid,
+  Loader2,
   MoreVertical,
+  Paperclip,
+  PauseCircle,
+  PlayCircle,
+  Signal,
   Edit,
   Trash2,
-  MessageSquare,
-  Paperclip,
+  Archive,
+  ArchiveRestore,
+  Bot,
   Image as ImageIcon,
   FileText,
-  Bot,
-  Loader2
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -42,6 +43,7 @@ import {
   buildTaskAgentClipboardText,
   ensureTaskShareLink,
 } from '@/lib/task-share-client'
+import { TASK_STATUS_LABELS } from '@/lib/pipeline/task-utils'
 
 interface Task {
   id: string
@@ -80,31 +82,72 @@ interface TaskCardProps {
   onClick?: () => void
   onEdit?: (task: Task) => void
   onDelete?: (taskId: string) => void
+  onArchive?: (taskId: string) => void
+  onRestore?: (taskId: string) => void
   size?: 'default' | 'compact'
 }
 
-// Função para formatar data sem problemas de fuso horário
-const formatDateSafe = (dateString: string) => {
-  // Se a data já está no formato ISO, extrair apenas a parte da data
-  if (dateString.includes('T')) {
-    dateString = dateString.split('T')[0]
-  }
-  
-  // Dividir a data em partes (YYYY-MM-DD)
-  const [year, month, day] = dateString.split('-')
-  
-  // Criar data local sem conversão de fuso horário
+function formatDateSafe(dateString: string) {
+  const raw = dateString.includes('T') ? dateString.split('T')[0] : dateString
+  const [year, month, day] = raw.split('-')
   const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day))
-  
-  return date.toLocaleDateString('pt-BR')
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: TaskCardProps) {
+function getTaskIdentifier(task: Task) {
+  const prefix = task.project?.name
+    ? task.project.name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase() || 'TASK'
+    : 'TASK'
+  return `${prefix}-${task.id.slice(-4).toUpperCase()}`
+}
+
+function PropertyPill({
+  children,
+  className,
+  title,
+  compact = false,
+}: {
+  children: React.ReactNode
+  className?: string
+  title?: string
+  compact?: boolean
+}) {
+  return (
+    <span
+      title={title}
+      className={cn(
+        'inline-flex items-center gap-1 rounded border border-border/80 bg-background text-muted-foreground',
+        compact
+          ? 'h-6 max-w-[140px] px-1.5 text-[10px]'
+          : 'h-7 max-w-[180px] px-2 text-[11px]',
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+export function TaskCard({
+  task,
+  onClick,
+  onEdit,
+  onDelete,
+  onArchive,
+  onRestore,
+  size = 'default',
+}: TaskCardProps) {
+  const isCompact = size === 'compact'
+  const iconClass = isCompact ? 'h-3 w-3' : 'h-3.5 w-3.5'
+  const menuBtnClass = isCompact ? 'h-6 w-6' : 'h-7 w-7'
+  const menuIconClass = isCompact ? 'h-3.5 w-3.5' : 'h-4 w-4'
   const [showAttachments, setShowAttachments] = useState(false)
   const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null)
-  const [diskAttachments, setDiskAttachments] = useState<Array<{ originalName: string; fileType: string; filePath?: string; url?: string }>>([])
+  const [diskAttachments, setDiskAttachments] = useState<
+    Array<{ originalName: string; fileType: string; filePath?: string; url?: string }>
+  >([])
   const [copyingForAgent, setCopyingForAgent] = useState(false)
-  
+
   const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
@@ -117,7 +160,7 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     if (!task.dueDate) return false
     const raw = task.dueDate.includes('T') ? task.dueDate.split('T')[0] : task.dueDate
     const [y, m, d] = raw.split('-').map(Number)
-    const due = new Date(y, (m as number) - 1, d as number)
+    const due = new Date(y, m - 1, d)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return task.status !== 'COMPLETED' && due < today
@@ -125,81 +168,43 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
 
   const getStatusIcon = () => {
     switch (task.status) {
-      case 'TODO':
-        return <Circle className="w-4 h-4 text-slate-400 dark:text-slate-500" />
       case 'IN_PROGRESS':
-        return <PlayCircle className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+        return <PlayCircle className={cn(iconClass, 'text-amber-500')} />
       case 'IN_REVIEW':
-        return <PauseCircle className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+        return <PauseCircle className={cn(iconClass, 'text-violet-500')} />
       case 'COMPLETED':
-        return <CheckCircle2 className="w-4 h-4 text-green-500 dark:text-green-400" />
+        return <CheckCircle2 className={cn(iconClass, 'text-emerald-500')} />
       default:
-        return <Circle className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+        return <Circle className={cn(iconClass, 'text-muted-foreground')} />
     }
   }
 
-  const getStatusColor = () => {
-    switch (task.status) {
-      case 'TODO':
-        return 'bg-card border-l-slate-400 dark:border-l-slate-500 border-border hover:border-slate-300 dark:hover:border-slate-600'
-      case 'IN_PROGRESS':
-        return 'bg-card border-l-blue-500 dark:border-l-blue-400 border-border hover:border-blue-300 dark:hover:border-blue-700'
-      case 'IN_REVIEW':
-        return 'bg-card border-l-amber-500 dark:border-l-amber-400 border-border hover:border-amber-300 dark:hover:border-amber-700'
-      case 'COMPLETED':
-        return 'bg-card border-l-green-500 dark:border-l-green-400 border-border hover:border-green-300 dark:hover:border-green-700'
-      default:
-        return 'bg-card border-l-slate-400 dark:border-l-slate-500 border-border hover:border-slate-300 dark:hover:border-slate-600'
-    }
-  }
+  const getStatusLabel = () => TASK_STATUS_LABELS[task.status] || 'A Fazer'
 
-  const getPriorityColor = () => {
+  const getPriorityLabel = () => {
     switch (task.priority) {
       case 'LOW':
-        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700'
-      case 'MEDIUM':
-        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800/50'
+        return 'Baixa'
       case 'HIGH':
-        return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800/50'
+        return 'Alta'
       case 'URGENT':
-        return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800/50'
+        return 'Urgente'
       default:
-        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700'
+        return 'Média'
     }
   }
 
-  const getPriorityIcon = () => {
+  const getPriorityIconClass = () => {
     switch (task.priority) {
       case 'LOW':
-        return <Flag className="w-3 h-3" />
-      case 'MEDIUM':
-        return <Flag className="w-3 h-3" />
+        return 'text-muted-foreground'
       case 'HIGH':
-        return <Flag className="w-3 h-3" />
+        return 'text-orange-500'
       case 'URGENT':
-        return <Flag className="w-3 h-3 fill-current" />
+        return 'text-red-500'
       default:
-        return <Flag className="w-3 h-3" />
+        return 'text-sky-500'
     }
-  }
-
-  const getStatusLabel = () => {
-    switch (task.status) {
-      case 'TODO':
-        return 'A Fazer'
-      case 'IN_PROGRESS':
-        return 'Em Andamento'
-      case 'IN_REVIEW':
-        return 'Em Teste'
-      case 'COMPLETED':
-        return 'Concluído'
-      default:
-        return 'A Fazer'
-    }
-  }
-
-  const isReportedTask = () => {
-    return task.description?.includes('Tarefa reportada por') || false
   }
 
   const hasAttachments = () => {
@@ -231,26 +236,28 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
       try {
         const res = await fetch(`/api/tasks/${task.id}/attachments`, { credentials: 'same-origin' })
         if (!res.ok) return
-        const data: { attachments?: Array<{ originalName: string; mimeType: string; filePath?: string; url?: string }> } = await res.json()
+        const data: {
+          attachments?: Array<{ originalName: string; mimeType: string; filePath?: string; url?: string }>
+        } = await res.json()
         const mapped = (data.attachments || []).map((a) => ({
           originalName: a.originalName,
           fileType: a.mimeType,
           filePath: a.filePath,
           url: a.url || (a.filePath ? `/api/files/${a.filePath}` : undefined),
         }))
-        if (!cancelled) {
-          setDiskAttachments(mapped)
-        }
-      } catch {}
+        if (!cancelled) setDiskAttachments(mapped)
+      } catch {
+        /* ignore */
+      }
     }
     fetchDiskAttachments()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [task.id])
 
   const coverUrl = useMemo(() => {
-    if (task.coverImageUrl && task.coverImageUrl !== failedCoverUrl) {
-      return task.coverImageUrl
-    }
+    if (task.coverImageUrl && task.coverImageUrl !== failedCoverUrl) return task.coverImageUrl
     const candidates = [
       ...diskAttachments,
       ...(task.attachments || []).map((a) => ({
@@ -264,53 +271,9 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     return pickCoverUrl(candidates, failedCoverUrl)
   }, [failedCoverUrl, diskAttachments, task.attachments, task.description, task.coverImageUrl])
 
-  const getPriorityBarClass = () => {
-    switch (task.priority) {
-      case 'LOW':
-        return 'bg-slate-400'
-      case 'MEDIUM':
-        return 'bg-sky-400'
-      case 'HIGH':
-        return 'bg-orange-500'
-      case 'URGENT':
-        return 'bg-red-500'
-      default:
-        return 'bg-blue-500'
-    }
-  }
-
-  const getStatusBarClass = () => {
-    switch (task.status) {
-      case 'IN_PROGRESS':
-        return 'bg-blue-500'
-      case 'IN_REVIEW':
-        return 'bg-amber-500'
-      case 'COMPLETED':
-        return 'bg-emerald-500'
-      default:
-        return 'bg-slate-500'
-    }
-  }
-
-  const getPriorityLabel = () => {
-    switch (task.priority) {
-      case 'LOW':
-        return 'Baixa'
-      case 'MEDIUM':
-        return 'Média'
-      case 'HIGH':
-        return 'Alta'
-      case 'URGENT':
-        return 'Urgente'
-      default:
-        return 'Média'
-    }
-  }
-
   const handleCopyForAgent = async (e: React.MouseEvent) => {
     e.stopPropagation()
     if (copyingForAgent) return
-
     try {
       setCopyingForAgent(true)
       const { shareUrl, agentApiUrl } = await ensureTaskShareLink(task.id)
@@ -340,23 +303,15 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 w-7 p-0 hover:bg-black/10 dark:hover:bg-white/10 text-foreground/80"
+          className={cn('p-0 text-muted-foreground hover:bg-muted', menuBtnClass)}
           onClick={(e) => e.stopPropagation()}
         >
-          <MoreVertical className="w-4 h-4" />
+          <MoreVertical className={menuIconClass} />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem
-          onClick={handleCopyForAgent}
-          disabled={copyingForAgent}
-          className="flex items-center gap-2"
-        >
-          {copyingForAgent ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Bot className="w-3 h-3" />
-          )}
+        <DropdownMenuItem onClick={handleCopyForAgent} disabled={copyingForAgent} className="flex items-center gap-2">
+          {copyingForAgent ? <LoadingInline size="md" /> : <Bot className="h-3 w-3" />}
           Copiar para IA
         </DropdownMenuItem>
         {onEdit && (
@@ -367,8 +322,32 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
             }}
             className="flex items-center gap-2"
           >
-            <Edit className="w-3 h-3" />
+            <Edit className="h-3 w-3" />
             Editar
+          </DropdownMenuItem>
+        )}
+        {onArchive && task.status === 'COMPLETED' && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              onArchive(task.id)
+            }}
+            className="flex items-center gap-2"
+          >
+            <Archive className="h-3 w-3" />
+            Arquivar
+          </DropdownMenuItem>
+        )}
+        {onRestore && (
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation()
+              onRestore(task.id)
+            }}
+            className="flex items-center gap-2"
+          >
+            <ArchiveRestore className="h-3 w-3" />
+            Restaurar
           </DropdownMenuItem>
         )}
         {onDelete && (
@@ -377,9 +356,9 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
               e.stopPropagation()
               onDelete(task.id)
             }}
-            className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 focus:bg-red-50"
+            className="flex items-center gap-2 text-red-600"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="h-3 w-3" />
             Excluir
           </DropdownMenuItem>
         )}
@@ -387,362 +366,142 @@ export function TaskCard({ task, onClick, onEdit, onDelete, size = 'default' }: 
     </DropdownMenu>
   )
 
-  const attachmentsFooter = hasAttachments() && (
-    <button
-      type="button"
-      className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-      onClick={(e) => {
-        e.stopPropagation()
-        setShowAttachments(!showAttachments)
-      }}
-    >
-      <Paperclip className="w-3.5 h-3.5" />
-      <span>{getAttachmentsCount()}</span>
-    </button>
-  )
-
-  type DescriptionAttachment = { name: string; type: string; filePath?: string }
-  type RealAttachment = { id?: string; originalName?: string; fileType?: string; filePath?: string }
-  const handleAttachmentClick = async (attachment: DescriptionAttachment | RealAttachment, fileName: string, fileType: string) => {
-    const isImage = fileType?.startsWith('image/')
-    const isPDF = fileType === 'application/pdf'
-    
-    if (!isImage && !isPDF) return
-    
-    // Se tem filePath (anexo real), tentar abrir
-    if ('filePath' in attachment && attachment.filePath && !attachment.filePath.startsWith('blob:')) {
-      const raw = attachment.filePath as string
-      const isUploadsPath = raw.includes('/') && !raw.startsWith('http')
-      const url = isUploadsPath ? `/api/files/${raw}` : `/${raw}`
-      window.open(url, '_blank')
-      return
-    }
-    
-    // Se tem id (anexo real), tentar construir caminho
-    if ('id' in attachment && attachment.id) {
-      window.open(`/api/files/${attachment.id}`, '_blank')
-      return
-    }
-    
-    // Para anexos da descrição, tentar estratégias diferentes
-    const possiblePaths = [
-      fileName, // Nome original
-      fileName.toLowerCase(), // Nome em minúsculas
-      fileName.replace(/\s+/g, '_'), // Substituir espaços por underscore
-      fileName.replace(/\s+/g, '-'), // Substituir espaços por hífen
-    ]
-    
-    // Tentar cada possibilidade
-    for (const path of possiblePaths) {
-      try {
-        const responseApi = await fetch(`/api/files/${path}`, { method: 'HEAD' })
-        if (responseApi.ok) {
-          window.open(`/api/files/${path}`, '_blank')
-          return
-        }
-        const responsePublic = await fetch(`/${path}`, { method: 'HEAD' })
-        if (responsePublic.ok) {
-          window.open(`/${path}`, '_blank')
-          return
-        }
-      } catch (error) {
-        // Continuar tentando
-        continue
-      }
-    }
-    
-    // Se nada funcionou, mostrar modal mais amigável
-    const shouldTryAnyway = confirm(
-      `📎 ${fileName}\n\n` +
-      `Este anexo foi enviado junto com a tarefa.\n` +
-      `Não foi possível localizar o arquivo automaticamente.\n\n` +
-      `Deseja tentar abrir mesmo assim?\n` +
-      `(Pode aparecer erro 404 se o arquivo não existir)`
-    )
-    
-    if (shouldTryAnyway) {
-      window.open(`/api/files/${fileName}`, '_blank')
-    }
-  }
-
-  const attachmentsPanel =
-    showAttachments && hasAttachments() ? (
-      <div className="pt-2 border-t border-muted max-h-24 overflow-y-auto">
-        <h4 className="text-xs font-medium text-muted-foreground mb-2">
-          Anexos ({getAttachmentsCount()})
-        </h4>
-        <div className="space-y-1">
-          {getAttachmentsFromDescription().map((attachment, index) => {
-            const fileName = getAttachmentName(attachment)
-            const fileType = getAttachmentMime(attachment)
-            const isImage = isImageAttachment(attachment)
-            const isPDF = fileType === 'application/pdf'
-            return (
-              <div
-                key={index}
-                className={cn(
-                  'flex items-center gap-2 p-2 bg-card rounded text-xs transition-colors',
-                  isImage || isPDF ? 'hover:bg-blue-50 dark:hover:bg-blue-950/30 cursor-pointer' : 'hover:bg-muted'
-                )}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleAttachmentClick(attachment, fileName, fileType)
-                }}
-              >
-                {isImage ? (
-                  <ImageIcon className="w-3 h-3 text-blue-600 shrink-0" />
-                ) : isPDF ? (
-                  <FileText className="w-3 h-3 text-red-600 shrink-0" />
-                ) : (
-                  <Paperclip className="w-3 h-3 text-muted-foreground shrink-0" />
-                )}
-                <p className="font-medium text-foreground truncate flex-1">{fileName}</p>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    ) : null
-
-
   return (
-    <Card
+    <div
       className={cn(
-        'flex flex-col cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5',
-        coverUrl
-          ? 'overflow-hidden p-0 gap-0 bg-card border border-border shadow-sm'
-          : cn(
-              'border-l-4',
-              isOverdue()
-                ? 'bg-card border-l-red-500 dark:border-l-red-500 border-red-200 dark:border-red-800'
-                : getStatusColor()
-            )
+        'group cursor-pointer overflow-hidden rounded-lg border border-border/80 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:border-border hover:shadow-md',
+        isOverdue() && 'border-red-200/80 dark:border-red-900/50'
       )}
       onClick={handleCardClick}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {coverUrl ? (
-        <>
-          <div className="relative w-full bg-muted/40">
-            <img
-              src={coverUrl}
-              alt=""
-              className="w-full h-[7.5rem] object-cover object-top"
-              loading="lazy"
-              onError={() => setFailedCoverUrl(coverUrl)}
-            />
-            <div className="absolute inset-x-0 top-0 flex justify-end p-1.5 bg-gradient-to-b from-black/35 to-transparent">
-              {cardMenu}
-            </div>
+      {coverUrl && (
+        <div className="relative w-full bg-muted/30">
+          <img
+            src={coverUrl}
+            alt=""
+            className={cn('w-full object-cover object-top', isCompact ? 'h-[7.5rem]' : 'h-36')}
+            loading="lazy"
+            onError={() => setFailedCoverUrl(coverUrl)}
+          />
+          <div className="absolute inset-x-0 top-0 flex justify-end bg-gradient-to-b from-black/25 to-transparent p-1 opacity-0 transition-opacity group-hover:opacity-100">
+            {cardMenu}
           </div>
+        </div>
+      )}
 
-          <CardContent className="px-2.5 pt-2 pb-2.5 space-y-2">
-            <div className="flex flex-wrap gap-1">
-              <div
-                className={cn('h-2 w-10 rounded-full', getPriorityBarClass())}
-                title={`Prioridade: ${getPriorityLabel()}`}
-              />
-              <div
-                className={cn('h-2 w-10 rounded-full', getStatusBarClass())}
-                title={`Status: ${getStatusLabel()}`}
-              />
-              {task.project?.name && (
-                <div
-                  className="h-2 w-10 rounded-full bg-violet-500"
-                  title={task.project.name}
-                />
-              )}
-            </div>
+      <div className={cn(isCompact ? 'space-y-2.5 p-3' : 'space-y-3.5 p-4')}>
+        <div className="flex items-start justify-between gap-2">
+          <span
+            className={cn(
+              'font-medium uppercase tracking-wide text-muted-foreground/80',
+              isCompact ? 'text-[10px]' : 'text-[11px]'
+            )}
+          >
+            {getTaskIdentifier(task)}
+          </span>
+          {!coverUrl && cardMenu}
+        </div>
 
-            <h3
-              className="text-sm font-medium leading-snug text-foreground break-words line-clamp-4"
-              title={task.title}
-            >
-              {limitChars(task.title, 280)}
-            </h3>
+        <h3
+          className={cn(
+            'line-clamp-3 font-semibold leading-snug text-foreground',
+            isCompact ? 'text-[13px]' : 'text-[15px] leading-relaxed'
+          )}
+          title={task.title}
+        >
+          {limitChars(task.title, isCompact ? 200 : 240)}
+        </h3>
 
-            <div className="flex items-center justify-between gap-2 pt-0.5">
-              <div className="flex items-center gap-2 min-w-0">
-                {attachmentsFooter}
-                {task.dueDate && (
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1 text-[11px]',
-                      isOverdue() ? 'text-red-500' : 'text-muted-foreground'
-                    )}
-                  >
-                    <Calendar className="w-3.5 h-3.5 shrink-0" />
-                    {formatDateSafe(task.dueDate)}
-                  </span>
-                )}
-                {isReportedTask() && (
-                  <MessageSquare className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                )}
-              </div>
-              {task.assignee && (
-                <Avatar className="w-6 h-6 ring-1 ring-border shrink-0">
-                  <AvatarImage src={task.assignee.avatar} />
-                  <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
-                    {task.assignee.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-            </div>
-
-            {attachmentsPanel}
-          </CardContent>
-        </>
-      ) : (
-        <>
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+        <div className={cn('flex flex-wrap', isCompact ? 'gap-1.5' : 'gap-2')}>
+          <PropertyPill compact={isCompact} title={`Status: ${getStatusLabel()}`}>
             {getStatusIcon()}
-            <Badge variant="secondary" className="text-xs">
-              {getStatusLabel()}
-            </Badge>
-            {task.project?.name && (
-              <Badge variant="outline" className="text-xs bg-muted/40 text-foreground border-border">
-                {task.project.name}
-              </Badge>
-            )}
-            {isReportedTask() && (
-              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                <MessageSquare className="w-3 h-3 mr-1" />
-                Reportada
-              </Badge>
-            )}
-            {hasAttachments() && (
-              <Badge 
-                variant="outline" 
-                className="text-xs bg-green-50 text-green-700 border-green-200 cursor-pointer hover:bg-green-100 transition-colors"
+            <span className="truncate">{getStatusLabel()}</span>
+          </PropertyPill>
+
+          <PropertyPill compact={isCompact} title={`Prioridade: ${getPriorityLabel()}`}>
+            <Signal className={cn(iconClass, getPriorityIconClass())} />
+          </PropertyPill>
+
+          {task.dueDate && (
+            <PropertyPill
+              compact={isCompact}
+              title={`Vencimento: ${formatDateSafe(task.dueDate)}`}
+              className={isOverdue() ? 'border-red-200 text-red-600 dark:border-red-900/50' : undefined}
+            >
+              <Calendar className={cn(iconClass, 'shrink-0')} />
+              <span className="truncate">{formatDateSafe(task.dueDate)}</span>
+            </PropertyPill>
+          )}
+
+          {task.startDate && (
+            <PropertyPill compact={isCompact} title={`Início: ${formatDateSafe(task.startDate)}`}>
+              <CalendarClock className={cn(iconClass, 'shrink-0')} />
+            </PropertyPill>
+          )}
+
+          {task.assignee && (
+            <PropertyPill compact={isCompact} title={task.assignee.name}>
+              <Avatar className={cn('shrink-0', isCompact ? 'h-4 w-4' : 'h-5 w-5')}>
+                <AvatarImage src={task.assignee.avatar} />
+                <AvatarFallback className={cn('bg-primary/10', isCompact ? 'text-[8px]' : 'text-[9px]')}>
+                  {task.assignee.name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </PropertyPill>
+          )}
+
+          {task.project?.name && (
+            <PropertyPill compact={isCompact} title={task.project.name}>
+              <LayoutGrid className={cn(iconClass, 'shrink-0')} />
+              <span className="truncate">{limitChars(task.project.name, isCompact ? 16 : 22)}</span>
+            </PropertyPill>
+          )}
+
+          {hasAttachments() && (
+            <PropertyPill compact={isCompact} title={`${getAttachmentsCount()} anexo(s)`}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1"
                 onClick={(e) => {
                   e.stopPropagation()
                   setShowAttachments(!showAttachments)
                 }}
               >
-                <Paperclip className="w-3 h-3 mr-1" />
-                {getAttachmentsCount()}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {task.storyPoints && (
-              <Badge variant="outline" className="text-xs font-mono text-muted-foreground border-muted">
-                {task.storyPoints} SP
-              </Badge>
-            )}
-            {cardMenu}
-          </div>
+                <Paperclip className={iconClass} />
+                <span>{getAttachmentsCount()}</span>
+              </button>
+            </PropertyPill>
+          )}
         </div>
-      </CardHeader>
-      
-      <CardContent className="pt-0 flex-1 overflow-hidden">
-        <div className="space-y-3 h-full">
-          {/* Título */}
-          <h3
-            className="font-medium text-sm leading-tight text-foreground break-words"
-            style={{ display: '-webkit-box', WebkitLineClamp: 2 as any, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-          >
-            {limitChars(task.title, 120)}
-          </h3>
 
-          {/* Descrição */}
-          {task.description && (
-            <p
-              className="text-xs text-muted-foreground break-words"
-              style={{ display: '-webkit-box', WebkitLineClamp: 3 as any, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
-            >
-              {(() => {
-                const lines = task.description?.split('\n') || []
-                const clean: string[] = []
-                let skip = false
-                for (const line of lines) {
-                  if (line.includes('📎 Anexos (')) {
-                    skip = true
-                    continue
-                  }
-                  if (skip && (line.trim() === '' || !line.startsWith('• '))) {
-                    skip = false
-                  }
-                  if (!skip) clean.push(line)
-                }
-                const txt = clean.join(' ').trim()
-                return limitChars(txt, 220)
-              })()}
-            </p>
-          )}
-
-          {/* Informações de Tempo e Data */}
-          {(task.startDate || task.startTime || task.estimatedMinutes) && (
-            <div className="bg-card p-2 rounded-md space-y-1 border border-muted">
-              {/* Data e Hora de Início */}
-              {(task.startDate || task.startTime) && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3 text-green-500" />
-                  <span className="font-medium">Início:</span>
-                  {task.startDate && (
-                    <span>{formatDateSafe(task.startDate)}</span>
+        {showAttachments && hasAttachments() && (
+          <div className="max-h-24 space-y-1 overflow-y-auto border-t border-border/60 pt-2">
+            {getAttachmentsFromDescription().map((attachment, index) => {
+              const fileName = getAttachmentName(attachment)
+              const fileType = getAttachmentMime(attachment)
+              const isImage = isImageAttachment(attachment)
+              const isPDF = fileType === 'application/pdf'
+              return (
+                <div
+                  key={index}
+                  className="flex items-center gap-2 rounded px-1 py-1 text-[10px] hover:bg-muted/50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {isImage ? (
+                    <ImageIcon className="h-3 w-3 text-sky-500" />
+                  ) : isPDF ? (
+                    <FileText className="h-3 w-3 text-red-500" />
+                  ) : (
+                    <Paperclip className="h-3 w-3 text-muted-foreground" />
                   )}
-                  {task.startTime && (
-                    <span className="text-green-500 font-mono">{task.startTime}</span>
-                  )}
+                  <span className="truncate text-foreground">{fileName}</span>
                 </div>
-              )}
-              
-              {/* Tempo Estimado */}
-              {task.estimatedMinutes && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="w-3 h-3 text-blue-500" />
-                  <span className="font-medium">Estimado:</span>
-                  <span className="text-blue-500 font-mono">
-                    {task.estimatedMinutes >= 60 
-                      ? `${Math.floor(task.estimatedMinutes / 60)}h ${task.estimatedMinutes % 60}min`
-                      : `${task.estimatedMinutes}min`
-                    }
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Metadados */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            {/* Prioridade */}
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full ${getPriorityColor()}`}>
-              {getPriorityIcon()}
-              <span>{getPriorityLabel()}</span>
-            </div>
-
-            {/* Data de vencimento */}
-            {task.dueDate && (
-              <div className={`flex items-center gap-1 ${isOverdue() ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'}`}>
-                <Calendar className={`w-3 h-3 ${isOverdue() ? 'text-red-500 dark:text-red-400' : 'text-muted-foreground'}`} />
-                <span>{formatDateSafe(task.dueDate)}</span>
-              </div>
-            )}
+              )
+            })}
           </div>
-
-          {/* Responsável */}
-          {task.assignee && (
-            <div className="flex items-center gap-2 pt-2 border-t border-muted">
-              <Avatar className="w-6 h-6 ring-1 ring-gray-200">
-                <AvatarImage src={task.assignee.avatar} />
-                <AvatarFallback className="text-xs bg-gray-100 text-muted-foreground">
-                  {task.assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-xs text-muted-foreground truncate">
-                {task.assignee.name}
-              </span>
-            </div>
-          )}
-
-          {attachmentsPanel}
-        </div>
-      </CardContent>
-        </>
-      )}
-    </Card>
+        )}
+      </div>
+    </div>
   )
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Loader2 } from 'lucide-react'
 
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 interface SyncResult {
   syncedCount: number
   message: string
@@ -61,7 +62,7 @@ export function SyncPaymentsButton() {
       className="gap-2"
     >
       {isLoading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <LoadingInline size="xs" />
       ) : (
         <RefreshCw className="h-4 w-4" />
       )}

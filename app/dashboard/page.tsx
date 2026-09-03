@@ -1,5 +1,6 @@
 "use client"
 
+import { PageLoadingGate } from '@/components/ui/loading-animation'
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -124,15 +125,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (status === "loading" || loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    )
-  }
-
-  if (!dashboardData) {
+  if (!dashboardData && status !== "loading" && !loading) {
     return (
       <div className="text-center py-12">
         <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -148,6 +141,22 @@ export default function DashboardPage() {
     )
   }
 
+  return (
+    <PageLoadingGate loading={status === "loading" || loading || !dashboardData}>
+      {dashboardData ? (
+        <DashboardContent dashboardData={dashboardData} session={session} />
+      ) : null}
+    </PageLoadingGate>
+  )
+}
+
+function DashboardContent({
+  dashboardData,
+  session,
+}: {
+  dashboardData: NonNullable<any>
+  session: ReturnType<typeof useSession>['data']
+}) {
   const { stats, projects, financialData, activities } = dashboardData
   return (
       <div className="space-y-6">

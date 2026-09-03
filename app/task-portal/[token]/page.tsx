@@ -8,6 +8,7 @@ import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 import { Bot, CheckSquare, Copy, ExternalLink, Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 type PortalPayload = {
   task: {
     id: string
@@ -72,7 +73,7 @@ export default function TaskPortalPage({ params }: { params: Promise<{ token: st
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <LoadingInline size="md" className="text-primary" />
       </div>
     )
   }

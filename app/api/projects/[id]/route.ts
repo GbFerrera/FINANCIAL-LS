@@ -83,6 +83,9 @@ export async function GET(
             startDate: true,
             startTime: true,
             endTime: true,
+            sprintId: true,
+            createdAt: true,
+            updatedAt: true,
             milestone: {
               select: {
                 id: true,

@@ -1,24 +1,32 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { PlaneEditor } from '@/components/ui/plane-editor'
+import { PLANE_TASK_DESCRIPTION_TEMPLATE } from '@/lib/plane-editor/template'
 import { Label } from '@/components/ui/label'
 import { FileUpload } from '@/components/ui/file-upload'
 import { toast } from 'react-hot-toast'
@@ -26,6 +34,7 @@ import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 import { TaskCommentsPanel } from '@/components/scrum/TaskCommentsPanel'
 import { TaskMetadataControls } from '@/components/scrum/TaskMetadataControls'
 import { cn } from '@/lib/utils'
+import { setActiveTaskViewId } from '@/lib/active-task-view'
 import {
   mergeAttachmentDescription,
   parseAttachmentsFromDescription,
@@ -38,7 +47,31 @@ import {
   stripAttachmentSectionFromDescription,
 } from '@/lib/task-attachments'
 import { TaskSharePanel } from '@/components/scrum/TaskSharePanel'
-import { AlignLeft, Paperclip, CheckSquare, ExternalLink, MoreVertical, Trash2 } from 'lucide-react'
+import {
+  Paperclip,
+  ExternalLink,
+  MoreVertical,
+  Trash2,
+  Link2,
+  Bell,
+  ChevronLeft,
+  Maximize2,
+  Minimize2,
+  PanelRightOpen,
+  PanelRightClose,
+  GitBranch,
+  ListTree,
+  Archive,
+  ArchiveRestore,
+  Loader2,
+} from 'lucide-react'
+
+function getTaskIdentifier(task: { id: string }, projectName?: string) {
+  const prefix = projectName
+    ? projectName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase() || 'TASK'
+    : 'TASK'
+  return `${prefix}-${task.id.slice(-4).toUpperCase()}`
+}
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -70,6 +103,7 @@ interface Task {
   startTime?: string | null
   estimatedMinutes?: number | null
   coverImageUrl?: string | null
+  isArchived?: boolean
 }
 
 interface CreateTaskModalProps {
@@ -78,6 +112,7 @@ interface CreateTaskModalProps {
   projectId?: string
   sprintId?: string | null
   onSuccess: () => void
+  onEditingTaskSync?: (patch: Partial<Task>) => void
   editingTask?: Task | null
   sprintProjects?: Project[]
   milestones?: Milestone[]
@@ -107,6 +142,7 @@ export function CreateTaskModal({
   projectId,
   sprintId,
   onSuccess,
+  onEditingTaskSync,
   editingTask,
   sprintProjects: propSprintProjects = [],
   milestones: propMilestones = []
@@ -131,7 +167,23 @@ export function CreateTaskModal({
   const [fullDescription, setFullDescription] = useState('')
   const [failedCoverUrl, setFailedCoverUrl] = useState<string | null>(null)
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null)
+  const [taskArchived, setTaskArchived] = useState(false)
+  const [actionLoading, setActionLoading] = useState<'archive' | 'restore' | 'delete' | null>(null)
+  const [isSheetFullscreen, setIsSheetFullscreen] = useState(false)
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const fileUploadRef = useRef<{ handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> } | null>(null)
+  const skipAutoSaveRef = useRef(true)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedPayloadRef = useRef('')
+
+  useEffect(() => {
+    if (isOpen && editingTask?.id) {
+      setActiveTaskViewId(editingTask.id)
+      return () => setActiveTaskViewId(null)
+    }
+    setActiveTaskViewId(null)
+  }, [isOpen, editingTask?.id])
 
   const coverUrl = useMemo(() => {
     if (!editingTask) return null
@@ -157,6 +209,18 @@ export function CreateTaskModal({
   useEffect(() => {
     setFailedCoverUrl(null)
   }, [editingTask?.id])
+
+  useEffect(() => {
+    if (!editingTask?.id || !isOpen) return
+    setTaskArchived(!!editingTask.isArchived)
+    fetch(`/api/tasks/${editingTask.id}`)
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = await res.json()
+        setTaskArchived(!!data.isArchived)
+      })
+      .catch(() => {})
+  }, [editingTask?.id, editingTask?.isArchived, isOpen])
 
   const handleDeleteAttachment = async (file: UploadFileInfo) => {
     if (!editingTask) return
@@ -255,6 +319,7 @@ export function CreateTaskModal({
     handleSubmit,
     setValue,
     watch,
+    getValues,
     reset,
     formState: { errors }
   } = useForm<TaskFormData>({
@@ -266,10 +331,162 @@ export function CreateTaskModal({
     }
   })
 
+  const buildDescriptionForSave = useCallback(
+    (body: string) => {
+      const persisted = attachments.filter(
+        (f) => f.filePath && !f.filePath.startsWith('blob:') && !f.file
+      )
+      if (persisted.length > 0) {
+        return mergeAttachmentDescription(
+          body,
+          persisted.map((f) => ({
+            originalName: f.originalName,
+            fileType: f.fileType,
+            filePath: f.filePath,
+          }))
+        )
+      }
+
+      const parsed = parseAttachmentsFromDescription(
+        fullDescription || editingTask?.description
+      )
+      if (parsed.length > 0) {
+        return mergeAttachmentDescription(
+          body,
+          parsed.map((a) => ({
+            originalName: getAttachmentName(a),
+            fileType: getAttachmentMime(a),
+            filePath: a.filePath || '',
+          }))
+        )
+      }
+
+      return body
+    },
+    [attachments, fullDescription, editingTask?.description]
+  )
+
+  const buildEditPayload = useCallback(
+    (data: TaskFormData) => ({
+      title: data.title,
+      description: buildDescriptionForSave(data.description || ''),
+      priority: data.priority,
+      storyPoints: data.storyPoints,
+      assigneeId: data.assigneeId || null,
+      milestoneId: data.milestoneId || null,
+      startDate: data.startDate ? `${data.startDate}T12:00:00.000Z` : null,
+      dueDate: data.dueDate ? `${data.dueDate}T12:00:00.000Z` : null,
+      startTime: data.startTime || null,
+      estimatedMinutes: data.estimatedMinutes ?? null,
+      hasBonus: !!data.hasBonus,
+    }),
+    [buildDescriptionForSave]
+  )
+
+  const persistTaskEdits = useCallback(
+    async (override?: Partial<TaskFormData>) => {
+      if (!editingTask) return false
+
+      const data = { ...getValues(), ...override }
+      const payload = buildEditPayload(data)
+      const snapshot = JSON.stringify(payload)
+      if (snapshot === lastSavedPayloadRef.current) return true
+
+      setAutoSaveStatus('saving')
+      try {
+        const res = await fetch(`/api/tasks/${editingTask.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        if (!res.ok) throw new Error('Falha ao salvar')
+
+        lastSavedPayloadRef.current = snapshot
+        setFullDescription(payload.description)
+        setAutoSaveStatus('saved')
+        onEditingTaskSync?.({
+          startDate: data.startDate || null,
+          dueDate: data.dueDate || null,
+          startTime: data.startTime || null,
+          estimatedMinutes: data.estimatedMinutes ?? null,
+        })
+        onSuccess()
+        window.setTimeout(() => {
+          setAutoSaveStatus((current) => (current === 'saved' ? 'idle' : current))
+        }, 2000)
+        return true
+      } catch {
+        setAutoSaveStatus('error')
+        toast.error('Erro ao salvar alterações')
+        return false
+      }
+    },
+    [editingTask, buildEditPayload, onSuccess, onEditingTaskSync, getValues]
+  )
+
+  const commitDates = useCallback(
+    (dates: { startDate?: string; dueDate?: string }) => {
+      if (!editingTask) return Promise.resolve()
+
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      skipAutoSaveRef.current = true
+      if ('startDate' in dates) {
+        setValue('startDate', dates.startDate ?? '', { shouldDirty: true })
+      }
+      if ('dueDate' in dates) {
+        setValue('dueDate', dates.dueDate ?? '', { shouldDirty: true })
+      }
+      return persistTaskEdits(dates).finally(() => {
+        window.setTimeout(() => {
+          skipAutoSaveRef.current = false
+        }, 400)
+      })
+    },
+    [editingTask, persistTaskEdits, setValue]
+  )
+
+  const scheduleAutoSave = useCallback(() => {
+    if (!editingTask || skipAutoSaveRef.current) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      void persistTaskEdits()
+    }, 700)
+  }, [editingTask, persistTaskEdits])
+
   useEffect(() => {
-    if (isOpen) {
-      // Usar projetos passados como prop ou buscar da API
-      if (propSprintProjects.length > 0) {
+    if (!isOpen || !editingTask) return
+
+    skipAutoSaveRef.current = true
+    setAutoSaveStatus('idle')
+
+    const timer = window.setTimeout(() => {
+      lastSavedPayloadRef.current = JSON.stringify(buildEditPayload(getValues()))
+      skipAutoSaveRef.current = false
+    }, 600)
+
+    return () => window.clearTimeout(timer)
+  }, [isOpen, editingTask?.id, buildEditPayload, getValues])
+
+  useEffect(() => {
+    if (!isOpen || !editingTask) return
+
+    const subscription = watch(() => {
+      scheduleAutoSave()
+    })
+
+    return () => {
+      subscription.unsubscribe()
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [isOpen, editingTask?.id, watch, scheduleAutoSave])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    if (propSprintProjects.length > 0) {
         console.log('Usando projetos passados como prop:', propSprintProjects)
         setSprintProjects(propSprintProjects)
       } else if (sprintId) {
@@ -283,8 +500,8 @@ export function CreateTaskModal({
       }
       
       fetchTeamMembers()
-      
-      // Se estiver editando, preencher o formulário
+
+      // Só repopular ao abrir ou ao trocar de tarefa — não em cada sync remoto
       if (editingTask) {
         const initialDescription = editingTask.description || ''
         setFullDescription(initialDescription)
@@ -351,13 +568,13 @@ export function CreateTaskModal({
           priority: 'MEDIUM',
           storyPoints: 1,
           hasBonus: false,
+          description: PLANE_TASK_DESCRIPTION_TEMPLATE,
         })
         setSelectedProjectId(projectId || '')
         setAttachments([])
         setFullDescription('')
       }
-    }
-  }, [isOpen, projectId, sprintId, editingTask, setValue, reset])
+  }, [isOpen, projectId, sprintId, editingTask?.id, setValue, reset])
 
   // Calcular horário de fim estimado
   useEffect(() => {
@@ -450,6 +667,47 @@ export function CreateTaskModal({
   }
 
   const onSubmit = async (data: TaskFormData) => {
+    if (editingTask) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      await persistTaskEdits(data)
+
+      if (attachments.some((f) => !!f.file)) {
+        try {
+          setLoading(true)
+          const uploadedFiles =
+            (await fileUploadRef.current?.handleUpload(editingTask.id)) || []
+          if (uploadedFiles.length > 0) {
+            const description = mergeAttachmentDescription(
+              getValues('description') || '',
+              uploadedFiles
+                .filter((f) => f.filePath && !f.filePath.startsWith('blob:') && !f.file)
+                .map((f) => ({
+                  originalName: f.originalName,
+                  fileType: f.fileType,
+                  filePath: f.filePath,
+                }))
+            )
+            await fetch(`/api/tasks/${editingTask.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ description }),
+            })
+            setFullDescription(description)
+            onSuccess()
+          }
+        } catch {
+          toast.error('Erro ao enviar anexos')
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      return
+    }
+
     try {
       setLoading(true)
 
@@ -545,9 +803,92 @@ export function CreateTaskModal({
     }
   }
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    if (editingTask) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+        await persistTaskEdits(getValues())
+      }
+    }
     reset()
+    setIsSheetFullscreen(false)
+    setIsSidePanelOpen(false)
+    setAutoSaveStatus('idle')
+    skipAutoSaveRef.current = true
     onClose()
+  }
+
+  const handleArchiveTask = async () => {
+    if (!editingTask) return
+    if (editingTask.status !== 'COMPLETED') {
+      toast.error('Apenas tarefas concluídas podem ser arquivadas')
+      return
+    }
+    if (!confirm('Arquivar esta tarefa? Ela sairá do quadro ativo.')) return
+
+    setActionLoading('archive')
+    try {
+      const res = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isArchived: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Erro ao arquivar tarefa')
+
+      toast.success('Tarefa arquivada')
+      onSuccess()
+      handleClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao arquivar tarefa')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRestoreTask = async () => {
+    if (!editingTask) return
+    if (!confirm('Restaurar esta tarefa para o quadro ativo?')) return
+
+    setActionLoading('restore')
+    try {
+      const res = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isArchived: false }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Erro ao restaurar tarefa')
+
+      toast.success('Tarefa restaurada')
+      onSuccess()
+      handleClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao restaurar tarefa')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDeleteTask = async () => {
+    if (!editingTask) return
+    if (!confirm('Excluir esta tarefa permanentemente? Esta ação não pode ser desfeita.')) return
+
+    setActionLoading('delete')
+    try {
+      const res = await fetch(`/api/tasks/${editingTask.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir tarefa')
+
+      toast.success('Tarefa excluída')
+      onSuccess()
+      handleClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao excluir tarefa')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const metadataControls = (
@@ -565,8 +906,37 @@ export function CreateTaskModal({
       }}
       estimatedEndTime={estimatedEndTime}
       showSummary
+      onDatesCommit={commitDates}
     />
   )
+
+  const sidebarProperties = (
+    <TaskMetadataControls
+      watch={watch}
+      setValue={setValue}
+      register={register}
+      teamMembers={teamMembers}
+      milestones={propMilestones}
+      sprintProjects={sprintProjects}
+      selectedProjectId={selectedProjectId}
+      onProjectChange={(value) => {
+        setSelectedProjectId(value)
+        fetchTeamMembers()
+      }}
+      estimatedEndTime={estimatedEndTime}
+      showSummary
+      hideToolbar
+      onDatesCommit={commitDates}
+    />
+  )
+
+  const watchedDescription = watch('description')
+  const descriptionForEditor =
+    watchedDescription != null
+      ? watchedDescription
+      : editingTask
+        ? stripAttachmentSectionFromDescription(editingTask.description || '')
+        : ''
 
   const mainFields = (
     <>
@@ -586,54 +956,53 @@ export function CreateTaskModal({
 
       {editingTask && (
         <div className="space-y-3">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {getTaskIdentifier(
+              editingTask,
+              sprintProjects.find((p) => p.id === selectedProjectId)?.name
+            )}
+          </p>
           <div className="flex items-start gap-3">
             <div
-              className="mt-2 h-5 w-5 shrink-0 rounded-full border-2 border-muted-foreground/50"
+              className="mt-2.5 h-5 w-5 shrink-0 rounded-full border-2 border-muted-foreground/40"
               aria-hidden
             />
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <Input
                 id="title"
                 {...register('title')}
-                placeholder="Título do cartão"
-                className="text-lg font-semibold border-0 shadow-none px-0 h-auto focus-visible:ring-0 bg-transparent"
+                placeholder="Título do item"
+                className="h-auto border-0 bg-transparent px-0 text-xl font-semibold shadow-none focus-visible:ring-0"
               />
               {errors.title && (
-                <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
+                <p className="mt-1 text-sm text-red-500">{errors.title.message}</p>
               )}
             </div>
           </div>
-          <div className="pl-8">{metadataControls}</div>
         </div>
       )}
 
-      <div className={editingTask ? 'pl-8 space-y-2' : ''}>
-        {editingTask && (
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <AlignLeft className="w-4 h-4 text-muted-foreground" />
-            Descrição
-          </div>
-        )}
+      <div className={cn(editingTask ? 'space-y-2' : '')}>
         {!editingTask && <Label htmlFor="description">Descrição</Label>}
-        <Textarea
-          id="description"
-          {...register('description')}
-          placeholder="Descreva a tarefa (opcional)"
-          rows={editingTask ? 8 : 12}
-          className={editingTask ? 'min-h-[140px] bg-muted/10 border-muted/50' : 'min-h-[200px]'}
+        <PlaneEditor
+          key={editingTask?.id ?? 'create-task'}
+          value={descriptionForEditor}
+          onChange={(html) => {
+            setValue('description', html, { shouldDirty: true, shouldValidate: true })
+            scheduleAutoSave()
+          }}
+          placeholder="Clique para adicionar descrição"
+          variant={editingTask ? 'sheet' : 'default'}
+          minHeight={editingTask ? 120 : 220}
+          defaultTemplate={!editingTask ? PLANE_TASK_DESCRIPTION_TEMPLATE : undefined}
         />
       </div>
 
-      <div className={editingTask ? 'pl-8 space-y-2' : ''}>
-        {editingTask ? (
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Paperclip className="w-4 h-4 text-muted-foreground" />
-            Anexos
-          </div>
-        ) : (
+      <div className={cn(!editingTask && 'space-y-2')}>
+        {!editingTask && (
           <Label className="mb-2 block">Imagens/Arquivos (opcional)</Label>
         )}
-        <div className={editingTask ? 'rounded-lg' : 'bg-card rounded-lg p-3 border border-muted'}>
+        <div className={cn(!editingTask && 'rounded-lg border border-muted bg-card p-3')}>
           {editingTask && attachments.some((f) => isImageAttachment({
             originalName: f.originalName,
             fileType: f.fileType,
@@ -729,129 +1098,319 @@ export function CreateTaskModal({
           />
         </div>
       </div>
-
-      {editingTask && (
-        <TaskSharePanel taskId={editingTask.id} />
-      )}
-
-      {editingTask && (
-        <div className="pl-8 pt-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
-            <CheckSquare className="w-4 h-4 text-muted-foreground" />
-            Checklist
-          </div>
-          <div className={editingTask ? '' : 'bg-card rounded-lg p-4 border border-muted'}>
-            <TaskChecklist taskId={editingTask.id} />
-          </div>
-        </div>
-      )}
     </>
   )
 
-  const formFooter = (
+  const sheetActionChips = editingTask && (
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-normal">
+        <ListTree className="mr-1.5 h-3.5 w-3.5" />
+        Adicionar sub-item
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-normal">
+        <GitBranch className="mr-1.5 h-3.5 w-3.5" />
+        Adicionar relação
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-normal">
+        <Link2 className="mr-1.5 h-3.5 w-3.5" />
+        Adicionar link
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-normal">
+        <Paperclip className="mr-1.5 h-3.5 w-3.5" />
+        Anexar
+      </Button>
+    </div>
+  )
+
+  const sheetChecklist = editingTask && (
+    <section className="space-y-3 border-t border-border/60 pt-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">Sub-itens de trabalho</h3>
+      </div>
+      <TaskChecklist taskId={editingTask.id} />
+    </section>
+  )
+
+  const sheetProperties = editingTask && (
+    <section className="space-y-3 border-t border-border/60 pt-5">
+      <h3 className="text-sm font-semibold text-foreground">Propriedades</h3>
+      {sidebarProperties}
+    </section>
+  )
+
+  const sheetActivity = editingTask && (
+    <section className="border-t border-border/60 pt-5">
+      <TaskCommentsPanel taskId={editingTask.id} variant="plane" />
+    </section>
+  )
+
+  const autoSaveLabel =
+    autoSaveStatus === 'saving'
+      ? 'Salvando...'
+      : autoSaveStatus === 'saved'
+        ? 'Salvo'
+        : autoSaveStatus === 'error'
+          ? 'Erro ao salvar'
+          : null
+
+  const formFooter = editingTask ? (
+    <div className="flex items-center justify-between gap-2 border-t bg-background px-6 py-4 shrink-0">
+      <div className="flex flex-wrap items-center gap-2">
+        {!taskArchived && editingTask.status === 'COMPLETED' && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleArchiveTask}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === 'archive' ? (
+              <LoadingInline size="xs" className="mr-2" />
+            ) : (
+              <Archive className="mr-2 h-4 w-4" />
+            )}
+            Arquivar
+          </Button>
+        )}
+        {taskArchived && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRestoreTask}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === 'restore' ? (
+              <LoadingInline size="xs" className="mr-2" />
+            ) : (
+              <ArchiveRestore className="mr-2 h-4 w-4" />
+            )}
+            Restaurar
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={handleDeleteTask}
+          disabled={!!actionLoading}
+        >
+          {actionLoading === 'delete' ? (
+            <LoadingInline size="xs" className="mr-2" />
+          ) : (
+            <Trash2 className="mr-2 h-4 w-4" />
+          )}
+          Excluir
+        </Button>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground min-h-4">
+          {autoSaveLabel}
+        </span>
+        <Button type="button" variant="outline" onClick={() => void handleClose()}>
+          Fechar
+        </Button>
+      </div>
+    </div>
+  ) : (
     <div className="flex justify-end gap-2 px-6 py-4 border-t bg-background shrink-0">
-      <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
+      <Button type="button" variant="outline" onClick={() => void handleClose()} disabled={loading}>
         Cancelar
       </Button>
       <Button type="submit" disabled={loading} className="bg-primary">
-        {loading
-          ? editingTask
-            ? 'Salvando...'
-            : 'Criando...'
-          : editingTask
-            ? 'Salvar alterações'
-            : 'Criar Tarefa'}
+        {loading ? 'Criando...' : 'Criar Tarefa'}
       </Button>
     </div>
   )
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent
-        className={cn(
-          editingTask
-            ? 'sm:max-w-[1080px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col [&>[data-slot=dialog-close]]:z-20 [&>[data-slot=dialog-close]]:bg-black/40 [&>[data-slot=dialog-close]]:text-white [&>[data-slot=dialog-close]]:hover:bg-black/60'
-            : 'sm:max-w-[900px] max-h-[90vh] overflow-y-auto'
-        )}
-      >
-        {editingTask && coverUrl && (
-          <div className="relative shrink-0 bg-neutral-950">
-            <button
-              type="button"
-              className="flex w-full items-center justify-center"
-              onClick={() => window.open(coverUrl, '_blank')}
+    <>
+      {isOpen && editingTask ? (
+      <Sheet open onOpenChange={(open) => { if (!open) handleClose() }}>
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          className={cn(
+            'gap-0 overflow-hidden p-0 transition-[max-width,width] duration-300 ease-out',
+            isSheetFullscreen
+              ? '!w-full !max-w-none sm:!max-w-none'
+              : isSidePanelOpen
+                ? 'sm:max-w-[min(1140px,calc(100vw-2rem))]'
+                : 'sm:max-w-[720px]'
+          )}
+        >
+          <SheetTitle className="sr-only">Detalhes da tarefa</SheetTitle>
+          {editingTask && (
+            <form
+              onSubmit={(e) => e.preventDefault()}
+              className="flex h-full min-h-0 flex-col"
             >
-              <img
-                src={coverUrl}
-                alt=""
-                className="max-h-[min(420px,42vh)] w-full object-contain"
-                onError={() => setFailedCoverUrl(coverUrl)}
-              />
-            </button>
-            <div className="absolute top-3 right-12 z-10">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              {/* Toolbar */}
+              <div className="flex shrink-0 items-center justify-between border-b px-2 py-1.5">
+                <div className="flex items-center">
+                  <Button type="button" variant="ghost" size="icon-sm" onClick={handleClose} aria-label="Voltar">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 rounded-md bg-black/55 text-white hover:bg-black/75 hover:text-white"
-                    disabled={!!deletingAttachmentId}
+                    size="icon-sm"
+                    className={cn('text-muted-foreground', isSheetFullscreen && 'bg-muted text-foreground')}
+                    aria-label={isSheetFullscreen ? 'Restaurar largura' : 'Tela cheia'}
+                    onClick={() => setIsSheetFullscreen((v) => !v)}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    {isSheetFullscreen ? (
+                      <Minimize2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    )}
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  <DropdownMenuItem onClick={() => window.open(coverUrl, '_blank')}>
-                    <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                    Abrir
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="text-red-600 focus:text-red-600"
-                    onClick={() => handleDeleteCover()}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className={cn('text-muted-foreground', isSidePanelOpen && 'bg-muted text-foreground')}
+                    aria-label={isSidePanelOpen ? 'Ocultar painel lateral' : 'Mostrar painel lateral'}
+                    onClick={() => setIsSidePanelOpen((v) => !v)}
                   >
-                    <Trash2 className="mr-2 h-3.5 w-3.5" />
-                    Remover capa
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <button
-              type="button"
-              className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs text-white hover:bg-black/70"
-              onClick={() => window.open(coverUrl, '_blank')}
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Abrir
-            </button>
-          </div>
-        )}
-        <DialogHeader className={editingTask ? 'sr-only' : undefined}>
-          <DialogTitle>{editingTask ? 'Detalhes da tarefa' : 'Nova Tarefa'}</DialogTitle>
-        </DialogHeader>
-
-        <form
-          onSubmit={handleSubmit(onSubmit, (errors) => console.error('Validation errors:', errors))}
-          className={cn(editingTask && 'flex flex-col flex-1 min-h-0')}
-        >
-          {editingTask ? (
-            <>
-              <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
-                <div className="flex-1 overflow-y-auto p-6 space-y-5 min-h-0">
-                  {mainFields}
+                    {isSidePanelOpen ? (
+                      <PanelRightClose className="h-3.5 w-3.5" />
+                    ) : (
+                      <PanelRightOpen className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
                 </div>
-                <aside className="lg:w-[360px] shrink-0 border-t lg:border-t-0 lg:border-l flex flex-col min-h-[280px] lg:min-h-0 lg:max-h-[calc(92vh-4rem)]">
-                  <TaskCommentsPanel taskId={editingTask.id} />
-                </aside>
+                <div className="flex items-center gap-1 pr-2">
+                  {autoSaveLabel && (
+                    <span className="mr-1 text-xs text-muted-foreground">{autoSaveLabel}</span>
+                  )}
+                  <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs font-normal">
+                    <Bell className="h-3.5 w-3.5" />
+                    Inscrever-se
+                  </Button>
+                  <TaskSharePanel taskId={editingTask.id} compact />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem onClick={handleClose}>Fechar</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {!taskArchived && editingTask.status === 'COMPLETED' && (
+                        <DropdownMenuItem
+                          onClick={handleArchiveTask}
+                          disabled={!!actionLoading}
+                        >
+                          {actionLoading === 'archive' ? (
+                            <LoadingInline size="xs" className="mr-2" />
+                          ) : (
+                            <Archive className="mr-2 h-4 w-4" />
+                          )}
+                          Arquivar tarefa
+                        </DropdownMenuItem>
+                      )}
+                      {taskArchived && (
+                        <DropdownMenuItem
+                          onClick={handleRestoreTask}
+                          disabled={!!actionLoading}
+                        >
+                          {actionLoading === 'restore' ? (
+                            <LoadingInline size="xs" className="mr-2" />
+                          ) : (
+                            <ArchiveRestore className="mr-2 h-4 w-4" />
+                          )}
+                          Restaurar tarefa
+                        </DropdownMenuItem>
+                      )}
+                      {!taskArchived && editingTask.status !== 'COMPLETED' && (
+                        <DropdownMenuItem disabled className="text-muted-foreground">
+                          <Archive className="mr-2 h-4 w-4 opacity-40" />
+                          Arquivar (conclua antes)
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={handleDeleteTask}
+                        disabled={!!actionLoading}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        {actionLoading === 'delete' ? (
+                          <LoadingInline size="xs" className="mr-2" />
+                        ) : (
+                          <Trash2 className="mr-2 h-4 w-4" />
+                        )}
+                        Excluir tarefa
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
+
+              {/* Cover opcional */}
+              {coverUrl && (
+                <div className="relative shrink-0 border-b bg-neutral-950">
+                  <button type="button" className="flex w-full items-center justify-center" onClick={() => window.open(coverUrl, '_blank')}>
+                    <img
+                      src={coverUrl}
+                      alt=""
+                      className="max-h-48 w-full object-contain"
+                      onError={() => setFailedCoverUrl(coverUrl)}
+                    />
+                  </button>
+                </div>
+              )}
+
+              {/* Conteúdo scrollável */}
+              <div
+                className={cn(
+                  'min-h-0 flex-1',
+                  isSidePanelOpen ? 'flex overflow-hidden' : 'overflow-y-auto'
+                )}
+              >
+                <div
+                  className={cn(
+                    isSidePanelOpen ? 'min-h-0 w-[720px] shrink-0 overflow-y-auto' : ''
+                  )}
+                >
+                  <div className="space-y-5 px-6 py-5">
+                    {mainFields}
+                    {sheetActionChips}
+                    {sheetChecklist}
+                    {!isSidePanelOpen && sheetProperties}
+                    {!isSidePanelOpen && sheetActivity}
+                  </div>
+                </div>
+                {isSidePanelOpen && (
+                  <aside className="flex w-[420px] shrink-0 flex-col overflow-y-auto border-l bg-muted/5">
+                    <div className="space-y-5 p-5">
+                      {sheetProperties}
+                      {sheetActivity}
+                    </div>
+                  </aside>
+                )}
+              </div>
+
               {formFooter}
-            </>
-          ) : (
+            </form>
+          )}
+        </SheetContent>
+      </Sheet>
+      ) : null}
+
+      {isOpen && !editingTask ? (
+      <Dialog open onOpenChange={(open) => { if (!open) handleClose() }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[900px]">
+          <DialogHeader>
+            <DialogTitle>Nova Tarefa</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit(onSubmit, (errors) => console.error('Validation errors:', errors))}>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-7 space-y-4">{mainFields}</div>
-                <div className="lg:col-span-5 pt-1">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                <div className="space-y-4 lg:col-span-7">{mainFields}</div>
+                <div className="pt-1 lg:col-span-5">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Configurações
                   </p>
                   {metadataControls}
@@ -859,9 +1418,10 @@ export function CreateTaskModal({
               </div>
               {formFooter}
             </div>
-          )}
-        </form>
-      </DialogContent>
-    </Dialog>
+          </form>
+        </DialogContent>
+      </Dialog>
+      ) : null}
+    </>
   )
 }
