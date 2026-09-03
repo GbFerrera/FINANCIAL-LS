@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { PageLoadingGate, LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
-import {
+import { 
   Card, 
   CardContent, 
   CardHeader, 
@@ -54,10 +53,7 @@ export default function ProfilePage() {
   const uploadRef = useRef<{ handleUpload: () => Promise<any[]>, openFileDialog: () => void, clearFiles: () => void }>(null)
 
   useEffect(() => {
-  const hasPendingSkills = pendingMastered.length > 0 || pendingReinforcement.length > 0 || pendingInterests.length > 0
-
-  return (
-    <PageLoadingGate loading={status === 'loading') return
+    if (status === 'loading') return
     if (status === 'unauthenticated') {
       router.push('/auth/signin')
       return
@@ -276,7 +272,17 @@ export default function ProfilePage() {
     }
   }
 
-  if (loading}>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  const hasPendingSkills = pendingMastered.length > 0 || pendingReinforcement.length > 0 || pendingInterests.length > 0
+
+  return (
     <div className="mx-auto space-y-8 p-6">
       <div className="flex flex-col md:flex-row items-start justify-between gap-4">
         <div>
@@ -287,7 +293,7 @@ export default function ProfilePage() {
           <Button onClick={saveProfile} disabled={saving} size="lg" className="w-full md:w-auto">
             {saving ? (
               <>
-                <LoadingAnimation size="xs" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                 Salvando...
               </>
             ) : (
@@ -560,6 +566,5 @@ export default function ProfilePage() {
         </div>
       </div>
     </div>
-    </PageLoadingGate>
   )
 }

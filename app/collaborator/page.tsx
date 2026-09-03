@@ -398,6 +398,7 @@ export default function CollaboratorPage() {
         </Tabs>
       )}
     </div>
+    </PageLoadingGate>
   )
 }
 
@@ -581,6 +582,5 @@ function TaskCard({
         )}
       </CardContent>
     </Card>
-    </PageLoadingGate>
   )
 }

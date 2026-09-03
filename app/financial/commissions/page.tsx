@@ -1,6 +1,5 @@
-'use client'
-
-import { LoadingAnimation, LoadingInline, LoadingScreen } from '@/components/ui/loading-animation'
+ "use client"
+ 
  import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -116,6 +115,271 @@ function UserCommissionRow({ user, onUpdate, canEdit = true }: UserCommissionRow
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       })
+      if (!res.ok) throw new Error("Falha ao salvar configurações")
+      toast.success("Configurações salvas")
+      onUpdate()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar configurações")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-6">
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-12 w-12 border-2 border-background">
+                <AvatarImage
+                  src={user.avatar || undefined}
+                  className="object-cover object-center h-full w-full"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+                <AvatarFallback>
+                  <UserIcon className="h-6 w-6 text-muted-foreground" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid gap-0.5">
+                <h3 className="text-lg font-semibold leading-none">{user.name}</h3>
+                <p className="text-sm text-muted-foreground">{user.email}</p>
+                <p className="text-xs text-muted-foreground">
+                  Bônus/tarefa: {formatCurrency(((user as any).bonusPerTask ?? 0))}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-8 text-right">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Minutos concluídos</p>
+                <p className="text-xl font-bold">{user.minutesCompleted}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Variável (estimada)</p>
+                <p className="text-xl font-bold text-green-500">{formatCurrency(serverVariablePay)}</p>
+              </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Bônus</p>
+              <p className="text-xl font-bold">{formatCurrency(bonusTotal)}</p>
+            </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Total (estimado)</p>
+                <p className="text-xl font-bold">{formatCurrency(totalPay)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[auto_1fr_1fr_auto] items-end border-t pt-6">
+            <div className="flex items-center gap-2 pb-3">
+              <Checkbox 
+                id={`fixed-${user.userId}`} 
+                checked={hasFixedSalary} 
+                onCheckedChange={(checked) => setHasFixedSalary(!!checked)} 
+              />
+              <label 
+                htmlFor={`fixed-${user.userId}`} 
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Salário Fixo
+              </label>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Valor do Salário Fixo (R$)
+              </label>
+              <Input 
+                value={fixedSalary} 
+                onChange={(e) => setFixedSalary(e.target.value)}
+                disabled={!hasFixedSalary || !canEdit}
+                className="bg-muted/50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">
+                Valor de 60 minutos (R$)
+              </label>
+              <Input 
+                value={hourRate} 
+                onChange={(e) => setHourRate(e.target.value)}
+                disabled={!canEdit}
+                className="bg-muted/50"
+              />
+            </div>
+
+            <Button onClick={handleSave} disabled={loading || !canEdit} className="w-full md:w-auto">
+              {loading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                "Salvar"
+              )}
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function CommissionsPage() {
+   const { data: session, status } = useSession()
+   const router = useRouter()
+   const [users, setUsers] = useState<AggregatedProfile[]>([])
+  const [selectedUserId, setSelectedUserId] = useState<string>("all")
+  const [commissionAccess, setCommissionAccess] = useState<"OWN_READ" | "OWN_EDIT" | "ALL_EDIT">("OWN_READ")
+  const [date, setDate] = useState<DateRange | undefined>()
+  const [loading, setLoading] = useState<boolean>(true)
+  const [userData, setUserData] = useState<UserProfile | null>(null)
+  const [hasFixedSalary, setHasFixedSalary] = useState<boolean>(false)
+  const [fixedSalary, setFixedSalary] = useState<string>("")
+  const [hourRate, setHourRate] = useState<string>("")
+  const [bonusPerTask, setBonusPerTask] = useState<string>("")
+
+  useEffect(() => {
+    if (status === "loading") return
+    if (!session) {
+      router.push("/auth/signin")
+      return
+    }
+    initDefaults()
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/users/${session.user.id}/permissions`)
+        if (res.ok) {
+          const json = await res.json()
+          const access: "OWN_READ" | "OWN_EDIT" | "ALL_EDIT" = json.commissionsAccess ?? (session.user.role === "ADMIN" ? "ALL_EDIT" : "OWN_READ")
+          setCommissionAccess(access)
+          if (access === "OWN_READ" || access === "OWN_EDIT") {
+            setSelectedUserId(session.user.id)
+          } else {
+            setSelectedUserId("all")
+          }
+        }
+      } catch {
+        // ignore
+      }
+    })()
+  }, [session, status])
+
+  useEffect(() => {
+    if (!date?.from || !date?.to) return
+    loadUsers()
+    if (selectedUserId && selectedUserId !== "all") {
+      fetchUserData()
+    } else {
+      setUserData(null)
+    }
+  }, [selectedUserId, date])
+
+  const initDefaults = () => {
+    const today = new Date()
+    const from = new Date(today.getFullYear(), today.getMonth(), 1)
+    setDate({
+      from,
+      to: today,
+    })
+  }
+
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (date?.from) params.set("from", format(date.from, "yyyy-MM-dd"))
+      if (date?.to) params.set("to", format(date.to, "yyyy-MM-dd"))
+
+      const res = await fetch(`/api/commissions?${params.toString()}`)
+      if (!res.ok) throw new Error("Falha ao carregar colaboradores")
+      const data = await res.json()
+      const profiles: AggregatedProfile[] = data.profiles || []
+      setUsers(profiles)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar colaboradores")
+    } finally {
+      if (selectedUserId === "all") setLoading(false)
+    }
+  }
+
+  const fetchUserData = async () => {
+    if (selectedUserId === "all") return
+    try {
+      setLoading(true)
+      if (!date?.from || !date?.to) {
+        setLoading(false)
+        return
+      }
+      const params = new URLSearchParams({
+        from: format(date.from, "yyyy-MM-dd"),
+        to: format(date.to, "yyyy-MM-dd"),
+      })
+      const res = await fetch(`/api/commissions/${selectedUserId}?` + params.toString())
+      if (!res.ok) throw new Error("Falha ao carregar dados de comissão")
+      const data: UserProfile = await res.json()
+      setUserData(data)
+      setHasFixedSalary(!!data.profile.hasFixedSalary)
+      setFixedSalary(data.profile.fixedSalary != null ? String(data.profile.fixedSalary) : "")
+      setHourRate(String(data.profile.hourRate || 0))
+      // @ts-ignore
+      setBonusPerTask(String((data as any).summary?.bonusPerTask || 0))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar dados de comissão")
+    } finally {
+      setLoading(false)
+    }
+  }
+ 
+  const saveConfig = async () => {
+    try {
+      setLoading(true)
+      const body = {
+        hasFixedSalary,
+        fixedSalary: fixedSalary !== "" ? parseFloat(fixedSalary) : null,
+        hourRate: hourRate !== "" ? parseFloat(hourRate) : 0,
+        bonusPerTask: bonusPerTask !== "" ? parseFloat(bonusPerTask) : 0
+      }
+      const res = await fetch(`/api/commissions/${selectedUserId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      })
+      if (!res.ok) throw new Error("Falha ao salvar configurações")
+      toast.success("Configurações salvas")
+      await fetchUserData()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar configurações")
+    } finally {
+      setLoading(false)
+    }
+  }
+ 
+   const formatCurrency = (value: number) => {
+     return new Intl.NumberFormat("pt-BR", {
+       style: "currency",
+       currency: "BRL",
+       minimumFractionDigits: 2,
+       maximumFractionDigits: 2
+     }).format(value)
+   }
+ 
+  const formatDate = (dateInput: string | Date | null | undefined) => {
+    if (!dateInput) return "—"
+    const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput
+    if (!(d instanceof Date) || isNaN(d.getTime())) return "—"
+    const day = String(d.getDate()).padStart(2, "0")
+    const month = String(d.getMonth() + 1).padStart(2, "0")
+    const year = String(d.getFullYear())
+    return `${day}/${month}/${year}`
+  }
+ 
+   if (status === "loading" || loading) {
+     return (
+       <div className="flex items-center justify-center h-64">
+         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+       </div>
+     )
+   }
+ 
    return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

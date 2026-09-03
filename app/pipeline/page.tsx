@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import toast from "react-hot-toast"
@@ -42,7 +42,7 @@ function parseView(raw: string | null): PipelineViewMode {
   return "board"
 }
 
-export default function PipelinePage() {
+function PipelinePageContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -689,5 +689,19 @@ export default function PipelinePage() {
       )}
     </div>
     </PageLoadingGate>
+  )
+}
+
+export default function PipelinePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-64">
+          <LoadingAnimation size="md" />
+        </div>
+      }
+    >
+      <PipelinePageContent />
+    </Suspense>
   )
 }

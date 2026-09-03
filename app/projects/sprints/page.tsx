@@ -1217,6 +1217,7 @@ function SprintsPageContent() {
         </DialogContent>
       </Dialog>
     </div>
+    </PageLoadingGate>
   )
 }
 
@@ -1231,6 +1232,5 @@ export default function SprintsPage() {
     >
       <SprintsPageContent />
     </Suspense>
-    </PageLoadingGate>
   )
 }
