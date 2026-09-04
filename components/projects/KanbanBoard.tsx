@@ -222,7 +222,7 @@ export function KanbanBoard({
                           {...provided.dragHandleProps}
                           style={provided.draggableProps.style}
                           className={cn(
-                            "outline-none",
+                            "w-full shrink-0 outline-none",
                             dragSnapshot.isDragging && "z-50 rotate-1 scale-[1.02] shadow-xl"
                           )}
                           onClick={(e) => {
