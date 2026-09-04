@@ -48,7 +48,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { isPathAllowed } from "@/lib/access-control"
+import { isPathAllowed, resolveNavHref, firstAllowedFinancialPath } from "@/lib/access-control"
 import { cn } from "@/lib/utils"
 
 interface DashboardLayoutProps {
@@ -231,7 +231,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     router.push("/auth/signin")
   }
 
-  const filteredNavigation = isAdmin
+  const filteredNavigation = (isAdmin
     ? navigation
     : (allowedPaths || []).length > 0
       ? navigation
@@ -245,6 +245,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             return allowTop || allowSub
           })
       : navigation
+  ).map(item => ({
+    ...item,
+    href: resolveNavHref(item, allowedPaths, isAdmin),
+  }))
+
+  const financialQuickLink = isAdmin
+    ? '/financial'
+    : firstAllowedFinancialPath(allowedPaths || [])
 
   return (
     <TooltipProvider>
@@ -297,6 +305,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           onToggleSidebar={toggleSidebarHidden}
           sidebarHidden={sidebarHidden}
           onSignOut={handleSignOut}
+          financialQuickLink={financialQuickLink}
         />
 
         <main className={`relative flex-1 bg-background ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'} focus:outline-none`}>
@@ -317,14 +326,19 @@ function DashboardTopBar({
   onToggleSidebar,
   sidebarHidden,
   onSignOut,
+  financialQuickLink,
 }: {
   onMenuClick?: () => void
   onToggleSidebar?: () => void
   sidebarHidden?: boolean
   onSignOut: () => void
+  financialQuickLink?: string | null
 }) {
   const { data: session } = useSession()
   const pathname = usePathname() || ''
+  const financeActive =
+    !!financialQuickLink &&
+    (pathname === financialQuickLink || pathname.startsWith(`${financialQuickLink}/`))
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -365,11 +379,30 @@ function DashboardTopBar({
         <NextLink href="/notifications" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <Bell className="h-4 w-4" />
         </NextLink>
+        {financialQuickLink && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <NextLink
+                href={financialQuickLink}
+                className={cn(
+                  'rounded-md p-2 text-muted-foreground hover:bg-muted',
+                  financeActive && 'bg-muted text-foreground'
+                )}
+                aria-label="Financeiro"
+              >
+                <Wallet className="h-4 w-4" />
+              </NextLink>
+            </TooltipTrigger>
+            <TooltipContent>Financeiro</TooltipContent>
+          </Tooltip>
+        )}
         <ModeToggle />
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={session?.user?.image || ''} />
-          <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
-        </Avatar>
+        <NextLink href="/profile" className="rounded-md p-1 hover:bg-muted" aria-label="Perfil">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={session?.user?.image || ''} />
+            <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
+          </Avatar>
+        </NextLink>
         <button type="button" onClick={onSignOut} className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <LogOut className="h-4 w-4" />
         </button>

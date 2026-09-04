@@ -92,15 +92,25 @@ export function PageLoadingGate({
   children,
   label,
   className,
+  fillHeight = false,
 }: {
   loading: boolean
   children: ReactNode
   label?: string
   className?: string
+  fillHeight?: boolean
 }) {
   return (
-    <div className={cn('relative min-h-0', className)}>
-      <div className={cn(loading && 'pointer-events-none select-none')}>{children}</div>
+    <div className={cn('relative min-h-0', fillHeight && 'flex h-full flex-col', className)}>
+      <div
+        className={cn(
+          'min-h-0',
+          fillHeight && 'flex h-full flex-1 flex-col',
+          loading && 'pointer-events-none select-none'
+        )}
+      >
+        {children}
+      </div>
 
       <AnimatePresence initial={false}>
         {loading ? <FullscreenLoadingOverlay key="page-loading" label={label} /> : null}

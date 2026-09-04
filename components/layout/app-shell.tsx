@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { DashboardLayout } from "./dashboard-layout"
-import { isPathAllowed, firstAllowedPath, firstAllowedFromRole } from "@/lib/access-control"
+import { isPathAllowed, redirectForPath } from "@/lib/access-control"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || ""
@@ -54,8 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!allowedPaths) return
     const ok = isPathAllowed(pathname, allowedPaths)
     if (!ok) {
-      const dest = firstAllowedPath(allowedPaths) || firstAllowedFromRole(session.user.role) || "/auth/signin"
-      router.replace(dest)
+      router.replace(redirectForPath(pathname, allowedPaths, session.user.role))
     }
   }, [allowedPaths, pathname, session, status, isExcluded, router])
 

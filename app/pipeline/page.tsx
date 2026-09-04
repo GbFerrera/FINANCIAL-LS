@@ -532,7 +532,7 @@ function PipelinePageContent() {
   }
 
   return (
-    <PageLoadingGate loading={status === "loading" || initialLoading}>
+    <PageLoadingGate loading={status === "loading" || initialLoading} fillHeight>
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-5 md:px-8">
       <PipelineHeader
         taskCount={tasks.length}
@@ -696,7 +696,7 @@ export default function PipelinePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center h-64">
+        <div className="flex h-full min-h-0 items-center justify-center">
           <LoadingAnimation size="md" />
         </div>
       }

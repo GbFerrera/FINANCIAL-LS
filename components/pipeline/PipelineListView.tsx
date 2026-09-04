@@ -64,7 +64,8 @@ export function PipelineListView({ tasks, onTaskClick, onAddTask, className }: P
   }, [tasks])
 
   return (
-    <div className={cn('h-full min-h-0 overflow-y-auto rounded-lg border border-border/80 bg-card', className)}>
+    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card', className)}>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
       {grouped.map((group) => {
         const isCollapsed = collapsed[group.id]
         return (
@@ -111,6 +112,7 @@ export function PipelineListView({ tasks, onTaskClick, onAddTask, className }: P
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

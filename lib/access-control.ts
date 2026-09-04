@@ -113,3 +113,60 @@ export function firstAllowedPathExcluding(allowedPaths: string[], exclude: strin
   }
   return null
 }
+
+/** Rotas do menu Financeiro (inclui calendário, que não está no ROUTE_REGISTRY). */
+export const FINANCIAL_NAV_PATHS = [
+  "/financial/commissions",
+  "/financial",
+  "/financial/calendar",
+  "/subscriptions",
+  "/financial/reminders",
+] as const
+
+export function firstAllowedFinancialPath(allowedPaths: string[]): string | null {
+  if (allowedPaths.includes("/*")) return "/financial"
+  for (const path of FINANCIAL_NAV_PATHS) {
+    if (isPathAllowed(path, allowedPaths)) return path
+  }
+  return null
+}
+
+export function hasFinancialAccess(allowedPaths: string[] | null, isAdmin = false): boolean {
+  if (isAdmin) return true
+  if (!allowedPaths) return false
+  return firstAllowedFinancialPath(allowedPaths) !== null
+}
+
+type NavHrefItem = {
+  href: string
+  submenu?: { href: string }[]
+}
+
+/** Usa a rota principal se permitida; senão, a primeira sub-rota permitida. */
+export function resolveNavHref(item: NavHrefItem, allowedPaths: string[] | null, isAdmin = false): string {
+  if (isAdmin || !allowedPaths || allowedPaths.includes("/*")) return item.href
+  if (isPathAllowed(item.href, allowedPaths)) return item.href
+  for (const sub of item.submenu ?? []) {
+    if (isPathAllowed(sub.href, allowedPaths)) return sub.href
+  }
+  return item.href
+}
+
+export function redirectForPath(
+  pathname: string,
+  allowedPaths: string[],
+  role: UserRole
+): string {
+  const financePrefix =
+    pathname === "/subscriptions" ||
+    pathname.startsWith("/financial")
+
+  if (financePrefix) {
+    const financialDest = firstAllowedFinancialPath(allowedPaths)
+    if (financialDest && financialDest !== pathname.replace(/\/+$/, "")) {
+      return financialDest
+    }
+  }
+
+  return firstAllowedPath(allowedPaths) || firstAllowedFromRole(role) || "/auth/signin"
+}
