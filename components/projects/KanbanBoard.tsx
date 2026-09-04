@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { KanbanColumn, useKanbanColumnCollapse } from "@/components/kanban/KanbanColumn";
-import { KANBAN_COLUMNS } from "@/lib/pipeline/task-utils";
+import { KANBAN_COLUMNS, reorderKanbanBoardTasks, sortKanbanColumnTasks, taskMatchesKanbanColumn } from "@/lib/pipeline/task-utils";
 
 interface ProjectTask {
   id: string;
@@ -26,6 +26,7 @@ interface ProjectTask {
   startDate: string | null;
   startTime: string | null;
   endTime: string | null;
+  order?: number | null
   assignee: {
     id: string;
     name: string;
@@ -46,7 +47,8 @@ interface ProjectTask {
 
 interface KanbanBoardProps {
   tasks: ProjectTask[];
-  onTaskUpdate: (taskId: string, newStatus: string) => Promise<void>;
+  onTaskUpdate?: (taskId: string, newStatus: string) => Promise<void>;
+  onTasksChange?: (tasks: ProjectTask[]) => void;
   onTaskClick: (taskId: string) => void;
   onTaskEdit?: (task: any) => void;
   onTaskDelete?: (taskId: string) => void;
@@ -71,6 +73,7 @@ const COLUMNS = KANBAN_COLUMNS;
 export function KanbanBoard({
   tasks,
   onTaskUpdate,
+  onTasksChange,
   onTaskClick,
   onTaskEdit,
   onTaskDelete,
@@ -108,27 +111,59 @@ export function KanbanBoard({
       return;
     }
 
-    const newStatus = destination.droppableId;
-    if (newStatus === "COMPLETED" && !canCompleteTasks) {
+    const destColumnId = destination.droppableId;
+    if (destColumnId === "COMPLETED" && !canCompleteTasks) {
       toast.error("Apenas administradores podem marcar tarefas como concluídas");
       return;
     }
+
     const originalTasks = [...boardTasks];
 
-    const updatedTasks = boardTasks.map((task) => {
-      if (task.id === draggableId) {
-        return { ...task, status: newStatus };
-      }
-      return task;
-    });
-
-    setBoardTasks(updatedTasks);
+    let nextTasks: ProjectTask[];
+    let destOrderedIds: string[];
+    let sourceOrderedIds: string[] | undefined;
+    let status: string;
 
     try {
-      await onTaskUpdate(draggableId, newStatus);
+      const reordered = reorderKanbanBoardTasks(
+        boardTasks,
+        source.droppableId,
+        destColumnId,
+        draggableId,
+        destination.index
+      );
+      nextTasks = reordered.tasks as ProjectTask[];
+      destOrderedIds = reordered.destOrderedIds;
+      sourceOrderedIds = reordered.sourceOrderedIds;
+      status = reordered.status;
     } catch {
+      toast.error("Não foi possível reordenar a tarefa");
+      return;
+    }
+
+    setBoardTasks(nextTasks);
+
+    try {
+      const res = await fetch("/api/tasks/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: draggableId,
+          status,
+          orderedTaskIds: destOrderedIds,
+          sourceOrderedTaskIds: sourceOrderedIds,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as { error?: string }));
+        throw new Error(err.error || "Erro ao reordenar tarefa");
+      }
+
+      onTasksChange?.(nextTasks);
+    } catch (error) {
       setBoardTasks(originalTasks);
-      toast.error("Erro ao atualizar status da tarefa");
+      toast.error(error instanceof Error ? error.message : "Erro ao reordenar tarefa");
     }
   };
 
@@ -159,10 +194,9 @@ export function KanbanBoard({
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden px-1 pb-2 snap-x overscroll-contain">
         {COLUMNS.map((column) => {
-          const columnTasks = boardTasks.filter((task) => {
-            if (column.id === 'COMPLETED' && (task.status === 'DONE' || task.status === 'COMPLETED')) return true;
-            return task.status === column.id;
-          });
+          const columnTasks = sortKanbanColumnTasks(
+            boardTasks.filter((task) => taskMatchesKanbanColumn(column.id, task.status))
+          );
 
           const completedMenu = column.id === "COMPLETED" ? (
             <DropdownMenu>

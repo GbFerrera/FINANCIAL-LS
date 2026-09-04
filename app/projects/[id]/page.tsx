@@ -1293,6 +1293,18 @@ export default function ProjectDetailsPage() {
                 ) : (
                   <KanbanBoard 
                     tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
+                    onTasksChange={(updated) => {
+                      setProject((prev) => {
+                        if (!prev) return prev
+                        const byId = new Map(updated.map((task) => [task.id, task]))
+                        return {
+                          ...prev,
+                          tasks: prev.tasks.map((task) =>
+                            byId.has(task.id) ? { ...task, ...byId.get(task.id)! } : task
+                          ),
+                        }
+                      })
+                    }}
                     onTaskUpdate={handleTaskStatusChange}
                     onTaskClick={(taskId) => {
                       const task = project.tasks.find((t) => t.id === taskId)
@@ -1526,6 +1538,18 @@ export default function ProjectDetailsPage() {
             <div className="p-4 h-[calc(100vh-64px)]">
               <KanbanBoard 
                 tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
+                onTasksChange={(updated) => {
+                  setProject((prev) => {
+                    if (!prev) return prev
+                    const byId = new Map(updated.map((task) => [task.id, task]))
+                    return {
+                      ...prev,
+                      tasks: prev.tasks.map((task) =>
+                        byId.has(task.id) ? { ...task, ...byId.get(task.id)! } : task
+                      ),
+                    }
+                  })
+                }}
                 onTaskUpdate={handleTaskStatusChange}
                 onTaskClick={(taskId) => {
                   const task = project.tasks.find((t) => t.id === taskId)

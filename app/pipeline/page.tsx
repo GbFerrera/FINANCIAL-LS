@@ -588,7 +588,7 @@ function PipelinePageContent() {
           <KanbanBoard
             className="h-full"
             tasks={tasks as any}
-            onTaskUpdate={handleTaskUpdate}
+            onTasksChange={(updated) => setTasks(updated as PipelineTask[])}
             onTaskClick={handleTaskClick}
             onTaskDelete={isAdmin ? handleDeleteTask : undefined}
             onTaskArchive={isAdmin ? handleArchiveSingleTask : undefined}

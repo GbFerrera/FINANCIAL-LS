@@ -20,6 +20,64 @@ export const KANBAN_COLUMNS = [
   { id: 'COMPLETED', title: 'Concluído' },
 ] as const
 
+export function kanbanColumnStatus(columnId: string) {
+  return columnId === 'COMPLETED' ? 'COMPLETED' : columnId
+}
+
+export function taskMatchesKanbanColumn(columnId: string, status: string) {
+  if (columnId === 'COMPLETED') return status === 'DONE' || status === 'COMPLETED'
+  return status === columnId
+}
+
+type KanbanTaskLike = { id: string; status: string; order?: number | null }
+
+export function sortKanbanColumnTasks<T extends KanbanTaskLike>(tasks: T[]) {
+  return [...tasks].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+}
+
+export function reorderKanbanBoardTasks<T extends KanbanTaskLike>(
+  allTasks: T[],
+  sourceColumnId: string,
+  destColumnId: string,
+  draggableId: string,
+  destinationIndex: number
+): { tasks: T[]; destOrderedIds: string[]; sourceOrderedIds?: string[]; status: string } {
+  const getColumnTasks = (columnId: string, pool: T[]) =>
+    sortKanbanColumnTasks(pool.filter((task) => taskMatchesKanbanColumn(columnId, task.status)))
+
+  const sourceList = getColumnTasks(sourceColumnId, allTasks)
+  const movedIndex = sourceList.findIndex((task) => task.id === draggableId)
+  if (movedIndex === -1) {
+    throw new Error('Tarefa não encontrada na coluna de origem')
+  }
+
+  const sourceWithoutMoved = [...sourceList]
+  const [movedTask] = sourceWithoutMoved.splice(movedIndex, 1)
+  const status = kanbanColumnStatus(destColumnId)
+  const movedUpdated = { ...movedTask, status } as T
+
+  const destBase =
+    sourceColumnId === destColumnId ? sourceWithoutMoved : getColumnTasks(destColumnId, allTasks)
+  const destList = [...destBase]
+  destList.splice(destinationIndex, 0, movedUpdated)
+
+  const reindex = (list: T[]) => list.map((task, index) => ({ ...task, order: index }))
+
+  const newDest = reindex(destList)
+  const newSource = sourceColumnId !== destColumnId ? reindex(sourceWithoutMoved) : []
+
+  const affectedIds = new Set([...newDest, ...newSource].map((task) => task.id))
+  const untouched = allTasks.filter((task) => !affectedIds.has(task.id))
+  const tasks = [...untouched, ...newSource, ...newDest]
+
+  return {
+    tasks,
+    destOrderedIds: newDest.map((task) => task.id),
+    sourceOrderedIds: sourceColumnId !== destColumnId ? newSource.map((task) => task.id) : undefined,
+    status,
+  }
+}
+
 export function statusLabel(status: string) {
   return TASK_STATUS_LABELS[status] || status
 }

@@ -14,6 +14,7 @@ export type PipelineTask = {
   createdAt?: string | null
   updatedAt?: string | null
   sprintId?: string | null
+  order?: number | null
   assignee: { id: string; name: string; email: string; avatar: string | null } | null
   milestone: { id: string; name: string; status: string } | null
   project: { id: string; name: string }

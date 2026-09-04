@@ -209,7 +209,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ order: 'asc' }, { updatedAt: 'desc' }],
     })
 
     return NextResponse.json({ tasks })
