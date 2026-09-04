@@ -579,7 +579,7 @@ function PipelinePageContent() {
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-hidden px-1">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-1">
         {view === "list" && (
           <PipelineListView tasks={tasks} onTaskClick={handleTaskClick} onAddTask={openCreate} className="h-full" />
         )}
@@ -694,14 +694,16 @@ function PipelinePageContent() {
 
 export default function PipelinePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-full min-h-0 items-center justify-center">
-          <LoadingAnimation size="md" />
-        </div>
-      }
-    >
-      <PipelinePageContent />
-    </Suspense>
+    <div className="flex h-full min-h-0 flex-col">
+      <Suspense
+        fallback={
+          <div className="flex h-full min-h-0 flex-1 items-center justify-center">
+            <LoadingAnimation size="md" />
+          </div>
+        }
+      >
+        <PipelinePageContent />
+      </Suspense>
+    </div>
   )
 }

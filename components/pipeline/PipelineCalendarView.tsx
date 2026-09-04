@@ -76,7 +76,7 @@ export function PipelineCalendarView({ tasks, onTaskClick, onAddTask, className 
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 overflow-y-auto">
+      <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 overflow-y-auto overscroll-contain">
         {days.map((day) => {
           const dayTasks = tasksForDay(tasks, day)
           const inMonth = isSameMonth(day, current)

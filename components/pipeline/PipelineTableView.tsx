@@ -15,7 +15,8 @@ type PipelineTableViewProps = {
 
 export function PipelineTableView({ tasks, onTaskClick, className }: PipelineTableViewProps) {
   return (
-    <div className={cn('h-full min-h-0 overflow-auto rounded-lg border border-border/80 bg-card', className)}>
+    <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card', className)}>
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
       <div className="overflow-x-auto">
       <table className="min-w-[960px] w-full text-sm">
         <thead>
@@ -98,6 +99,7 @@ export function PipelineTableView({ tasks, onTaskClick, className }: PipelineTab
           )}
         </tbody>
       </table>
+      </div>
       </div>
     </div>
   )

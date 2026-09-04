@@ -67,7 +67,7 @@ export function PipelineTimelineView({ tasks, onTaskClick, className }: Pipeline
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
         <div className="min-w-full w-full">
           <div className="flex w-full min-w-[720px] border-b border-border/60 bg-muted/15">
             <div

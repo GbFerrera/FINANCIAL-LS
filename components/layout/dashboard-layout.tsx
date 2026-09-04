@@ -299,7 +299,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardTopBar
           onMenuClick={() => setSidebarOpen(true)}
           onToggleSidebar={toggleSidebarHidden}
@@ -308,9 +308,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           financialQuickLink={financialQuickLink}
         />
 
-        <main className={`relative flex-1 bg-background ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'} focus:outline-none`}>
-          <div className={isFullBleed ? 'h-full' : 'py-5 md:py-6'}>
-            <div className={isFullBleed ? 'h-full' : 'mx-auto w-full px-5 md:px-8'}>
+        <main
+          className={`relative min-h-0 flex-1 bg-background ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'} focus:outline-none`}
+        >
+          <div className={isFullBleed ? 'flex h-full min-h-0 flex-col' : 'py-5 md:py-6'}>
+            <div className={isFullBleed ? 'flex min-h-0 flex-1 flex-col' : 'mx-auto w-full px-5 md:px-8'}>
               {children}
             </div>
           </div>

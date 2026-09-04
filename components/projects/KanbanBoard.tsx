@@ -156,7 +156,8 @@ export function KanbanBoard({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div className={cn("flex h-full min-h-0 gap-4 overflow-x-auto px-1 pb-2 snap-x", className)}>
+      <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden px-1 pb-2 snap-x overscroll-contain">
         {COLUMNS.map((column) => {
           const columnTasks = boardTasks.filter((task) => {
             if (column.id === 'COMPLETED' && (task.status === 'DONE' || task.status === 'COMPLETED')) return true;
@@ -273,6 +274,7 @@ export function KanbanBoard({
             </KanbanColumn>
           );
         })}
+        </div>
       </div>
     </DragDropContext>
   );
