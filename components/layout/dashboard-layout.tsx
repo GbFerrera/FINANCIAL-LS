@@ -16,7 +16,6 @@ import {
   Users,
   X,
   Bell,
-  Search,
   ChevronLeft,
   ChevronRight,
   Kanban,
@@ -338,9 +337,35 @@ function DashboardTopBar({
 }) {
   const { data: session } = useSession()
   const pathname = usePathname() || ''
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const financeActive =
     !!financialQuickLink &&
     (pathname === financialQuickLink || pathname.startsWith(`${financialQuickLink}/`))
+
+  useEffect(() => {
+    const userId = session?.user?.id
+    if (!userId) {
+      setAvatarUrl(null)
+      return
+    }
+
+    let cancelled = false
+    fetch('/api/profile')
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.avatar) {
+          setAvatarUrl(data.avatar as string)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user?.id])
+
+  const profileImage = avatarUrl || session?.user?.image || null
+  const profileInitial = session?.user?.name?.[0]?.toUpperCase() || 'U'
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -375,9 +400,6 @@ function DashboardTopBar({
         </span>
       </div>
       <div className="flex items-center gap-1">
-        <button type="button" className="rounded-md p-2 text-muted-foreground hover:bg-muted" aria-label="Buscar">
-          <Search className="h-4 w-4" />
-        </button>
         <NextLink href="/notifications" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <Bell className="h-4 w-4" />
         </NextLink>
@@ -399,12 +421,21 @@ function DashboardTopBar({
           </Tooltip>
         )}
         <ModeToggle />
-        <NextLink href="/profile" className="rounded-md p-1 hover:bg-muted" aria-label="Perfil">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={session?.user?.image || ''} />
-            <AvatarFallback>{session?.user?.name?.[0] || 'U'}</AvatarFallback>
-          </Avatar>
-        </NextLink>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <NextLink href="/profile" className="rounded-md p-1 hover:bg-muted" aria-label="Perfil">
+              <Avatar className="h-8 w-8 border border-border/80">
+                {profileImage ? (
+                  <AvatarImage src={profileImage} alt={session?.user?.name || 'Perfil'} />
+                ) : null}
+                <AvatarFallback className="bg-muted text-xs font-medium text-foreground">
+                  {profileInitial}
+                </AvatarFallback>
+              </Avatar>
+            </NextLink>
+          </TooltipTrigger>
+          <TooltipContent>Perfil</TooltipContent>
+        </Tooltip>
         <button type="button" onClick={onSignOut} className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <LogOut className="h-4 w-4" />
         </button>

@@ -53,7 +53,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          avatar: user.avatar || undefined,
+          image: user.avatar || undefined,
         }
       }
     })
@@ -62,10 +62,14 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt"
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.role = user.role
         token.id = user.id
+        token.picture = user.image
+      }
+      if (trigger === 'update' && session?.user?.image) {
+        token.picture = session.user.image
       }
       return token
     },
@@ -73,6 +77,7 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user.id = token.id as string
         session.user.role = token.role as UserRole
+        session.user.image = (token.picture as string) || undefined
       }
       return session
     }
@@ -122,6 +127,7 @@ declare module "next-auth" {
       email: string
       name: string
       role: UserRole
+      image?: string
       avatar?: string
     }
   }
@@ -136,5 +142,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     role: UserRole
     id: string
+    picture?: string
   }
 }
