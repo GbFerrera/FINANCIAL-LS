@@ -8,6 +8,7 @@ import {
   formatBRL,
   formatDateBR,
   daysUntilDue,
+  reminderTemplateVarsFromRemaining,
 } from "../lib/subscription-reminder"
 import { buildReminderEmailHtml } from "../lib/subscription-reminder-email"
 import {
@@ -66,7 +67,7 @@ async function main() {
     })
     const remaining = due ? daysUntilDue(referenceDate, due) : template.daysBeforeDue
 
-    const vars = {
+    const vars = reminderTemplateVarsFromRemaining(remaining, {
       nome: link.client.name,
       cliente: link.client.name,
       preco: formatBRL(Number(link.subscription.price || 0)),
@@ -74,8 +75,7 @@ async function main() {
       plano: link.subscription.name,
       empresa: link.client.company || "",
       grupo: template.group.name,
-      dias_antes: String(Math.max(0, remaining)),
-    }
+    })
 
     const subject = renderReminderTemplate(template.subject, vars)
     const textBody = renderReminderTemplate(template.body, vars)

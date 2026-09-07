@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     const taskId = formData.get('taskId') as string
     const noteId = formData.get('noteId') as string
     const clientId = formData.get('clientId') as string
+    const channelId = formData.get('channelId') as string
     const userId = formData.get('userId') as string
 
     if (!file) {
@@ -110,6 +111,13 @@ export async function POST(request: NextRequest) {
       uploadPath = path.join(UPLOAD_DIR, 'clients', clientId)
       relativePath = `clients/${clientId}/${uniqueFileName}`
       
+      if (!existsSync(uploadPath)) {
+        await mkdir(uploadPath, { recursive: true })
+      }
+    } else if (channelId) {
+      uploadPath = path.join(UPLOAD_DIR, 'team-chat', channelId)
+      relativePath = `team-chat/${channelId}/${uniqueFileName}`
+
       if (!existsSync(uploadPath)) {
         await mkdir(uploadPath, { recursive: true })
       }

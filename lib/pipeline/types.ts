@@ -30,7 +30,8 @@ export const PIPELINE_VIEW_MODES: { id: PipelineViewMode; label: string }[] = [
 ]
 
 export const STATUS_GROUPS = [
-  { id: 'BACKLOG', label: 'Backlog', statuses: [] as string[], dot: 'border-dashed border-muted-foreground/40' },
+  { id: 'DRAFT', label: 'Rascunho', statuses: ['DRAFT'], dot: 'border-dashed border-muted-foreground/40' },
+  { id: 'BACKLOG', label: 'Backlog', statuses: ['TODO'] as string[], dot: 'border-dashed border-muted-foreground/40' },
   { id: 'TODO', label: 'A Fazer', statuses: ['TODO'], dot: 'border-muted-foreground/50' },
   { id: 'IN_PROGRESS', label: 'Em Andamento', statuses: ['IN_PROGRESS'], dot: 'border-amber-500 bg-amber-500/20' },
   { id: 'IN_REVIEW', label: 'Em Teste', statuses: ['IN_REVIEW'], dot: 'border-yellow-500 bg-yellow-500/20' },

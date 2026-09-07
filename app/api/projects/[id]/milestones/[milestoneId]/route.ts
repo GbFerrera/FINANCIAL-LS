@@ -41,7 +41,7 @@ export async function PUT(
     })
 
     if (!existingMilestone) {
-      return NextResponse.json({ error: 'Milestone não encontrado' }, { status: 404 })
+      return NextResponse.json({ error: 'Módulo não encontrado' }, { status: 404 })
     }
 
     // Atualizar o milestone
@@ -90,7 +90,7 @@ export async function DELETE(
     })
 
     if (!existingMilestone) {
-      return NextResponse.json({ error: 'Milestone não encontrado' }, { status: 404 })
+      return NextResponse.json({ error: 'Módulo não encontrado' }, { status: 404 })
     }
 
     // Excluir o milestone
@@ -98,7 +98,7 @@ export async function DELETE(
       where: { id: params.milestoneId }
     })
 
-    return NextResponse.json({ message: 'Milestone excluído com sucesso' })
+    return NextResponse.json({ message: 'Módulo excluído com sucesso' })
   } catch (error) {
     console.error('Erro ao excluir milestone:', error)
     return NextResponse.json(
@@ -128,7 +128,7 @@ export async function GET(
     })
 
     if (!milestone) {
-      return NextResponse.json({ error: 'Milestone não encontrado' }, { status: 404 })
+      return NextResponse.json({ error: 'Módulo não encontrado' }, { status: 404 })
     }
 
     return NextResponse.json(milestone)

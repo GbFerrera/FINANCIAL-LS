@@ -26,6 +26,11 @@ export async function middleware(request: NextRequest) {
     '/api/collaborator-portal/.*', // APIs do portal do colaborador
     '/task-portal/.*', // Portal público de task compartilhada
     '/api/task-portal/.*', // APIs do portal de task
+    '/team/call/[^/]+', // Call compartilhável (convidados)
+    '/api/calls/[^/]+', // Metadados da sala
+    '/api/calls/[^/]+/token', // Token LiveKit (convidados)
+    '/api/calls/[^/]+/messages', // Chat da call (leitura pública)
+    '/api/socket/?.*', // Socket.IO (polling + websocket upgrade)
   ]
 
   const isPublicPath = publicPaths.some(path => {

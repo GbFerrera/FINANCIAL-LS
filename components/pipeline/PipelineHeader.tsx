@@ -41,6 +41,7 @@ type PipelineHeaderProps = {
   onAddTask: () => void
   showArchived?: boolean
   onToggleArchived?: () => void
+  contextLabel?: string
 }
 
 export function PipelineHeader({
@@ -54,6 +55,7 @@ export function PipelineHeader({
   onAddTask,
   showArchived,
   onToggleArchived,
+  contextLabel,
 }: PipelineHeaderProps) {
   return (
     <div className="sticky top-0 z-30 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -61,7 +63,7 @@ export function PipelineHeader({
         <div className="flex min-w-0 items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">Pipeline</span>
           <span className="text-muted-foreground/50">/</span>
-          <span className="text-sm font-medium text-foreground">Itens de trabalho</span>
+          <span className="text-sm font-medium text-foreground">{contextLabel || 'Itens de trabalho'}</span>
           <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px] font-medium">
             {taskCount}
           </Badge>

@@ -3,16 +3,23 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { mapWorkspace, slugifyWorkspace, workspaceInclude } from '@/lib/workspace-utils'
+import { canAccessWorkspaceById, canManageWorkspaces } from '@/lib/workspace-permissions'
+import { getUserPermissionsSnapshot } from '@/lib/user-permissions-server'
 
 type Params = { params: Promise<{ id: string }> }
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return { error: NextResponse.json({ error: 'Não autorizado' }, { status: 401 }) }
-  if (session.user.role !== 'ADMIN') {
+  const snapshot = await getUserPermissionsSnapshot(session.user.id)
+  if (!snapshot) {
+    return { error: NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 }) }
+  }
+  const isAdmin = session.user.role === 'ADMIN'
+  if (!canManageWorkspaces(snapshot.workspaceAccess, isAdmin)) {
     return { error: NextResponse.json({ error: 'Permissão insuficiente' }, { status: 403 }) }
   }
-  return { session }
+  return { session, snapshot, isAdmin }
 }
 
 async function findWorkspace(idOrSlug: string) {
@@ -33,6 +40,15 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const workspace = await findWorkspace(id)
     if (!workspace) {
       return NextResponse.json({ error: 'Espaço não encontrado' }, { status: 404 })
+    }
+
+    const isAdmin = session.user.role === 'ADMIN'
+    const snapshot = await getUserPermissionsSnapshot(session.user.id)
+    if (
+      snapshot &&
+      !canAccessWorkspaceById(workspace.id, snapshot.workspaceAccess, isAdmin)
+    ) {
+      return NextResponse.json({ error: 'Permissão insuficiente' }, { status: 403 })
     }
 
     return NextResponse.json(mapWorkspace(workspace))

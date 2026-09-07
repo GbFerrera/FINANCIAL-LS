@@ -1,7 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { mapWorkspace, workspaceInclude } from '@/lib/workspace-utils'
-import { WorkspaceShell } from '@/components/workspace/WorkspaceShell'
+import { canAccessWorkspaceById, hasWorkspaceFeatureAccess } from '@/lib/workspace-permissions'
+import { getUserPermissionsSnapshot } from '@/lib/user-permissions-server'
 
 type Props = {
   children: React.ReactNode
@@ -10,14 +12,27 @@ type Props = {
 
 export default async function WorkspaceLayout({ children, params }: Props) {
   const { slug } = await params
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    redirect('/auth/signin')
+  }
+
   const row = await prisma.workspace.findUnique({
     where: { slug },
-    include: workspaceInclude,
+    select: { id: true },
   })
 
   if (!row) notFound()
 
-  const workspace = mapWorkspace(row)
+  const isAdmin = session.user.role === 'ADMIN'
+  const snapshot = await getUserPermissionsSnapshot(session.user.id)
+  if (
+    !snapshot ||
+    !hasWorkspaceFeatureAccess(snapshot.allowedPaths, isAdmin) ||
+    !canAccessWorkspaceById(row.id, snapshot.workspaceAccess, isAdmin)
+  ) {
+    redirect('/dashboard')
+  }
 
-  return <WorkspaceShell workspace={workspace}>{children}</WorkspaceShell>
+  return <>{children}</>
 }

@@ -86,6 +86,13 @@ function getCollaboratorColor(userId: string): string {
 }
 
 export function initializeSocket(res: NextApiResponseServerIO) {
+  if (global.__socketIO) {
+    if (!res.socket.server.io) {
+      res.socket.server.io = global.__socketIO
+    }
+    return global.__socketIO
+  }
+
   if (!res.socket.server.io) {
     console.log('Inicializando Socket.IO Server...')
     
@@ -95,7 +102,9 @@ export function initializeSocket(res: NextApiResponseServerIO) {
       cors: {
         origin: "*",
         methods: ["GET", "POST"]
-      }
+      },
+      pingInterval: 25000,
+      pingTimeout: 60000,
     })
 
     io.on('connection', (socket) => {
@@ -319,8 +328,8 @@ export function initializeSocket(res: NextApiResponseServerIO) {
       })
 
       // Limpeza quando usuário desconecta
-      socket.on('disconnect', () => {
-        console.log('Cliente desconectado:', socket.id)
+      socket.on('disconnect', (reason) => {
+        console.log('Cliente desconectado:', socket.id, reason)
         
         const session = activeSessions.get(socket.id)
         if (session) {

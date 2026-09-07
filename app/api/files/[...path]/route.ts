@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
 import { existsSync } from 'fs'
 import path from 'path'
-import { getServerSession } from 'next-auth'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const filePath = params.path.join('/')
+    const { path: pathSegments } = await params
+    const filePath = pathSegments.join('/')
     const uploadsDir = path.join(process.cwd(), 'uploads')
     const publicDir = path.join(process.cwd(), 'public')
     let fullPath = path.join(uploadsDir, filePath)

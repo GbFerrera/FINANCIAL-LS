@@ -5,8 +5,16 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function prismaClientReady(client: PrismaClient) {
-  const d = client as unknown as { whatsAppInstance?: { findMany?: unknown } }
-  return typeof d.whatsAppInstance?.findMany === "function"
+  const d = client as unknown as {
+    whatsAppInstance?: { findMany?: unknown }
+    callRoom?: { findMany?: unknown }
+    userPresenceSession?: { findMany?: unknown }
+  }
+  return (
+    typeof d.whatsAppInstance?.findMany === "function" &&
+    typeof d.callRoom?.findMany === "function" &&
+    typeof d.userPresenceSession?.findMany === "function"
+  )
 }
 
 function createPrismaClient() {

@@ -1,97 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { getReportMeta, readReportFile } from '@/lib/reports/storage'
+import { formatMimeType } from '@/lib/reports/types'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
-    
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    const reportId = params.id
+    const { id: reportId } = await params
+    const inline = new URL(request.url).searchParams.get('inline') === '1'
+    const meta = await getReportMeta(session.user.id, reportId)
 
-    // Simular geração de arquivo de relatório
-    const reportContent = generateReportFile(reportId)
-    
-    // Definir headers para download
-    const headers = new Headers()
-    headers.set('Content-Type', 'application/pdf')
-    headers.set('Content-Disposition', `attachment; filename="relatorio_${reportId}.pdf"`)
-    
-    return new NextResponse(reportContent, {
+    if (!meta) {
+      return NextResponse.json({ error: 'Relatório não encontrado' }, { status: 404 })
+    }
+
+    const file = await readReportFile(session.user.id, reportId, meta.format)
+    if (!file) {
+      return NextResponse.json({ error: 'Arquivo do relatório não encontrado' }, { status: 404 })
+    }
+
+    return new NextResponse(new Uint8Array(file), {
       status: 200,
-      headers
+      headers: {
+        'Content-Type': formatMimeType(meta.format),
+        'Content-Disposition': inline
+          ? `inline; filename="${meta.filename}"`
+          : `attachment; filename="${meta.filename}"`,
+        'Content-Length': String(file.length),
+        'Cache-Control': 'private, no-cache',
+      },
     })
   } catch (error) {
     console.error('Erro ao fazer download do relatório:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
-}
-
-function generateReportFile(reportId: string): Buffer {
-  // Simular geração de PDF
-  // Em uma implementação real, você usaria uma biblioteca como puppeteer, jsPDF, etc.
-  const pdfContent = `%PDF-1.4
-1 0 obj
-<<
-/Type /Catalog
-/Pages 2 0 R
->>
-endobj
-
-2 0 obj
-<<
-/Type /Pages
-/Kids [3 0 R]
-/Count 1
->>
-endobj
-
-3 0 obj
-<<
-/Type /Page
-/Parent 2 0 R
-/MediaBox [0 0 612 792]
-/Contents 4 0 R
->>
-endobj
-
-4 0 obj
-<<
-/Length 44
->>
-stream
-BT
-/F1 12 Tf
-72 720 Td
-(Relatório ${reportId}) Tj
-ET
-endstream
-endobj
-
-xref
-0 5
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000206 00000 n 
-trailer
-<<
-/Size 5
-/Root 1 0 R
->>
-startxref
-299
-%%EOF`
-  
-  return Buffer.from(pdfContent, 'utf-8')
 }

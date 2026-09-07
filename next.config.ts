@@ -3,6 +3,7 @@ import withPWA from "next-pwa";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  serverExternalPackages: ['pdfkit'],
   eslint: {
     ignoreDuringBuilds: true,
   },

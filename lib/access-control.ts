@@ -6,6 +6,70 @@ export type RouteItem = {
   path: string
 }
 
+export type RouteGroup = {
+  id: string
+  label: string
+  keys: string[]
+}
+
+export const ROUTE_GROUPS: RouteGroup[] = [
+  {
+    id: "main",
+    label: "Principal",
+    keys: ["dashboard", "agent_pm", "pipeline", "excalidraw", "profile", "notifications"],
+  },
+  {
+    id: "projects",
+    label: "Projetos",
+    keys: [
+      "projects",
+      "projects_backlog",
+      "projects_sprints",
+      "projects_scrum",
+      "projects_notes",
+    ],
+  },
+  {
+    id: "clients",
+    label: "Clientes e vendas",
+    keys: ["clients", "subscriptions", "payments"],
+  },
+  {
+    id: "financial",
+    label: "Financeiro",
+    keys: [
+      "financial",
+      "financial_calendar",
+      "financial_commissions",
+      "financial_reminders",
+    ],
+  },
+  {
+    id: "team",
+    label: "Equipe",
+    keys: ["team", "team_agenda", "team_chat", "team_office", "team_performance"],
+  },
+  {
+    id: "workspace",
+    label: "Espaços de trabalho",
+    keys: ["workspace", "settings_workspaces"],
+  },
+  {
+    id: "other",
+    label: "Outros",
+    keys: [
+      "mkt",
+      "files",
+      "reports",
+      "settings",
+      "supervisor_dashboard",
+      "admin_clients",
+      "admin_collaborators",
+      "admin_integrations",
+    ],
+  },
+]
+
 export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "dashboard", label: "Dashboard", path: "/dashboard" },
   { key: "projects", label: "Projetos", path: "/projects" },
@@ -16,13 +80,16 @@ export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "projects_notes", label: "Projetos • Docs", path: "/projects/notes" },
   { key: "mkt", label: "MKT", path: "/mkt" },
   { key: "financial", label: "Financeiro", path: "/financial" },
+  { key: "financial_calendar", label: "Financeiro • Cobranças", path: "/financial/calendar" },
   { key: "financial_commissions", label: "Financeiro • Comissões", path: "/financial/commissions" },
   { key: "financial_reminders", label: "Financeiro • Lembretes", path: "/financial/reminders" },
   { key: "clients", label: "Clientes", path: "/clients" },
   { key: "subscriptions", label: "Assinaturas", path: "/subscriptions" },
   { key: "team", label: "Equipe", path: "/team" },
   { key: "team_agenda", label: "Equipe • Agenda", path: "/team/agenda" },
-  { key: "team_chat", label: "Equipe • Chat", path: "/team/chat" },
+  { key: "team_chat", label: "Equipe • Chat e calls", path: "/team/chat" },
+  { key: "team_call", label: "Equipe • Calls (legado)", path: "/team/call" },
+  { key: "team_office", label: "Equipe • Escritório 2D", path: "/team/office" },
   { key: "team_performance", label: "Equipe • Performance", path: "/team/performance" },
   { key: "pipeline", label: "Pipeline", path: "/pipeline" },
   { key: "files", label: "Arquivos", path: "/files" },
@@ -41,6 +108,16 @@ export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "admin_integrations", label: "Admin • Integrações", path: "/admin/integrations" },
 ]
 
+export function routesByGroup(): { group: RouteGroup; routes: RouteItem[] }[] {
+  const byKey = new Map(ROUTE_REGISTRY.map((r) => [r.key, r]))
+  return ROUTE_GROUPS.map((group) => ({
+    group,
+    routes: group.keys
+      .map((key) => byKey.get(key))
+      .filter((r): r is RouteItem => Boolean(r)),
+  }))
+}
+
 export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
   [UserRole.ADMIN]: ["/*"], // Admin pode tudo
   [UserRole.TEAM]: [
@@ -55,6 +132,8 @@ export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
     "/team",
     "/team/agenda",
     "/team/chat",
+    "/team/call",
+    "/team/office",
     "/team/performance",
     "/pipeline",
     "/files",
@@ -75,8 +154,23 @@ export function getDefaultAllowedPaths(role: UserRole): string[] {
 
 export function isPathAllowed(pathname: string, allowedPaths: string[]): boolean {
   if (allowedPaths.includes("/*")) return true
-  // Normaliza para evitar duplicidade de barras
-  const current = pathname.replace(/\/+$/, "")
+
+  const current = pathname.replace(/\/+$/, "") || "/"
+
+  // Pai /financial libera todas as sub-rotas /financial/*
+  const hasFinancialRoot = allowedPaths.some(
+    (prefix) => prefix.replace(/\/+$/, "") === "/financial"
+  )
+  if (hasFinancialRoot && (current === "/financial" || current.startsWith("/financial/"))) {
+    return true
+  }
+
+  // Chat unificado: quem tem /team/call também acessa /team/chat
+  if (current === '/team/chat') {
+    return allowedPaths.some((p) => p === '/team/chat' || p === '/team/call')
+  }
+
+  // Demais rotas: match exato ou subpath do prefixo permitido
   return allowedPaths.some((prefix) => {
     const normalized = prefix.replace(/\/+$/, "")
     return current === normalized || current.startsWith(`${normalized}/`)
@@ -157,13 +251,14 @@ export function redirectForPath(
   allowedPaths: string[],
   role: UserRole
 ): string {
-  const financePrefix =
-    pathname === "/subscriptions" ||
-    pathname.startsWith("/financial")
+  const current = pathname.replace(/\/+$/, "") || "/"
 
-  if (financePrefix) {
+  const financePrefix =
+    current === "/subscriptions" || current.startsWith("/financial")
+
+  if (financePrefix && !isPathAllowed(pathname, allowedPaths)) {
     const financialDest = firstAllowedFinancialPath(allowedPaths)
-    if (financialDest && financialDest !== pathname.replace(/\/+$/, "")) {
+    if (financialDest && financialDest !== current) {
       return financialDest
     }
   }

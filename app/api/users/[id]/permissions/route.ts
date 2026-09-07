@@ -3,11 +3,21 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
-import { getDefaultAllowedPaths, registryPaths } from "@/lib/access-control"
+import { registryPaths } from "@/lib/access-control"
+import {
+  getDefaultWorkspaceAccess,
+} from "@/lib/workspace-permissions"
+import { getUserPermissionsSnapshot } from "@/lib/user-permissions-server"
 
 const updateSchema = z.object({
   allowedPaths: z.array(z.string()),
   commissionsAccess: z.enum(["OWN_READ", "OWN_EDIT", "ALL_EDIT", "OWN", "ALL", "EDIT"]).optional(),
+  workspaceAccess: z
+    .object({
+      workspaceIds: z.array(z.string()).nullable(),
+      canCreateWorkspaces: z.boolean(),
+    })
+    .optional(),
 })
 
 function normalizeAccess(
@@ -38,43 +48,28 @@ async function canManage(session: any, targetUserId: string) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
-    const targetUserId = params.id
+    const { id: targetUserId } = await params
     if (!(await canManage(session, targetUserId))) {
       return NextResponse.json({ error: "Permissão insuficiente" }, { status: 403 })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: targetUserId },
-      select: { role: true },
-    } as any)
-    if (!user) {
+    const snapshot = await getUserPermissionsSnapshot(targetUserId)
+    if (!snapshot) {
       return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 })
     }
 
-    const userData = await prisma.user.findUnique({
-      where: { id: targetUserId },
-      select: { skillsInterests: true, role: true },
-    } as any)
-    const stored = (userData?.skillsInterests as any) || {}
-    const storedPaths: string[] = Array.isArray(stored.pagePermissions) ? stored.pagePermissions : []
-    const commissionsAccess = normalizeAccess(stored.commissionsAccess, userData?.role as any)
-    const ALIASES: Record<string, string> = {
-      "/sprints": "/projects/sprints",
-      "/tasks": "/projects/backlog",
-    }
-    const defaults = getDefaultAllowedPaths(user.role)
-    const hasStoredPermissions = Array.isArray(stored.pagePermissions)
-    const allowedRaw = hasStoredPermissions ? storedPaths : defaults
-    const allowedPaths = allowedRaw.map((p: string) => ALIASES[p] ?? p)
-
-    return NextResponse.json({ allowedPaths, commissionsAccess })
+    return NextResponse.json({
+      allowedPaths: snapshot.allowedPaths,
+      commissionsAccess: snapshot.commissionsAccess,
+      workspaceAccess: snapshot.workspaceAccess,
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })
@@ -83,15 +78,14 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
     }
-    const targetUserId = params.id
-    // Apenas ADMIN pode atualizar permissões de outros usuários
+    const { id: targetUserId } = await params
     if (session.user.role !== "ADMIN" && session.user.id !== targetUserId) {
       return NextResponse.json({ error: "Permissão insuficiente" }, { status: 403 })
     }
@@ -114,7 +108,6 @@ export async function PUT(
 
     const normalizedPaths = data.allowedPaths.map((p: string) => ALIASES[p] ?? p)
     const allowedSet = new Set(normalizedPaths)
-    // Validar contra o registro de rotas
     const validPaths = registryPaths()
     for (const p of allowedSet) {
       if (!validPaths.includes(p) && p !== "/*") {
@@ -122,7 +115,6 @@ export async function PUT(
       }
     }
 
-    // Atualiza JSON skillsInterests com permissões
     const existing = await prisma.user.findUnique({
       where: { id: targetUserId },
       select: { skillsInterests: true },
@@ -131,13 +123,25 @@ export async function PUT(
       typeof existing?.skillsInterests === "object" && existing?.skillsInterests !== null
         ? (existing?.skillsInterests as Record<string, unknown>)
         : {}
-    const payload: any = {
+
+    const payload: Record<string, unknown> = {
       ...base,
       pagePermissions: Array.from(allowedSet),
     }
+
     if (typeof data.commissionsAccess !== "undefined") {
       payload.commissionsAccess = normalizeAccess(data.commissionsAccess, targetUser.role)
     }
+
+    if (data.workspaceAccess) {
+      payload.workspaceAccess = {
+        workspaceIds: data.workspaceAccess.workspaceIds,
+        canCreateWorkspaces: data.workspaceAccess.canCreateWorkspaces,
+      }
+    } else if (!base.workspaceAccess) {
+      payload.workspaceAccess = getDefaultWorkspaceAccess(targetUser.role)
+    }
+
     await prisma.user.update({
       where: { id: targetUserId },
       data: { skillsInterests: payload },

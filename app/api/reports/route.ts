@@ -1,223 +1,181 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
-import { prisma } from '@/lib/prisma'
+import { fetchReportPayload } from '@/lib/reports/fetch-data'
+import { generateReportBuffer } from '@/lib/reports/generate'
+import {
+  deleteReport,
+  listUserReports,
+  saveReportFile,
+  saveReportMeta,
+  saveReportPreview,
+} from '@/lib/reports/storage'
+import {
+  ReportType,
+  formatExtension,
+  formatMimeType,
+  normalizeFormat,
+} from '@/lib/reports/types'
+import { randomUUID } from 'crypto'
 
-// GET - Listar relatórios
-export async function GET(request: NextRequest) {
+const REPORT_TEMPLATES = [
+  {
+    id: '1',
+    name: 'Relatório Financeiro Mensal',
+    type: 'financial' as const,
+    description: 'Receitas, despesas e lucro líquido do período',
+    fields: ['data', 'tipo', 'categoria', 'valor', 'projeto'],
+  },
+  {
+    id: '2',
+    name: 'Status de Projetos',
+    type: 'projects' as const,
+    description: 'Progresso, orçamento e prazos dos projetos',
+    fields: ['nome', 'status', 'progresso', 'orcamento', 'prazo'],
+  },
+  {
+    id: '3',
+    name: 'Performance da Equipe',
+    type: 'team' as const,
+    description: 'Produtividade e métricas dos membros da equipe',
+    fields: ['nome', 'tarefas_concluidas', 'horas_registradas', 'projetos'],
+  },
+  {
+    id: '4',
+    name: 'Relatório de Clientes',
+    type: 'clients' as const,
+    description: 'Informações e histórico dos clientes',
+    fields: ['nome', 'email', 'projetos', 'valor_total', 'status'],
+  },
+]
+
+const VALID_TYPES: ReportType[] = ['financial', 'projects', 'team', 'clients']
+
+export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Por enquanto, retornamos templates de relatórios disponíveis
-    // Em uma implementação real, você buscaria relatórios salvos do banco
-    const templates = [
-      {
-        id: '1',
-        name: 'Relatório Financeiro Mensal',
-        type: 'financial',
-        description: 'Receitas, despesas e lucro líquido do período',
-        fields: ['receitas', 'despesas', 'lucro', 'margem']
-      },
-      {
-        id: '2',
-        name: 'Status de Projetos',
-        type: 'projects',
-        description: 'Progresso, orçamento e prazos dos projetos',
-        fields: ['nome', 'status', 'progresso', 'orçamento', 'prazo']
-      },
-      {
-        id: '3',
-        name: 'Performance da Equipe',
-        type: 'team',
-        description: 'Produtividade e métricas dos membros da equipe',
-        fields: ['nome', 'tarefas_concluídas', 'horas_trabalhadas', 'projetos']
-      },
-      {
-        id: '4',
-        name: 'Relatório de Clientes',
-        type: 'clients',
-        description: 'Informações e histórico dos clientes',
-        fields: ['nome', 'empresa', 'projetos', 'valor_total', 'status']
-      }
-    ]
+    const stored = await listUserReports(session.user.id)
+    const reports = stored.map((meta) => ({
+      id: meta.id,
+      name: meta.name,
+      type: meta.type,
+      format: meta.format === 'xlsx' ? 'excel' : meta.format,
+      status: 'ready' as const,
+      createdAt: meta.createdAt,
+      downloadUrl: `/api/reports/${meta.id}/download`,
+      size: `${Math.max(1, Math.round(meta.size / 1024))} KB`,
+      description: meta.description,
+    }))
 
-    // Buscar relatórios gerados (simulado por enquanto)
-    const reports: any[] = []
-
-    return NextResponse.json({
-      reports,
-      templates
-    })
+    return NextResponse.json({ reports, templates: REPORT_TEMPLATES })
   } catch (error) {
     console.error('Erro ao buscar relatórios:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }
 
-// POST - Gerar novo relatório
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const reportId = searchParams.get('id')
+    if (!reportId) {
+      return NextResponse.json({ error: 'ID do relatório é obrigatório' }, { status: 400 })
+    }
+
+    const deleted = await deleteReport(session.user.id, reportId)
+    if (!deleted) {
+      return NextResponse.json({ error: 'Relatório não encontrado' }, { status: 404 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Erro ao excluir relatório:', error)
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const body = await request.json()
-    const { templateId, name, description, filters } = body
+    const { name, type, format: rawFormat, dateRange, filters } = body
 
-    // Gerar relatório baseado no template e filtros
-    const reportData = await generateReportData(templateId, filters, session)
-    
-    const newReport = {
-      id: `report_${Date.now()}`,
-      name,
-      description,
-      templateId,
-      status: 'COMPLETED',
-      createdBy: session.user.name || 'Usuário',
-      createdAt: new Date().toISOString(),
-      filters,
-      data: reportData,
-      downloadUrl: `/api/reports/report_${Date.now()}/download`
+    const format = normalizeFormat(rawFormat)
+    if (!type || !format) {
+      return NextResponse.json(
+        { error: 'Tipo de relatório e formato são obrigatórios' },
+        { status: 400 }
+      )
     }
 
-    return NextResponse.json({ report: newReport }, { status: 201 })
+    if (!VALID_TYPES.includes(type)) {
+      return NextResponse.json({ error: 'Tipo de relatório inválido' }, { status: 400 })
+    }
+
+    const payload = await fetchReportPayload(type, session.user.name ?? 'Usuário', {
+      dateRange,
+      filters,
+    })
+
+    const buffer = await generateReportBuffer(format, payload)
+    const reportId = randomUUID()
+    const ext = formatExtension(format)
+    const safeName = (name || payload.title)
+      .replace(/[^\w\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .slice(0, 80) || 'relatorio'
+    const filename = `${safeName}_${new Date().toISOString().split('T')[0]}.${ext}`
+
+    await saveReportFile(session.user.id, reportId, format, buffer)
+    await saveReportPreview(session.user.id, reportId, payload)
+    await saveReportMeta({
+      id: reportId,
+      name: name || payload.title,
+      type,
+      format,
+      filename,
+      size: buffer.length,
+      createdAt: new Date().toISOString(),
+      description: `${payload.title} — ${payload.rows.length} registro(s)`,
+      userId: session.user.id,
+      rowCount: payload.rows.length,
+      dateRange: payload.dateRange,
+      generatedBy: payload.generatedBy,
+    })
+
+    return NextResponse.json(
+      {
+        report: {
+          id: reportId,
+          type,
+          format: format === 'xlsx' ? 'excel' : format,
+          filename,
+          downloadUrl: `/api/reports/${reportId}/download`,
+          mimeType: formatMimeType(format),
+          size: buffer.length,
+          generatedAt: payload.generatedAt,
+          rowCount: payload.rows.length,
+        },
+        message: 'Relatório gerado com sucesso',
+      },
+      { status: 201 }
+    )
   } catch (error) {
     console.error('Erro ao gerar relatório:', error)
-    return NextResponse.json(
-      { error: 'Erro interno do servidor' },
-      { status: 500 }
-    )
-  }
-}
-
-async function generateReportData(templateId: string, filters: any, session: any) {
-  // Gerar dados reais baseados no template
-  switch (templateId) {
-    case 'financial':
-      const financialEntries = await prisma.financialEntry.findMany({
-        orderBy: { date: 'desc' }
-      })
-      
-      const revenue = financialEntries.filter(f => f.type === 'INCOME')
-      const expenses = financialEntries.filter(f => f.type === 'EXPENSE')
-      
-      return {
-        totalRevenue: revenue.reduce((sum, r) => sum + r.amount, 0),
-        totalExpenses: expenses.reduce((sum, e) => sum + e.amount, 0),
-        netProfit: revenue.reduce((sum, r) => sum + r.amount, 0) - expenses.reduce((sum, e) => sum + e.amount, 0),
-        entries: financialEntries.map(entry => ({
-          date: entry.date.toISOString().split('T')[0],
-          amount: entry.amount,
-          type: entry.type,
-          category: entry.category,
-          description: entry.description
-        }))
-      }
-      
-    case 'projects':
-      const projects = await prisma.project.findMany({
-        include: {
-          tasks: {
-            select: {
-              id: true,
-              completedAt: true
-            }
-          }
-        }
-      })
-      
-      return {
-        totalProjects: projects.length,
-        activeProjects: projects.filter(p => p.status === 'IN_PROGRESS').length,
-        completedProjects: projects.filter(p => p.status === 'COMPLETED').length,
-        projects: projects.map(project => {
-          const totalTasks = project.tasks.length
-          const completedTasks = project.tasks.filter(t => t.completedAt).length
-          const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-          
-          return {
-            name: project.name,
-            status: project.status,
-            progress,
-            budget: project.budget,
-            startDate: project.startDate?.toISOString().split('T')[0],
-            endDate: project.endDate?.toISOString().split('T')[0]
-          }
-        })
-      }
-      
-    case 'clients':
-      const clients = await prisma.client.findMany({
-        include: {
-          projects: {
-            select: {
-              id: true,
-              status: true,
-              budget: true
-            }
-          }
-        }
-      })
-      
-      return {
-        totalClients: clients.length,
-        activeClients: clients.filter(c => c.projects.some(p => p.status === 'IN_PROGRESS')).length,
-        clients: clients.map(client => ({
-          name: client.name,
-          email: client.email,
-          totalProjects: client.projects.length,
-          activeProjects: client.projects.filter(p => p.status === 'IN_PROGRESS').length,
-          totalValue: client.projects.reduce((sum, p) => sum + (p.budget || 0), 0)
-        }))
-      }
-      
-    case 'team':
-      const users = await prisma.user.findMany()
-      const tasks = await prisma.task.findMany({
-        select: {
-          assigneeId: true,
-          completedAt: true
-        }
-      })
-      const projectTeam = await prisma.projectTeam.findMany({
-        include: {
-          project: {
-            select: {
-              status: true
-            }
-          }
-        }
-      })
-      
-      return {
-        totalMembers: users.length,
-        members: users.map(user => {
-          const userTasks = tasks.filter(t => t.assigneeId === user.id)
-          const userProjects = projectTeam.filter(pt => pt.userId === user.id)
-          
-          return {
-            name: user.name,
-            email: user.email,
-            tasksCompleted: userTasks.filter(t => t.completedAt).length,
-            totalTasks: userTasks.length,
-            activeProjects: userProjects.filter(pt => pt.project.status === 'IN_PROGRESS').length
-          }
-        })
-      }
-      
-    default:
-      return {
-        message: 'Dados do relatório gerados com sucesso',
-        generatedAt: new Date().toISOString(),
-        filters: filters
-      }
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
   }
 }

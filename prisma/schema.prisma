@@ -43,8 +43,105 @@ model User {
   collaboratedEntries FinancialEntry[] @relation("FinancialEntryCollaborator")
   pageAccesses  UserPageAccess[]
   createdProposals Proposal[]
+  presenceSessions UserPresenceSession[]
+  callRoomsCreated CallRoom[] @relation("CallRoomCreator")
+  callRoomMessages CallRoomMessage[]
+  teamChannelMessages TeamChannelMessage[]
 
   @@map("users")
+}
+
+model UserPresenceSession {
+  id         String    @id @default(cuid())
+  userId     String
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  lastPingAt DateTime  @default(now())
+  source     String    @default("web")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@index([userId, endedAt])
+  @@index([lastPingAt])
+  @@map("user_presence_sessions")
+}
+
+model CallRoom {
+  id          String            @id @default(cuid())
+  roomName    String            @unique
+  title       String?
+  channelId   String?
+  commsRoomId String            @default("link-system") @map("comms_room_id")
+  projectId   String?
+  type        String            @default("video")
+  createdById String
+  startedAt   DateTime          @default(now())
+  endedAt     DateTime?
+  createdBy   User              @relation("CallRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  messages    CallRoomMessage[]
+
+  @@index([createdById])
+  @@index([startedAt])
+  @@index([commsRoomId])
+  @@map("call_rooms")
+}
+
+model CallRoomMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  room      CallRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("call_room_messages")
+}
+
+model TeamChannel {
+  id          String               @id
+  name        String
+  description String?
+  type        String               @default("GENERAL")
+  commsRoomId String               @default("link-system") @map("comms_room_id")
+  createdAt   DateTime             @default(now())
+  messages    TeamChannelMessage[]
+
+  @@index([commsRoomId])
+  @@map("team_channels")
+}
+
+model TeamChannelMessage {
+  id          String                  @id @default(cuid())
+  channelId   String
+  authorId    String
+  content     String                  @default("")
+  type        String                  @default("TEXT")
+  editedAt    DateTime?
+  createdAt   DateTime                @default(now())
+  channel     TeamChannel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author      User                    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  attachments TeamMessageAttachment[]
+
+  @@index([channelId, createdAt])
+  @@map("team_channel_messages")
+}
+
+model TeamMessageAttachment {
+  id           String             @id @default(cuid())
+  messageId    String
+  originalName String
+  fileName     String
+  filePath     String
+  fileUrl      String
+  fileSize     Int
+  mimeType     String
+  createdAt    DateTime           @default(now())
+  message      TeamChannelMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("team_message_attachments")
 }
 
 model Appointment {
@@ -504,16 +601,17 @@ model Proposal {
 }
 
 model Note {
-  id           String   @id @default(cuid())
+  id           String         @id @default(cuid())
   title        String
   content      String?
   diagram      Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  visibility   NoteVisibility @default(PRIVATE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   projectId    String
   createdById  String
-  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  createdBy    User     @relation(fields: [createdById], references: [id])
+  project      Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy    User           @relation(fields: [createdById], references: [id])
   access       NoteAccess[]
 
   @@map("notes")
@@ -639,6 +737,7 @@ enum MilestoneStatus {
 }
 
 enum TaskStatus {
+  DRAFT
   TODO
   IN_PROGRESS
   IN_REVIEW
@@ -667,6 +766,11 @@ enum RecurringType {
   MONTHLY
   QUARTERLY
   YEARLY
+}
+
+enum NoteVisibility {
+  PRIVATE
+  PUBLIC
 }
 
 enum NotificationType {
@@ -732,6 +836,7 @@ model SubscriptionGroupReminderTemplate {
   subject            String
   body               String   @db.Text
   daysBeforeDue      Int      @default(3)
+  daysAfterDue       Int      @default(0)
   sendTime           String   @default("09:00")
   whatsAppPauseSeconds Int    @default(10)
   isActive           Boolean  @default(true)

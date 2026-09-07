@@ -41,6 +41,7 @@ export const EMPTY_TASK_FILTERS: TaskFilterState = {
 }
 
 export const STATUS_OPTIONS = [
+  { value: 'DRAFT', label: 'Rascunho' },
   { value: 'TODO', label: 'A Fazer' },
   { value: 'IN_PROGRESS', label: 'Em Andamento' },
   { value: 'IN_REVIEW', label: 'Em Teste' },
@@ -49,6 +50,7 @@ export const STATUS_OPTIONS = [
 ] as const
 
 export const STATE_GROUP_OPTIONS = [
+  { value: 'draft', label: 'Rascunho', statuses: ['DRAFT'] },
   { value: 'backlog', label: 'Backlog', statuses: ['TODO'] },
   { value: 'started', label: 'Iniciado', statuses: ['IN_PROGRESS', 'IN_REVIEW'] },
   { value: 'completed', label: 'Concluído', statuses: ['COMPLETED', 'DONE'] },

@@ -1,32 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Montserrat, Share_Tech } from "next/font/google";
+import { Geist_Mono, Sora, Source_Sans_3 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider"
 import { Providers } from "@/components/providers/session-provider";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const sourceSans = Source_Sans_3({
+  variable: "--font-source-sans",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
-
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
-  subsets: ["latin"],
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
-  style: ["normal", "italic"],
-});
-
-const shareTech = Share_Tech({
-  variable: "--font-share-tech",
-  subsets: ["latin"],
-  weight: "400",
 });
 
 export const metadata: Metadata = {
@@ -66,7 +62,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} ${shareTech.variable} antialiased`}
+        className={`${sora.variable} ${sourceSans.variable} ${geistMono.variable} antialiased`}
       >
         
          <ThemeProvider

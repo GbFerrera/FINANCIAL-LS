@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       subject: t.subject,
       body: t.body,
       daysBeforeDue: t.daysBeforeDue,
+      daysAfterDue: t.daysAfterDue,
       isActive: t.isActive,
       sendEmail: t.sendEmail,
       sendWhatsApp: t.sendWhatsApp,

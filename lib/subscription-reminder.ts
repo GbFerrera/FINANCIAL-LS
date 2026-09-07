@@ -15,6 +15,7 @@ export type ReminderTemplateVars = {
   empresa: string
   grupo: string
   dias_antes: string
+  dias_atraso: string
 }
 
 export const REMINDER_VARIABLE_HINTS: { key: keyof ReminderTemplateVars; label: string }[] = [
@@ -25,7 +26,8 @@ export const REMINDER_VARIABLE_HINTS: { key: keyof ReminderTemplateVars; label: 
   { key: "plano", label: "Nome do plano" },
   { key: "empresa", label: "Empresa do cliente" },
   { key: "grupo", label: "Grupo de assinatura" },
-  { key: "dias_antes", label: "Dias restantes até o vencimento (no envio)" },
+  { key: "dias_antes", label: "Dias restantes até o vencimento (0 se já venceu)" },
+  { key: "dias_atraso", label: "Dias em atraso (0 se ainda não venceu)" },
 ]
 
 export function renderReminderTemplate(text: string, vars: ReminderTemplateVars) {
@@ -53,6 +55,28 @@ export function daysUntilDue(today: Date, due: Date) {
   const a = startOfLocalDay(today).getTime()
   const b = startOfLocalDay(due).getTime()
   return Math.round((b - a) / (24 * 60 * 60 * 1000))
+}
+
+/** Envio no dia `remaining` se estiver entre -daysAfterDue e +daysBeforeDue (inclusive). */
+export function isWithinReminderWindow(
+  remaining: number,
+  daysBeforeDue: number,
+  daysAfterDue: number
+) {
+  if (remaining > daysBeforeDue) return false
+  if (remaining >= 0) return true
+  return daysAfterDue > 0 && -remaining <= daysAfterDue
+}
+
+export function reminderTemplateVarsFromRemaining(
+  remaining: number,
+  base: Omit<ReminderTemplateVars, "dias_antes" | "dias_atraso">
+): ReminderTemplateVars {
+  return {
+    ...base,
+    dias_antes: String(Math.max(0, remaining)),
+    dias_atraso: String(Math.max(0, -remaining)),
+  }
 }
 
 /** HH:mm (24h, horário local) — true se já passou o horário de início no dia de `now`. */
@@ -94,6 +118,7 @@ export function collectReminderCandidates(input: {
     subject: string
     body: string
     daysBeforeDue: number
+    daysAfterDue?: number
     isActive: boolean
     sendEmail?: boolean
     sendWhatsApp?: boolean
@@ -143,13 +168,14 @@ export function collectReminderCandidates(input: {
       if (isCyclePaid(link.lastPaidFor, due)) continue
 
       const remaining = daysUntilDue(today, due)
-      if (remaining < 0 || remaining > template.daysBeforeDue) continue
+      const daysAfterDue = template.daysAfterDue ?? 0
+      if (!isWithinReminderWindow(remaining, template.daysBeforeDue, daysAfterDue)) continue
 
       const dueDateKey = dateKey(due)
       const dedupeKey = `${template.id}:${link.id}:${dueDateKey}:${remaining}`
       if (input.alreadySentKeys?.has(dedupeKey)) continue
 
-      const vars: ReminderTemplateVars = {
+      const vars = reminderTemplateVarsFromRemaining(remaining, {
         nome: link.client.name,
         cliente: link.client.name,
         preco: formatBRL(Number(link.subscription.price || 0)),
@@ -157,8 +183,7 @@ export function collectReminderCandidates(input: {
         plano: link.subscription.name,
         empresa: link.client.company || "",
         grupo: template.group.name,
-        dias_antes: String(remaining),
-      }
+      })
 
       out.push({
         templateId: template.id,

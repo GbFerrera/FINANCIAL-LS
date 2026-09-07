@@ -42,14 +42,14 @@ export default function WorkspaceCyclesPage() {
 
   return (
     <PageLoadingGate loading={loading}>
-    <WorkspacePage size="narrow" className="space-y-4">
+    <WorkspacePage size="full" className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">Ciclos</h1>
+        <h1 className="text-xl font-semibold text-foreground">Sprints</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">Sprints dos projetos deste espaço de trabalho</p>
       </div>
 
       {sprints.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum ciclo encontrado neste espaço.</p>
+        <p className="text-sm text-muted-foreground">Nenhum sprint encontrado neste espaço.</p>
       ) : (
         <div className="space-y-2">
           {sprints.map((sprint) => {

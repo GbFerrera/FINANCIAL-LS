@@ -3,8 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { DateRange } from 'react-day-picker'
 import { StatsCard } from '@/components/ui/stats-card'
-import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import { PageLoadingGate } from '@/components/ui/loading-animation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -14,24 +22,41 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { toast } from 'react-hot-toast'
-import { parseISO } from 'date-fns'
 import {
-  BarChart3,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  ReportDateRangeField,
+  defaultReportDateRange,
+  dateRangeToApi,
+} from '@/components/reports/ReportDateRangeField'
+import { ReportPreviewDialog } from '@/components/reports/ReportPreviewDialog'
+import { toast } from 'react-hot-toast'
+import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   Calendar,
-  Filter,
   Search,
-  Eye,
   Trash2,
   Plus,
-  TrendingUp,
   DollarSign,
-  Users,
   FolderOpen,
-  Clock,
-  CheckCircle
+  Users,
+  MoreHorizontal,
+  Loader2,
 } from 'lucide-react'
 
 interface Report {
@@ -54,20 +79,54 @@ interface ReportTemplate {
   fields: string[]
 }
 
-interface NewReport {
-  name: string
-  type: 'financial' | 'projects' | 'team' | 'clients'
-  format: 'pdf' | 'excel' | 'csv'
-  dateRange: {
-    start: string
-    end: string
-  }
-  filters: {
-    status?: string
-    department?: string
-    client?: string
+type ReportType = Report['type']
+type ReportFormat = Report['format']
+
+const TYPE_LABELS: Record<ReportType, string> = {
+  financial: 'Financeiro',
+  projects: 'Projetos',
+  team: 'Equipe',
+  clients: 'Clientes',
+}
+
+const FORMAT_LABELS: Record<ReportFormat, string> = {
+  pdf: 'PDF',
+  excel: 'Excel',
+  csv: 'CSV',
+}
+
+const STATUS_LABELS: Record<Report['status'], string> = {
+  ready: 'Pronto',
+  generating: 'Gerando',
+  failed: 'Falhou',
+}
+
+function getTypeIcon(type: ReportType) {
+  switch (type) {
+    case 'financial':
+      return DollarSign
+    case 'projects':
+      return FolderOpen
+    case 'team':
+    case 'clients':
+      return Users
+    default:
+      return FileText
   }
 }
+
+function statusBadgeVariant(status: Report['status']) {
+  switch (status) {
+    case 'ready':
+      return 'secondary' as const
+    case 'generating':
+      return 'outline' as const
+    case 'failed':
+      return 'destructive' as const
+  }
+}
+
+const LIST_PAGE_SIZE = 10
 
 export default function ReportsPage() {
   const { data: session, status } = useSession()
@@ -78,16 +137,17 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState<string>('all')
-  const [newReport, setNewReport] = useState<NewReport>({
-    name: '',
-    type: 'financial',
-    format: 'pdf',
-    dateRange: {
-      start: '',
-      end: ''
-    },
-    filters: {}
-  })
+
+  const [reportName, setReportName] = useState('')
+  const [reportType, setReportType] = useState<ReportType>('financial')
+  const [reportFormat, setReportFormat] = useState<ReportFormat>('pdf')
+  const [reportDateRange, setReportDateRange] = useState<DateRange | undefined>(defaultReportDateRange())
+  const [listPage, setListPage] = useState(1)
+  const [previewReport, setPreviewReport] = useState<Report | null>(null)
+
+  useEffect(() => {
+    setListPage(1)
+  }, [searchTerm, selectedType])
 
   useEffect(() => {
     if (status === 'loading') return
@@ -98,15 +158,29 @@ export default function ReportsPage() {
     fetchData()
   }, [session, status, router])
 
+  const resetReportForm = () => {
+    setReportName('')
+    setReportType('financial')
+    setReportFormat('pdf')
+    setReportDateRange(defaultReportDateRange())
+  }
+
+  const openGenerateDialog = (preset?: { name?: string; type?: ReportType }) => {
+    resetReportForm()
+    if (preset?.name) setReportName(preset.name)
+    if (preset?.type) setReportType(preset.type)
+    setIsGenerateReportOpen(true)
+  }
+
   const fetchData = async () => {
     try {
       setLoading(true)
       const response = await fetch('/api/reports')
-      
+
       if (!response.ok) {
         throw new Error('Falha ao carregar relatórios')
       }
-      
+
       const data = await response.json()
       setReports(data.reports)
       setTemplates(data.templates)
@@ -120,415 +194,482 @@ export default function ReportsPage() {
 
   const handleGenerateReport = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!reportDateRange?.from || !reportDateRange?.to) {
+      toast.error('Selecione o período completo do relatório')
+      return
+    }
+
+    const pendingId = `pending-${Date.now()}`
+    const newReportData: Report = {
+      id: pendingId,
+      name: reportName,
+      type: reportType,
+      format: reportFormat,
+      status: 'generating',
+      createdAt: new Date().toISOString(),
+      description: `Relatório ${TYPE_LABELS[reportType].toLowerCase()} em geração`,
+    }
+
+    setReports((prev) => [newReportData, ...prev])
+    setIsGenerateReportOpen(false)
+    toast.success('Relatório sendo gerado...')
+
     try {
-      const reportId = Date.now().toString()
-      const newReportData: Report = {
-        id: reportId,
-        name: newReport.name,
-        type: newReport.type,
-        format: newReport.format,
-        status: 'generating',
-        createdAt: new Date().toISOString(),
-        description: `Relatório ${newReport.type} gerado automaticamente`
-      }
-
-      setReports(prev => [newReportData, ...prev])
-      setIsGenerateReportOpen(false)
-      
-      toast.success('Relatório sendo gerado!')
-
-      // Chamar API para gerar relatório
-      const response = await fetch('/api/reports/export', {
+      const response = await fetch('/api/reports', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: newReport.type,
-          format: newReport.format,
-          dateRange: newReport.dateRange,
-          filters: newReport.filters
-        })
+          name: reportName,
+          type: reportType,
+          format: reportFormat,
+          dateRange: dateRangeToApi(reportDateRange),
+          filters: {},
+        }),
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setReports(prev => prev.map(report => 
-          report.id === reportId 
-            ? { 
-                ...report, 
-                status: 'ready' as const, 
+      if (!response.ok) {
+        throw new Error('Falha ao gerar relatório')
+      }
+
+      const result = await response.json()
+      setReports((prev) =>
+        prev.map((report) =>
+          report.id === pendingId
+            ? {
+                id: result.report.id,
+                name: reportName,
+                type: reportType,
+                format: reportFormat,
+                status: 'ready' as const,
+                createdAt: result.report.generatedAt,
                 downloadUrl: result.report.downloadUrl,
-                size: `${Math.round(result.report.size / 1024)} KB`
+                size: `${Math.max(1, Math.round(result.report.size / 1024))} KB`,
+                description: `${result.report.rowCount} registro(s) exportado(s)`,
               }
             : report
-        ))
-        toast.success('Relatório gerado com sucesso!')
-      } else {
-        setReports(prev => prev.map(report => 
-          report.id === reportId 
-            ? { ...report, status: 'failed' as const }
-            : report
-        ))
-        toast.error('Erro ao gerar relatório')
-      }
-
-      setNewReport({
-        name: '',
-        type: 'financial',
-        format: 'pdf',
-        dateRange: { start: '', end: '' },
-        filters: {}
-      })
+        )
+      )
+      toast.success('Relatório gerado com sucesso!')
     } catch (error) {
       console.error('Erro ao gerar relatório:', error)
+      setReports((prev) =>
+        prev.map((report) =>
+          report.id === pendingId ? { ...report, status: 'failed' as const } : report
+        )
+      )
       toast.error('Erro ao gerar relatório')
     }
+
+    resetReportForm()
   }
 
-  const handleDownloadReport = (report: Report) => {
-    if (report.status === 'ready' && report.downloadUrl) {
-      // Iniciar download real
+  const handleDownloadReport = async (report: Report) => {
+    if (report.status !== 'ready' || !report.downloadUrl) {
+      toast.error('Relatório não está pronto para download')
+      return
+    }
+
+    try {
+      const response = await fetch(report.downloadUrl)
+      if (!response.ok) throw new Error('Download falhou')
+
+      const blob = await response.blob()
+      const ext = report.format === 'excel' ? 'xlsx' : report.format
+      const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = report.downloadUrl
-      link.download = `${report.name}.${report.format}`
+      link.href = url
+      link.download = `${report.name}.${ext}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      toast.success(`Download do relatório "${report.name}" iniciado`)
-    } else {
-      toast.error('Relatório não está pronto para download')
+      URL.revokeObjectURL(url)
+      toast.success(`Download de "${report.name}" iniciado`)
+    } catch (error) {
+      console.error('Erro no download:', error)
+      toast.error('Erro ao baixar relatório')
     }
   }
 
-  const handleDeleteReport = (reportId: string) => {
-    setReports(prev => prev.filter(report => report.id !== reportId))
-    toast.success('Relatório excluído com sucesso')
+  const handleDeleteReport = async (reportId: string) => {
+    if (reportId.startsWith('pending-')) {
+      setReports((prev) => prev.filter((report) => report.id !== reportId))
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/reports?id=${encodeURIComponent(reportId)}`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error('Falha ao excluir')
+      setReports((prev) => prev.filter((report) => report.id !== reportId))
+      toast.success('Relatório excluído com sucesso')
+    } catch (error) {
+      console.error('Erro ao excluir relatório:', error)
+      toast.error('Erro ao excluir relatório')
+    }
   }
 
-  const filteredReports = reports.filter(report => {
+  const filteredReports = reports.filter((report) => {
     const matchesSearch = report.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesType = selectedType === 'all' || report.type === selectedType
     return matchesSearch && matchesType
   })
 
-  const getStatusColor = (status: Report['status']) => {
-    switch (status) {
-      case 'ready': return 'bg-green-100 text-green-800'
-      case 'generating': return 'bg-yellow-100 text-yellow-800'
-      case 'failed': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
+  const totalListPages = Math.max(1, Math.ceil(filteredReports.length / LIST_PAGE_SIZE))
+  const safeListPage = Math.min(listPage, totalListPages)
+  const paginatedReports = filteredReports.slice(
+    (safeListPage - 1) * LIST_PAGE_SIZE,
+    safeListPage * LIST_PAGE_SIZE
+  )
+  const listRangeStart =
+    filteredReports.length === 0 ? 0 : (safeListPage - 1) * LIST_PAGE_SIZE + 1
+  const listRangeEnd = Math.min(safeListPage * LIST_PAGE_SIZE, filteredReports.length)
 
-  const getTypeIcon = (type: Report['type']) => {
-    switch (type) {
-      case 'financial': return DollarSign
-      case 'projects': return FolderOpen
-      case 'team': return Users
-      case 'clients': return Users
-      default: return FileText
+  const openReportPreview = (report: Report) => {
+    if (report.status !== 'ready' || report.id.startsWith('pending-')) {
+      toast.error('Relatório ainda não está pronto para visualização')
+      return
     }
+    setPreviewReport(report)
   }
-
-  const stats = [
-    {
-      title: 'Total de Relatórios',
-      value: reports.length,
-      icon: FileText,
-      color: 'blue' as const,
-      change: {
-        value: `${reports.filter(r => r.status === 'ready').length} prontos`,
-        type: 'neutral' as const
-      }
-    },
-    {
-      title: 'Relatórios Prontos',
-      value: reports.filter(r => r.status === 'ready').length,
-      icon: CheckCircle,
-      color: 'green' as const,
-      change: {
-        value: 'Para download',
-        type: 'neutral' as const
-      }
-    },
-    {
-      title: 'Em Geração',
-      value: reports.filter(r => r.status === 'generating').length,
-      icon: Clock,
-      color: 'yellow' as const,
-      change: {
-        value: 'Processando',
-        type: 'neutral' as const
-      }
-    },
-    {
-      title: 'Templates Disponíveis',
-      value: templates.length,
-      icon: BarChart3,
-      color: 'purple' as const,
-      change: {
-        value: 'Modelos',
-        type: 'neutral' as const
-      }
-    }
-  ]
 
   return (
     <PageLoadingGate loading={loading}>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Relatórios</h1>
-            <p className="text-muted-foregroundreground">
-              Gere e gerencie relatórios do sistema
-            </p>
+            <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
+            <p className="text-sm text-muted-foreground">Gere e gerencie relatórios do sistema</p>
           </div>
           <Dialog open={isGenerateReportOpen} onOpenChange={setIsGenerateReportOpen}>
             <DialogTrigger asChild>
-              <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Gerar Relatório
-              </button>
+              <Button size="sm" onClick={() => openGenerateDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Gerar relatório
+              </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Gerar Novo Relatório</DialogTitle>
+            <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+              <DialogHeader className="border-b border-border px-6 py-5">
+                <DialogTitle>Gerar novo relatório</DialogTitle>
                 <DialogDescription>
-                  Configure os parâmetros para gerar um novo relatório
+                  Configure nome, tipo, formato e período de extração.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleGenerateReport} className="space-y-4">
-                <div className="grid gap-4 py-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Relatório</label>
-                    <input
-                      type="text"
-                      value={newReport.name}
-                      onChange={(e) => setNewReport({...newReport, name: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Ex: Relatório Financeiro - Janeiro 2024"
+              <form onSubmit={handleGenerateReport} className="flex flex-col">
+                <div className="space-y-4 px-6 py-5">
+                  <div className="space-y-2">
+                    <Label htmlFor="report-name">Nome do relatório</Label>
+                    <Input
+                      id="report-name"
+                      value={reportName}
+                      onChange={(e) => setReportName(e.target.value)}
+                      placeholder="Ex: Financeiro — março 2026"
                       required
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                      <select
-                        value={newReport.type}
-                        onChange={(e) => setNewReport({...newReport, type: e.target.value as NewReport['type']})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="financial">Financeiro</option>
-                        <option value="projects">Projetos</option>
-                        <option value="team">Equipe</option>
-                        <option value="clients">Clientes</option>
-                      </select>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Tipo</Label>
+                      <Select value={reportType} onValueChange={(v) => setReportType(v as ReportType)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="financial">Financeiro</SelectItem>
+                          <SelectItem value="projects">Projetos</SelectItem>
+                          <SelectItem value="team">Equipe</SelectItem>
+                          <SelectItem value="clients">Clientes</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Formato</label>
-                      <select
-                        value={newReport.format}
-                        onChange={(e) => setNewReport({...newReport, format: e.target.value as NewReport['format']})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="pdf">PDF</option>
-                        <option value="excel">Excel</option>
-                        <option value="csv">CSV</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data Início</label>
-                      <input
-                        type="date"
-                        value={newReport.dateRange.start}
-                        onChange={(e) => setNewReport({...newReport, dateRange: {...newReport.dateRange, start: e.target.value}})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
-                      <input
-                        type="date"
-                        value={newReport.dateRange.end}
-                        onChange={(e) => setNewReport({...newReport, dateRange: {...newReport.dateRange, end: e.target.value}})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
+                    <div className="space-y-2">
+                      <Label>Formato</Label>
+                      <Select value={reportFormat} onValueChange={(v) => setReportFormat(v as ReportFormat)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pdf">PDF</SelectItem>
+                          <SelectItem value="excel">Excel</SelectItem>
+                          <SelectItem value="csv">CSV</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+
+                  <ReportDateRangeField value={reportDateRange} onChange={setReportDateRange} />
                 </div>
-                <DialogFooter>
-                  <button
-                    type="button"
-                    onClick={() => setIsGenerateReportOpen(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
-                  >
+
+                <DialogFooter className="border-t border-border px-6 py-4">
+                  <Button type="button" variant="outline" onClick={() => setIsGenerateReportOpen(false)}>
                     Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
-                  >
-                    Gerar Relatório
-                  </button>
+                  </Button>
+                  <Button type="submit">Gerar relatório</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => (
-            <StatsCard key={index} {...stat} />
-          ))}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatsCard
+            title="Total de relatórios"
+            value={reports.length}
+            change={{
+              value: `${reports.filter((r) => r.status === 'ready').length} prontos`,
+              type: 'neutral',
+            }}
+          />
+          <StatsCard title="Prontos" value={reports.filter((r) => r.status === 'ready').length} />
+          <StatsCard title="Em geração" value={reports.filter((r) => r.status === 'generating').length} />
+          <StatsCard title="Templates" value={templates.length} />
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <input
-              type="text"
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
               placeholder="Buscar relatórios..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-9"
             />
           </div>
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">Todos os Tipos</option>
-            <option value="financial">Financeiro</option>
-            <option value="projects">Projetos</option>
-            <option value="team">Equipe</option>
-            <option value="clients">Clientes</option>
-          </select>
+          <Select value={selectedType} onValueChange={setSelectedType}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              <SelectItem value="financial">Financeiro</SelectItem>
+              <SelectItem value="projects">Projetos</SelectItem>
+              <SelectItem value="team">Equipe</SelectItem>
+              <SelectItem value="clients">Clientes</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Reports List */}
-        <div className="bg-card shadow overflow-hidden sm:rounded-md">
-          <ul className="divide-y divide-gray-200">
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Relatórios gerados</CardTitle>
+            <CardDescription>Histórico de exportações e downloads disponíveis</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
             {filteredReports.length === 0 ? (
-              <li className="px-6 py-8 text-center text-muted-foreground">
-                <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum relatório encontrado</h3>
-                <p className="mt-1 text-sm text-muted-foreground">Comece gerando seu primeiro relatório.</p>
-              </li>
+              <div className="rounded-lg border border-dashed border-border py-12 text-center">
+                <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">Nenhum relatório encontrado</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Gere seu primeiro relatório para começar.
+                </p>
+              </div>
             ) : (
-              filteredReports.map((report) => {
+              <>
+                {paginatedReports.map((report) => {
                 const IconComponent = getTypeIcon(report.type)
+                const isClickable = report.status === 'ready' && !report.id.startsWith('pending-')
                 return (
-                  <li key={report.id}>
-                    <div className="px-6 py-4 flex items-center justify-between hover:bg-card">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                          <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                            <IconComponent className="h-5 w-5 text-blue-600" />
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="flex items-center">
-                            <p className="text-sm font-medium text-foreground">{report.name}</p>
-                            <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>
-                              {report.status === 'ready' && 'Pronto'}
-                              {report.status === 'generating' && 'Gerando'}
-                              {report.status === 'failed' && 'Falhou'}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">{report.description}</p>
-                          <div className="flex items-center mt-1 text-xs text-gray-400">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {parseISO(report.createdAt).toLocaleDateString('pt-BR')}
-                            {report.size && (
-                              <>
-                                <span className="mx-2">•</span>
-                                <span>{report.size}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                  <div
+                    key={report.id}
+                    role={isClickable ? 'button' : undefined}
+                    tabIndex={isClickable ? 0 : undefined}
+                    onClick={() => isClickable && openReportPreview(report)}
+                    onKeyDown={(e) => {
+                      if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        openReportPreview(report)
+                      }
+                    }}
+                    className={`group flex items-start justify-between gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-muted/30${
+                      isClickable ? ' cursor-pointer' : ''
+                    }`}
+                  >
+                    <div className="flex min-w-0 gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/30">
+                        <IconComponent className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {report.status === 'ready' && (
-                          <button
-                            onClick={() => handleDownloadReport(report)}
-                            className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200"
-                          >
-                            <Download className="h-3 w-3 mr-1" />
-                            Download
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteReport(report.id)}
-                          className="inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200"
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Excluir
-                        </button>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate font-medium text-foreground">{report.name}</p>
+                          <Badge variant={statusBadgeVariant(report.status)} className="text-[10px] font-normal">
+                            {report.status === 'generating' ? (
+                              <span className="inline-flex items-center gap-1">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                {STATUS_LABELS[report.status]}
+                              </span>
+                            ) : (
+                              STATUS_LABELS[report.status]
+                            )}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            {TYPE_LABELS[report.type]}
+                          </Badge>
+                          <Badge variant="outline" className="text-[10px] font-normal">
+                            {FORMAT_LABELS[report.format]}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 text-sm text-muted-foreground">{report.description}</p>
+                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {format(parseISO(report.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          {report.size ? <span>· {report.size}</span> : null}
+                        </p>
                       </div>
                     </div>
-                  </li>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 shrink-0 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        {report.status === 'ready' && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openReportPreview(report)
+                            }}
+                          >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Ver detalhes
+                          </DropdownMenuItem>
+                        )}
+                        {report.status === 'ready' && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDownloadReport(report)
+                            }}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </DropdownMenuItem>
+                        )}
+                        {report.status === 'ready' && <DropdownMenuSeparator />}
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteReport(report.id)
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )
-              })
-            )}
-          </ul>
-        </div>
+              })}
 
-        {/* Templates Section */}
-        <div className="bg-card shadow sm:rounded-lg">
-          <div className="px-6 py-4 border-b border-muted">
-            <h3 className="text-lg font-medium text-foreground">Templates de Relatórios</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Modelos pré-configurados para geração rápida de relatórios
-            </p>
-          </div>
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {filteredReports.length > LIST_PAGE_SIZE && (
+                  <div className="flex items-center justify-between gap-3 pt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {listRangeStart}–{listRangeEnd} de {filteredReports.length} relatório(s)
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={safeListPage <= 1}
+                        onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Badge variant="outline" className="min-w-[4rem] justify-center font-normal">
+                        {safeListPage} / {totalListPages}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={safeListPage >= totalListPages}
+                        onClick={() => setListPage((p) => Math.min(totalListPages, p + 1))}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <ReportPreviewDialog
+          reportId={previewReport?.id ?? null}
+          reportName={previewReport?.name ?? ''}
+          reportFormat={previewReport?.format ?? 'pdf'}
+          open={!!previewReport}
+          onOpenChange={(open) => {
+            if (!open) setPreviewReport(null)
+          }}
+          onDownload={() => {
+            if (previewReport) handleDownloadReport(previewReport)
+          }}
+        />
+
+        <Card>
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Templates</CardTitle>
+            <CardDescription>Modelos pré-configurados para gerar relatórios rapidamente</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {templates.map((template) => {
                 const IconComponent = getTypeIcon(template.type)
                 return (
-                  <div key={template.id} className="border border-muted rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center mb-3">
-                      <div className="h-8 w-8 rounded bg-blue-100 flex items-center justify-center">
-                        <IconComponent className="h-4 w-4 text-blue-600" />
+                  <div
+                    key={template.id}
+                    className="flex flex-col rounded-lg border border-border p-4 transition-colors hover:bg-muted/20"
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-muted/30">
+                        <IconComponent className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <h4 className="ml-3 text-sm font-medium text-foreground">{template.name}</h4>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">{template.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{TYPE_LABELS[template.type]}</p>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">{template.description}</p>
-                    <div className="flex flex-wrap gap-1 mb-3">
+                    <p className="mb-3 line-clamp-2 flex-1 text-xs text-muted-foreground">
+                      {template.description}
+                    </p>
+                    <div className="mb-3 flex flex-wrap gap-1">
                       {template.fields.slice(0, 3).map((field) => (
-                        <span key={field} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        <Badge key={field} variant="outline" className="text-[10px] font-normal">
                           {field}
-                        </span>
+                        </Badge>
                       ))}
                       {template.fields.length > 3 && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        <Badge variant="outline" className="text-[10px] font-normal">
                           +{template.fields.length - 3}
-                        </span>
+                        </Badge>
                       )}
                     </div>
-                    <button
-                      onClick={() => {
-                        setNewReport(prev => ({ ...prev, type: template.type, name: template.name }))
-                        setIsGenerateReportOpen(true)
-                      }}
-                      className="w-full text-xs font-medium text-blue-600 hover:text-blue-500"
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => openGenerateDialog({ name: template.name, type: template.type })}
                     >
-                      Usar Template
-                    </button>
+                      Usar template
+                    </Button>
                   </div>
                 )
               })}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </PageLoadingGate>
   )

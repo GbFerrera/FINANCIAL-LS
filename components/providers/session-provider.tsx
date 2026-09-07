@@ -3,6 +3,7 @@
 import { SessionProvider } from "next-auth/react"
 import { LiquidToaster } from "@/components/ui/liquid-toaster"
 import { WebSocketProvider } from "@/contexts/WebSocketContext"
+import { SocketIOProvider } from "@/contexts/SocketIOProvider"
 import { RealtimeNotificationsListener } from "@/components/notifications/RealtimeNotificationsListener"
 import { ThemeProvider } from "next-themes"
 
@@ -15,8 +16,10 @@ export function Providers({ children }: ProvidersProps) {
     <SessionProvider refetchOnWindowFocus={false} refetchInterval={0} refetchWhenOffline={false}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <WebSocketProvider>
-          <RealtimeNotificationsListener />
-          {children}
+          <SocketIOProvider>
+            <RealtimeNotificationsListener />
+            {children}
+          </SocketIOProvider>
         </WebSocketProvider>
         <LiquidToaster />
       </ThemeProvider>

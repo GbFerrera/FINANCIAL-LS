@@ -4,19 +4,21 @@ import { useEffect, useMemo, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { CreditCard, Edit, MoreVertical, Trash2 } from "lucide-react"
+import { CreditCard, ChevronLeft, ChevronRight, Edit, FolderOpen, MoreHorizontal, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StatsCard } from "@/components/ui/stats-card"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ClientPicker } from "@/components/clients/client-picker"
+import { CurrencyAmount } from "@/components/ui/currency-amount"
+import { PageLoadingGate } from "@/components/ui/loading-animation"
+import { cn } from "@/lib/utils"
 import {
   chargeDueForMonth,
   dateKey,
@@ -26,6 +28,83 @@ import {
   unpaidDueDateForClientSubscription,
   yearMonthKey,
 } from "@/lib/subscription-billing"
+
+const PAGE_SIZE = 20
+
+type SubscriptionBillingStatus = "inactive" | "paid" | "pending" | "overdue"
+type SubscriptionStatusFilter = "all" | SubscriptionBillingStatus
+type SubscriptionCycleFilter = "all" | "MONTHLY" | "YEARLY"
+
+function getSubscriptionBillingStatus(s: Subscription, todayKey: string): SubscriptionBillingStatus {
+  if (!s.isActive) return "inactive"
+  const link = s.clients?.[0]
+  const dueDay = typeof link?.dueDay === "number" ? link.dueDay : null
+  if (dueDay === null) return "pending"
+
+  const startedAt = link?.startedAt ? new Date(link.startedAt) : null
+  const lastPaidFor = link?.lastPaidFor ? new Date(link.lastPaidFor) : null
+  const nextUnpaidDue = unpaidDueDateForClientSubscription({
+    dueDay,
+    billingCycle: s.billingCycle,
+    startedAt,
+    lastPaidFor,
+    referenceDate: new Date(),
+  })
+
+  if (!nextUnpaidDue || dateKey(nextUnpaidDue) > todayKey) return "paid"
+  if (dateKey(nextUnpaidDue) < todayKey) return "overdue"
+  return "pending"
+}
+
+function ListPagination({
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange,
+}: {
+  page: number
+  totalPages: number
+  totalItems: number
+  pageSize: number
+  onPageChange: (page: number) => void
+}) {
+  if (totalItems === 0) return null
+
+  const rangeStart = (page - 1) * pageSize + 1
+  const rangeEnd = Math.min(page * pageSize, totalItems)
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs text-muted-foreground">
+        {rangeStart}–{rangeEnd} de {totalItems}
+      </p>
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Badge variant="outline" className="min-w-[4rem] justify-center font-normal">
+          {page} / {totalPages}
+        </Badge>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 type Group = {
   id: string
@@ -114,22 +193,25 @@ type SubscriptionSummary = {
 
 function SubscriptionSummaryCards({ summary }: { summary: SubscriptionSummary }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <StatsCard title="Total em assinaturas" value={formatBRL2(summary.total)} />
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <StatsCard
+        title="Total em assinaturas"
+        value={<CurrencyAmount value={summary.total} size="xl" />}
+      />
       <StatsCard
         title="Recebido (mês)"
-        value={formatBRL2(summary.receivedThisMonth)}
+        value={<CurrencyAmount value={summary.receivedThisMonth} size="xl" />}
         description={`${summary.receivedCountThisMonth} assinatura(s)`}
       />
       <StatsCard
         title="Restante (mês)"
-        value={formatBRL2(summary.remainingThisMonth)}
+        value={<CurrencyAmount value={summary.remainingThisMonth} size="xl" />}
         description={`${summary.remainingCountThisMonth} assinatura(s)`}
       />
       <StatsCard
-        title="Próximo vencimento (mês)"
+        title="Próximo vencimento"
         value={summary.nextDueInMonthLabel}
-        description={summary.nextDueInMonth ? formatBRL2(summary.nextDueInMonthAmount) : undefined}
+        description={summary.nextDueInMonth ? formatBRL2(summary.nextDueInMonthAmount) : "Sem pendências no mês"}
       />
     </div>
   )
@@ -140,7 +222,15 @@ export default function SubscriptionsPage() {
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<"subscriptions" | "groups">("subscriptions")
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState("")
+  const [groupSearchTerm, setGroupSearchTerm] = useState("")
+  const [subscriptionStatusFilter, setSubscriptionStatusFilter] = useState<SubscriptionStatusFilter>("all")
+  const [subscriptionGroupFilter, setSubscriptionGroupFilter] = useState("all")
+  const [subscriptionCycleFilter, setSubscriptionCycleFilter] = useState<SubscriptionCycleFilter>("all")
+  const [subscriptionPage, setSubscriptionPage] = useState(1)
+  const [groupPage, setGroupPage] = useState(1)
+  const todayKey = useMemo(() => dateKey(new Date()), [])
   const [createSubscriptionOpen, setCreateSubscriptionOpen] = useState(false)
   const [editSubscriptionOpen, setEditSubscriptionOpen] = useState(false)
   const [createGroupOpen, setCreateGroupOpen] = useState(false)
@@ -179,6 +269,14 @@ export default function SubscriptionsPage() {
     }
     refreshAll().catch(() => {})
   }, [session, status, router])
+
+  useEffect(() => {
+    setSubscriptionPage(1)
+  }, [subscriptionSearchTerm, subscriptionStatusFilter, subscriptionGroupFilter, subscriptionCycleFilter])
+
+  useEffect(() => {
+    setGroupPage(1)
+  }, [groupSearchTerm])
 
   const refreshAll = async () => {
     setLoading(true)
@@ -566,257 +664,213 @@ export default function SubscriptionsPage() {
     return { received, remaining, receivedCount, remainingCount }
   }, [activeGroupId, groupSubscriberRows])
 
+  const filteredSubscriptions = useMemo(() => {
+    const q = subscriptionSearchTerm.trim().toLowerCase()
+    return subscriptions.filter((s) => {
+      const clientName = s.clients?.[0]?.client?.name?.toLowerCase() || ""
+      const matchesSearch =
+        !q ||
+        s.name.toLowerCase().includes(q) ||
+        clientName.includes(q) ||
+        (s.group?.name || "").toLowerCase().includes(q) ||
+        (s.description || "").toLowerCase().includes(q)
+
+      const billingStatus = getSubscriptionBillingStatus(s, todayKey)
+      const matchesStatus =
+        subscriptionStatusFilter === "all" || billingStatus === subscriptionStatusFilter
+
+      const matchesGroup =
+        subscriptionGroupFilter === "all" || s.groupId === subscriptionGroupFilter
+
+      const matchesCycle =
+        subscriptionCycleFilter === "all" || s.billingCycle === subscriptionCycleFilter
+
+      return matchesSearch && matchesStatus && matchesGroup && matchesCycle
+    })
+  }, [
+    subscriptions,
+    subscriptionSearchTerm,
+    subscriptionStatusFilter,
+    subscriptionGroupFilter,
+    subscriptionCycleFilter,
+    todayKey,
+  ])
+
+  const filteredGroups = useMemo(() => {
+    const q = groupSearchTerm.trim().toLowerCase()
+    if (!q) return groups
+    return groups.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        (g.description || "").toLowerCase().includes(q)
+    )
+  }, [groups, groupSearchTerm])
+
+  const subscriptionTotalPages = Math.max(1, Math.ceil(filteredSubscriptions.length / PAGE_SIZE))
+  const safeSubscriptionPage = Math.min(subscriptionPage, subscriptionTotalPages)
+  const paginatedSubscriptions = filteredSubscriptions.slice(
+    (safeSubscriptionPage - 1) * PAGE_SIZE,
+    safeSubscriptionPage * PAGE_SIZE
+  )
+
+  const groupTotalPages = Math.max(1, Math.ceil(filteredGroups.length / PAGE_SIZE))
+  const safeGroupPage = Math.min(groupPage, groupTotalPages)
+  const paginatedGroups = filteredGroups.slice(
+    (safeGroupPage - 1) * PAGE_SIZE,
+    safeGroupPage * PAGE_SIZE
+  )
+
+  const hasSubscriptionFilters =
+    subscriptionSearchTerm.trim() !== "" ||
+    subscriptionStatusFilter !== "all" ||
+    subscriptionGroupFilter !== "all" ||
+    subscriptionCycleFilter !== "all"
+
+  const clearSubscriptionFilters = () => {
+    setSubscriptionSearchTerm("")
+    setSubscriptionStatusFilter("all")
+    setSubscriptionGroupFilter("all")
+    setSubscriptionCycleFilter("all")
+  }
+
   return (
+    <PageLoadingGate loading={loading && subscriptions.length === 0 && groups.length === 0}>
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Assinaturas</h1>
-          <p className="text-muted-foreground">Crie grupos e vincule assinaturas aos clientes.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Assinaturas</h1>
+          <p className="text-muted-foreground">Grupos, planos recorrentes e cobrança mensal por cliente.</p>
         </div>
-        <Button onClick={refreshAll} disabled={loading}>
-          {loading ? "Atualizando..." : "Atualizar"}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" size="sm" className="h-9" onClick={refreshAll} disabled={loading}>
+            <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
+            Atualizar
+          </Button>
+          {activeTab === "subscriptions" ? (
+            <Button size="sm" className="h-9" onClick={() => setCreateSubscriptionOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova assinatura
+            </Button>
+          ) : (
+            <Button size="sm" className="h-9" onClick={() => setCreateGroupOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo grupo
+            </Button>
+          )}
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+      <SubscriptionSummaryCards summary={subscriptionSummary} />
+
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "subscriptions" | "groups")}>
         <TabsList>
-          <TabsTrigger value="subscriptions">Assinaturas</TabsTrigger>
-          <TabsTrigger value="groups">Grupos</TabsTrigger>
+          <TabsTrigger value="subscriptions" className="gap-1.5">
+            <CreditCard className="h-3.5 w-3.5" />
+            Assinaturas
+          </TabsTrigger>
+          <TabsTrigger value="groups" className="gap-1.5">
+            <FolderOpen className="h-3.5 w-3.5" />
+            Grupos
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="subscriptions" className="mt-6 space-y-6">
-          <SubscriptionSummaryCards summary={subscriptionSummary} />
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <CardTitle>Assinaturas cadastradas</CardTitle>
-                  <CardDescription>{subscriptions.length} registro(s)</CardDescription>
-                </div>
-                <Dialog open={createSubscriptionOpen} onOpenChange={setCreateSubscriptionOpen}>
-                  <DialogTrigger asChild>
-                    <Button>Criar assinatura</Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Criar assinatura</DialogTitle>
-                      <DialogDescription>Preencha os dados para criar a assinatura vinculada a um cliente.</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Grupo</Label>
-                          <Select value={subGroupId} onValueChange={setSubGroupId}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um grupo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {groups.map((g) => (
-                                <SelectItem key={g.id} value={g.id}>
-                                  {g.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Ciclo</Label>
-                          <Select value={subCycle} onValueChange={(v) => setSubCycle(v as any)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="MONTHLY">Mensal</SelectItem>
-                              <SelectItem value="YEARLY">Anual</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Nome</Label>
-                          <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder="Ex: Suporte Premium" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Preço</Label>
-                          <Input
-                            value={subPrice}
-                            inputMode="numeric"
-                            onChange={(e) => setSubPrice(formatCurrencyBRFromDigits(e.target.value))}
-                            placeholder="0,00"
-                          />
-                        </div>
-                      </div>
-
-                  <div className="space-y-2">
-                    <Label>Dia de vencimento</Label>
-                    <Select value={subDueDay} onValueChange={setSubDueDay}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 31 }).map((_, i) => {
-                          const v = String(i + 1)
-                          return (
-                            <SelectItem key={v} value={v}>
-                              {v}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
+        <TabsContent value="subscriptions" className="mt-4 space-y-4">
+          <Card className="gap-0 overflow-hidden py-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <CardHeader className="border-b border-border px-4 py-3">
+              <div className="space-y-3">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <CardTitle className="text-base">Assinaturas cadastradas</CardTitle>
+                    <CardDescription className="mt-0.5">
+                      {filteredSubscriptions.length} de {subscriptions.length} registro(s)
+                      {hasSubscriptionFilters ? " · filtros ativos" : ""}
+                    </CardDescription>
                   </div>
-
-                      <div className="space-y-2">
-                        <Label>Descrição (opcional)</Label>
-                        <Input value={subDescription} onChange={(e) => setSubDescription(e.target.value)} placeholder="Detalhes da assinatura" />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Cliente</Label>
-                        <ClientPicker
-                          value={selectedClientId || ""}
-                          onChange={(id) => setSelectedClientId(id ? id : null)}
-                          placeholder="Selecione um cliente"
-                        />
-                      </div>
-                    </div>
-
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setCreateSubscriptionOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={createSubscription} disabled={loading}>
-                        Criar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-
-                <Dialog open={editSubscriptionOpen} onOpenChange={setEditSubscriptionOpen}>
-                  <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Editar assinatura</DialogTitle>
-                      <DialogDescription>Atualize os dados da assinatura e o dia de vencimento.</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Grupo</Label>
-                          <Select value={editGroupId} onValueChange={setEditGroupId}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione um grupo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {groups.map((g) => (
-                                <SelectItem key={g.id} value={g.id}>
-                                  {g.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Ciclo</Label>
-                          <Select value={editCycle} onValueChange={(v) => setEditCycle(v as any)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="MONTHLY">Mensal</SelectItem>
-                              <SelectItem value="YEARLY">Anual</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Cliente</Label>
-                          <ClientPicker
-                            value={editClientId || ""}
-                            onChange={(id) => setEditClientId(id ? id : null)}
-                            placeholder="Selecione um cliente"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Nome</Label>
-                          <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ex: Suporte Premium" />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Preço</Label>
-                          <Input
-                            value={editPrice}
-                            inputMode="numeric"
-                            onChange={(e) => setEditPrice(formatCurrencyBRFromDigits(e.target.value))}
-                            placeholder="0,00"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Dia de vencimento</Label>
-                          <Select value={editDueDay} onValueChange={setEditDueDay}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: 31 }).map((_, i) => {
-                                const v = String(i + 1)
-                                return (
-                                  <SelectItem key={v} value={v}>
-                                    {v}
-                                  </SelectItem>
-                                )
-                              })}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Descrição (opcional)</Label>
-                          <Input
-                            value={editDescription}
-                            onChange={(e) => setEditDescription(e.target.value)}
-                            placeholder="Detalhes da assinatura"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setEditSubscriptionOpen(false)
-                          setEditingSubscriptionId(null)
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button onClick={updateSubscription} disabled={loading || !editingSubscriptionId}>
-                        Salvar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                  {hasSubscriptionFilters ? (
+                    <Button variant="ghost" size="sm" className="h-8 self-start text-xs" onClick={clearSubscriptionFilters}>
+                      Limpar filtros
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1fr_140px_160px_120px]">
+                  <div className="relative min-w-0">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar assinatura ou cliente..."
+                      value={subscriptionSearchTerm}
+                      onChange={(e) => setSubscriptionSearchTerm(e.target.value)}
+                      className="h-9 pl-9"
+                    />
+                  </div>
+                  <Select
+                    value={subscriptionStatusFilter}
+                    onValueChange={(v) => setSubscriptionStatusFilter(v as SubscriptionStatusFilter)}
+                  >
+                    <SelectTrigger size="sm" className="h-9 w-full">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos status</SelectItem>
+                      <SelectItem value="paid">Em dia</SelectItem>
+                      <SelectItem value="pending">Pendente</SelectItem>
+                      <SelectItem value="overdue">Vencido</SelectItem>
+                      <SelectItem value="inactive">Inativa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={subscriptionGroupFilter} onValueChange={setSubscriptionGroupFilter}>
+                    <SelectTrigger size="sm" className="h-9 w-full">
+                      <SelectValue placeholder="Grupo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos grupos</SelectItem>
+                      {groups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={subscriptionCycleFilter}
+                    onValueChange={(v) => setSubscriptionCycleFilter(v as SubscriptionCycleFilter)}
+                  >
+                    <SelectTrigger size="sm" className="h-9 w-full">
+                      <SelectValue placeholder="Ciclo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos ciclos</SelectItem>
+                      <SelectItem value="MONTHLY">Mensal</SelectItem>
+                      <SelectItem value="YEARLY">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
-              {subscriptions.length === 0 ? (
-                <div className="text-sm text-muted-foreground">Nenhuma assinatura cadastrada.</div>
+            <CardContent className="p-4">
+              {filteredSubscriptions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <CreditCard className="mb-2 h-8 w-8 text-muted-foreground/35" />
+                  <p className="text-sm font-medium text-foreground">
+                    {subscriptions.length === 0
+                      ? "Nenhuma assinatura cadastrada"
+                      : hasSubscriptionFilters
+                        ? "Nenhum resultado com os filtros atuais"
+                        : "Nenhum resultado na busca"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {subscriptions.length === 0
+                      ? "Crie a primeira assinatura para começar a cobrar"
+                      : hasSubscriptionFilters
+                        ? "Ajuste ou limpe os filtros para ver mais resultados"
+                        : "Tente outro termo de busca"}
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {subscriptions.map((s) => {
+                <>
+                <div className="space-y-2">
+                  {paginatedSubscriptions.map((s) => {
                     const link = (s.clients || [])[0] || null
-                    const clientName = link?.client?.name || "-"
+                    const clientName = link?.client?.name || "—"
                     const startedAt = link?.startedAt ? new Date(link.startedAt) : null
                     const dueDay = typeof link?.dueDay === "number" ? link.dueDay : null
                     const lastPaidFor = link?.lastPaidFor ? new Date(link.lastPaidFor) : null
@@ -833,55 +887,97 @@ export default function SubscriptionsPage() {
                           })
                         : null
 
-                    const isPaid =
-                      !nextUnpaidDue || dateKey(nextUnpaidDue) > dateKey(now)
-                    const nextCharge = nextUnpaidDue ? formatDateBR(nextUnpaidDue) : "-"
+                    const billingStatus = getSubscriptionBillingStatus(s, todayKey)
+                    const isPaid = billingStatus === "paid" || billingStatus === "inactive"
+                    const nextCharge = nextUnpaidDue ? formatDateBR(nextUnpaidDue) : "—"
+
                     return (
-                      <div key={s.id} className="rounded-lg border p-4">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                          <div className="min-w-0 flex items-start gap-3">
-                            <CreditCard className={`mt-0.5 h-5 w-5 ${isPaid ? "text-emerald-500" : "text-red-500"}`} />
-                            <div className="min-w-0">
-                              <div className="font-semibold truncate">{s.name}</div>
-                              <div className="text-sm text-muted-foreground truncate">Cliente: {clientName}</div>
+                      <div
+                        key={s.id}
+                        className="rounded-lg border border-border/70 bg-card p-4 transition-colors hover:bg-muted/20"
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-foreground">{s.name}</p>
+                              {s.group?.name ? (
+                                <Badge variant="secondary" className="text-[10px] font-normal">
+                                  {s.group.name}
+                                </Badge>
+                              ) : null}
+                              <Badge variant="outline" className="text-[10px] font-normal">
+                                {s.billingCycle === "MONTHLY" ? "Mensal" : "Anual"}
+                              </Badge>
+                              {!s.isActive ? (
+                                <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                                  Inativa
+                                </Badge>
+                              ) : null}
                             </div>
+                            <p className="mt-1 text-sm text-muted-foreground">{clientName}</p>
+                            {s.description ? (
+                              <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{s.description}</p>
+                            ) : null}
                           </div>
-                          <div className="flex items-center gap-6">
+
+                          <div className="flex flex-wrap items-end gap-4 lg:shrink-0">
                             <div className="text-right">
-                              <div className="text-xs text-muted-foreground">Valor</div>
-                              <div className="text-sm font-medium">{formatBRL2(Number(s.price || 0))}</div>
+                              <p className="text-[11px] text-muted-foreground">Valor</p>
+                              <CurrencyAmount value={Number(s.price || 0)} size="sm" />
                             </div>
                             <div className="text-right">
-                              <div className="text-xs text-muted-foreground">Próx. cobrança</div>
-                              <div className="text-sm font-medium">{nextCharge}</div>
+                              <p className="text-[11px] text-muted-foreground">Próx. cobrança</p>
+                              <p className="text-sm font-medium tabular-nums">{nextCharge}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button
-                                variant={isPaid ? "outline" : "secondary"}
-                                disabled={!link?.id || isPaid || !nextUnpaidDue || markingPaidId === link?.id}
-                                onClick={() => {
-                                  if (!link?.id || !nextUnpaidDue) return
-                                  void markAsPaid(link.id, nextUnpaidDue)
-                                }}
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] font-normal",
+                                  billingStatus === "inactive"
+                                    ? "border-border bg-muted/50 text-muted-foreground"
+                                    : billingStatus === "paid"
+                                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                      : billingStatus === "overdue"
+                                        ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+                                        : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                                )}
                               >
-                                {isPaid ? "Pago" : markingPaidId === link?.id ? "Marcando..." : "Marcar como pago"}
-                              </Button>
+                                {billingStatus === "inactive"
+                                  ? "Inativa"
+                                  : billingStatus === "paid"
+                                    ? "Em dia"
+                                    : billingStatus === "overdue"
+                                      ? "Vencido"
+                                      : "Pendente"}
+                              </Badge>
+                              {!isPaid && billingStatus !== "inactive" && link?.id && nextUnpaidDue ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={markingPaidId === link.id}
+                                  onClick={() => void markAsPaid(link.id, nextUnpaidDue)}
+                                >
+                                  {markingPaidId === link.id ? "Marcando..." : "Marcar pago"}
+                                </Button>
+                              ) : null}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreVertical className="h-4 w-4" />
+                                  <Button variant="ghost" size="icon-sm" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem onClick={() => openEditSubscription(s)}>
-                                    <Edit className="h-4 w-4 mr-2" />
+                                    <Edit className="mr-2 h-4 w-4" />
                                     Editar
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
+                                    variant="destructive"
                                     onClick={() => void deleteSubscription(s)}
                                   >
-                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    <Trash2 className="mr-2 h-4 w-4" />
                                     Excluir
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
@@ -893,177 +989,439 @@ export default function SubscriptionsPage() {
                     )
                   })}
                 </div>
+                <ListPagination
+                  page={safeSubscriptionPage}
+                  totalPages={subscriptionTotalPages}
+                  totalItems={filteredSubscriptions.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setSubscriptionPage}
+                />
+                </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="groups" className="mt-6 space-y-6">
-          <SubscriptionSummaryCards summary={subscriptionSummary} />
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3">
+        <TabsContent value="groups" className="mt-4 space-y-4">
+          <Card className="gap-0 overflow-hidden py-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <CardHeader className="border-b border-border px-4 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle>Grupos cadastrados</CardTitle>
-                  <CardDescription>{groups.length} registro(s)</CardDescription>
+                  <CardTitle className="text-base">Grupos cadastrados</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    {filteredGroups.length} de {groups.length} registro(s)
+                  </CardDescription>
                 </div>
-                <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
-                  <DialogTrigger asChild>
-                    <Button>Criar grupo</Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Criar grupo</DialogTitle>
-                      <DialogDescription>Os grupos organizam suas assinaturas (ex.: Planos, Serviços, Pacotes).</DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Nome</Label>
-                          <Input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Ex: Planos de Suporte" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Descrição (opcional)</Label>
-                          <Input
-                            value={newGroupDescription}
-                            onChange={(e) => setNewGroupDescription(e.target.value)}
-                            placeholder="Detalhes do grupo"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setCreateGroupOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button onClick={createGroup} disabled={loading}>
-                        Criar
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                <div className="relative w-full sm:max-w-xs">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar grupo..."
+                    value={groupSearchTerm}
+                    onChange={(e) => setGroupSearchTerm(e.target.value)}
+                    className="h-9 pl-9"
+                  />
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
-              {groups.length === 0 ? (
-                <div className="text-sm text-muted-foreground">Nenhum grupo cadastrado.</div>
+            <CardContent className="p-4">
+              {filteredGroups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <FolderOpen className="mb-2 h-8 w-8 text-muted-foreground/35" />
+                  <p className="text-sm font-medium text-foreground">
+                    {groups.length === 0 ? "Nenhum grupo cadastrado" : "Nenhum resultado na busca"}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {groups.length === 0
+                      ? "Organize assinaturas em grupos como Planos ou Serviços"
+                      : "Tente outro termo de busca"}
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-3">
-                  {groups.map((g) => (
-                    <div key={g.id} className="rounded-lg border p-4">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <>
+                <div className="space-y-2">
+                  {paginatedGroups.map((g) => (
+                    <div
+                      key={g.id}
+                      className="rounded-lg border border-border/70 bg-card p-4 transition-colors hover:bg-muted/20"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
-                          <div className="font-semibold truncate">{g.name}</div>
-                          {g.description ? <div className="text-sm text-muted-foreground truncate">{g.description}</div> : null}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium text-foreground">{g.name}</p>
+                            <Badge variant="secondary" className="text-[10px] font-normal">
+                              {g._count?.subscriptions ?? 0} assinatura(s)
+                            </Badge>
+                          </div>
+                          {g.description ? (
+                            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{g.description}</p>
+                          ) : null}
                         </div>
-                        <div className="flex items-center gap-3 justify-end">
+                        <div className="flex shrink-0 items-center gap-4">
                           <div className="text-right">
-                            <div className="text-xs text-muted-foreground">{g._count?.subscriptions ?? 0} assinatura(s)</div>
-                            <div className="text-sm font-medium">{formatBRL2(Number(g.totalPrice || 0))}</div>
+                            <p className="text-[11px] text-muted-foreground">Total do grupo</p>
+                            <CurrencyAmount value={Number(g.totalPrice || 0)} size="sm" />
                           </div>
                           <Button
                             variant="outline"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs"
                             onClick={() => {
                               setActiveGroupId(g.id)
                               setGroupDrawerOpen(true)
                             }}
                           >
-                            Ver assinantes
+                            <Users className="h-3.5 w-3.5" />
+                            Assinantes
                           </Button>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
+                <ListPagination
+                  page={safeGroupPage}
+                  totalPages={groupTotalPages}
+                  totalItems={filteredGroups.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setGroupPage}
+                />
+                </>
               )}
             </CardContent>
           </Card>
-
-          <Dialog
-            open={groupDrawerOpen}
-            onOpenChange={(open) => {
-              setGroupDrawerOpen(open)
-              if (!open) setActiveGroupId(null)
-            }}
-          >
-            <DialogContent
-              className="fixed right-0 top-0 left-auto h-dvh w-full max-w-[calc(100%-2rem)] translate-x-0 translate-y-0 rounded-none sm:rounded-l-lg sm:max-w-xl overflow-hidden p-0"
-            >
-              <div className="flex h-full flex-col">
-                <div className="border-b p-6">
-                  <DialogHeader className="text-left">
-                    <DialogTitle>Assinantes do mês</DialogTitle>
-                    <DialogDescription>
-                      {activeGroupId ? groups.find((g) => g.id === activeGroupId)?.name : ""}
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className="rounded-md border p-3">
-                      <div className="text-xs text-muted-foreground">Recebido (mês)</div>
-                      <div className="text-sm font-medium">{formatBRL2(groupMonthSummary.received)}</div>
-                      <div className="text-xs text-muted-foreground">{groupMonthSummary.receivedCount} assinatura(s)</div>
-                    </div>
-                    <div className="rounded-md border p-3">
-                      <div className="text-xs text-muted-foreground">Restante (mês)</div>
-                      <div className="text-sm font-medium">{formatBRL2(groupMonthSummary.remaining)}</div>
-                      <div className="text-xs text-muted-foreground">{groupMonthSummary.remainingCount} assinatura(s)</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-auto p-6">
-                  {groupSubscriberRows.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">Nenhum assinante neste grupo para o mês atual.</div>
-                  ) : (
-                    <div className="space-y-2">
-                      {groupSubscriberRows.map((r) => (
-                        <div key={r.key} className="rounded-md border p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium truncate">{r.clientName}</div>
-                              <div className="text-xs text-muted-foreground truncate">{r.clientEmail}</div>
-                              <div className="mt-1 text-xs text-muted-foreground truncate">
-                                {r.subscriptionName} • {r.billingCycle === "MONTHLY" ? "Mensal" : "Anual"}
-                              </div>
-                              {r.status === "PAID" ? (
-                                <div className="mt-1 text-xs text-muted-foreground truncate">
-                                  Pago em: {r.paidAt ? formatDateTimeBR(r.paidAt) : "-"}
-                                </div>
-                              ) : null}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <div className="text-sm font-medium">{formatBRL2(r.price)}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Venc.: {r.dueThisMonth ? formatDateBR(r.dueThisMonth) : "-"}
-                              </div>
-                              <div className="mt-2 flex justify-end">
-                                <Badge variant={r.status === "PAID" ? "secondary" : "destructive"}>
-                                  {r.status === "PAID" ? "Pago" : "Pendente"}
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t p-4">
-                  <DialogFooter className="sm:justify-end">
-                    <Button variant="outline" onClick={() => setGroupDrawerOpen(false)}>
-                      Fechar
-                    </Button>
-                  </DialogFooter>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={createSubscriptionOpen} onOpenChange={setCreateSubscriptionOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Nova assinatura</DialogTitle>
+            <DialogDescription>Preencha os dados para criar a assinatura vinculada a um cliente.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Grupo</Label>
+                <Select value={subGroupId} onValueChange={setSubGroupId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ciclo</Label>
+                <Select value={subCycle} onValueChange={(v) => setSubCycle(v as "MONTHLY" | "YEARLY")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MONTHLY">Mensal</SelectItem>
+                    <SelectItem value="YEARLY">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input value={subName} onChange={(e) => setSubName(e.target.value)} placeholder="Ex: Suporte Premium" />
+              </div>
+              <div className="space-y-2">
+                <Label>Preço</Label>
+                <Input
+                  value={subPrice}
+                  inputMode="numeric"
+                  onChange={(e) => setSubPrice(formatCurrencyBRFromDigits(e.target.value))}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Dia de vencimento</Label>
+              <Select value={subDueDay} onValueChange={setSubDueDay}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 31 }).map((_, i) => {
+                    const v = String(i + 1)
+                    return (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Descrição (opcional)</Label>
+              <Input value={subDescription} onChange={(e) => setSubDescription(e.target.value)} placeholder="Detalhes da assinatura" />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cliente</Label>
+              <ClientPicker
+                value={selectedClientId || ""}
+                onChange={(id) => setSelectedClientId(id ? id : null)}
+                placeholder="Selecione um cliente"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateSubscriptionOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={createSubscription} disabled={loading}>
+              Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editSubscriptionOpen} onOpenChange={setEditSubscriptionOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar assinatura</DialogTitle>
+            <DialogDescription>Atualize os dados da assinatura e o dia de vencimento.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Grupo</Label>
+                <Select value={editGroupId} onValueChange={setEditGroupId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um grupo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ciclo</Label>
+                <Select value={editCycle} onValueChange={(v) => setEditCycle(v as "MONTHLY" | "YEARLY")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MONTHLY">Mensal</SelectItem>
+                    <SelectItem value="YEARLY">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <ClientPicker
+                  value={editClientId || ""}
+                  onChange={(id) => setEditClientId(id ? id : null)}
+                  placeholder="Selecione um cliente"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ex: Suporte Premium" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Preço</Label>
+                <Input
+                  value={editPrice}
+                  inputMode="numeric"
+                  onChange={(e) => setEditPrice(formatCurrencyBRFromDigits(e.target.value))}
+                  placeholder="0,00"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Dia de vencimento</Label>
+                <Select value={editDueDay} onValueChange={setEditDueDay}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 31 }).map((_, i) => {
+                      const v = String(i + 1)
+                      return (
+                        <SelectItem key={v} value={v}>
+                          {v}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Descrição (opcional)</Label>
+              <Input
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Detalhes da assinatura"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditSubscriptionOpen(false)
+                setEditingSubscriptionId(null)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={updateSubscription} disabled={loading || !editingSubscriptionId}>
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Novo grupo</DialogTitle>
+            <DialogDescription>Organize assinaturas em grupos (ex.: Planos, Serviços, Pacotes).</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Ex: Planos de Suporte" />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição (opcional)</Label>
+              <Input
+                value={newGroupDescription}
+                onChange={(e) => setNewGroupDescription(e.target.value)}
+                placeholder="Detalhes do grupo"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateGroupOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={createGroup} disabled={loading}>
+              Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupDrawerOpen}
+        onOpenChange={(open) => {
+          setGroupDrawerOpen(open)
+          if (!open) setActiveGroupId(null)
+        }}
+      >
+        <DialogContent className="fixed right-0 top-0 left-auto h-dvh w-full max-w-[calc(100%-2rem)] translate-x-0 translate-y-0 overflow-hidden rounded-none p-0 sm:max-w-xl sm:rounded-l-lg">
+          <div className="flex h-full flex-col">
+            <div className="border-b p-6">
+              <DialogHeader className="text-left">
+                <DialogTitle>Assinantes do mês</DialogTitle>
+                <DialogDescription>
+                  {activeGroupId ? groups.find((g) => g.id === activeGroupId)?.name : ""}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">Recebido</p>
+                  <CurrencyAmount value={groupMonthSummary.received} size="sm" className="mt-1" />
+                  <p className="mt-1 text-xs text-muted-foreground">{groupMonthSummary.receivedCount} assinatura(s)</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">Restante</p>
+                  <CurrencyAmount value={groupMonthSummary.remaining} size="sm" className="mt-1" />
+                  <p className="mt-1 text-xs text-muted-foreground">{groupMonthSummary.remainingCount} assinatura(s)</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto p-6">
+              {groupSubscriberRows.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Users className="mb-2 h-8 w-8 text-muted-foreground/35" />
+                  <p className="text-sm text-muted-foreground">Nenhum assinante neste grupo para o mês atual.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {groupSubscriberRows.map((r) => (
+                    <div key={r.key} className="rounded-lg border border-border/70 bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{r.clientName}</p>
+                          <p className="truncate text-xs text-muted-foreground">{r.clientEmail}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {r.subscriptionName} · {r.billingCycle === "MONTHLY" ? "Mensal" : "Anual"}
+                          </p>
+                          {r.status === "PAID" && r.paidAt ? (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Pago em {formatDateTimeBR(r.paidAt)}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <CurrencyAmount value={r.price} size="sm" />
+                          <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                            Venc. {r.dueThisMonth ? formatDateBR(r.dueThisMonth) : "—"}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "mt-2 text-[10px] font-normal",
+                              r.status === "PAID"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                            )}
+                          >
+                            {r.status === "PAID" ? "Pago" : "Pendente"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t p-4">
+              <DialogFooter className="sm:justify-end">
+                <Button variant="outline" onClick={() => setGroupDrawerOpen(false)}>
+                  Fechar
+                </Button>
+              </DialogFooter>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+    </PageLoadingGate>
   )
 }

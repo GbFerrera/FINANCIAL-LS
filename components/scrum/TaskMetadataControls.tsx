@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { MODULE_LABEL } from '@/lib/module-labels'
 import { cn } from '@/lib/utils'
 import {
   Calendar as CalendarIcon,
@@ -582,7 +583,7 @@ export function TaskMetadataControls({
           <PopoverTrigger asChild>
             <ActionChip active={isOpen('milestone') || !!milestoneId}>
               <CheckSquare className="w-3.5 h-3.5 opacity-70" />
-              Milestone
+              {MODULE_LABEL}
             </ActionChip>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-64 p-2" {...popoverFocusHandlers}>
@@ -743,7 +744,7 @@ export function TaskMetadataControls({
             <SummaryPopoverRow
               open={isSummaryOpen('milestone')}
               onOpenChange={(open) => setSummaryPanel(open ? 'milestone' : null)}
-              title="Milestone"
+              title={MODULE_LABEL}
               hasContent
               emptyHint=""
               content={
@@ -865,7 +866,7 @@ export function TaskMetadataControls({
 
           {milestone && (
             <SummaryBlock
-              title="Milestone"
+              title={MODULE_LABEL}
               onEdit={() => setPanel('milestone')}
               hasContent
               emptyHint=""

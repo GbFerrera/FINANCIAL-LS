@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { TimerEventType } from '@prisma/client'
 import { startOfDay, endOfDay } from 'date-fns'
 
 export async function GET(request: NextRequest) {
@@ -114,11 +115,93 @@ export async function GET(request: NextRequest) {
           }
         })
 
+        // Entradas de tempo do dia (agenda completa)
+        const todayTimeEntries = await prisma.timeEntry.findMany({
+          where: {
+            userId: user.id,
+            startTime: {
+              gte: startOfToday,
+              lte: endOfToday,
+            },
+          },
+          include: {
+            task: {
+              select: {
+                title: true,
+                project: {
+                  select: { name: true },
+                },
+              },
+            },
+          },
+          orderBy: { startTime: 'asc' },
+        })
+
+        const agendaBlocks = todayTimeEntries.map((entry) => {
+          let durationSeconds = entry.duration ?? 0
+
+          if (!entry.endTime) {
+            durationSeconds = Math.max(
+              durationSeconds,
+              Math.floor((Date.now() - entry.startTime.getTime()) / 1000)
+            )
+          } else if (!durationSeconds) {
+            durationSeconds = Math.floor(
+              (entry.endTime.getTime() - entry.startTime.getTime()) / 1000
+            )
+          }
+
+          return {
+            id: entry.id,
+            startTime: entry.startTime.toISOString(),
+            endTime: entry.endTime?.toISOString() ?? null,
+            durationSeconds,
+            taskTitle: entry.task.title,
+            projectName: entry.task.project?.name || 'Sem projeto',
+            isActive: !entry.endTime,
+          }
+        })
+
+        if (agendaBlocks.length === 0) {
+          const timerEvents = await prisma.timerEvent.findMany({
+            where: {
+              userId: user.id,
+              timestamp: { gte: startOfToday, lte: endOfToday },
+              type: { in: [TimerEventType.TIMER_PAUSE, TimerEventType.TIMER_STOP] },
+              duration: { gt: 0 },
+            },
+            orderBy: { timestamp: 'asc' },
+          })
+
+          for (const event of timerEvents) {
+            const endTime = event.timestamp
+            const startTime = new Date(endTime.getTime() - (event.duration ?? 0) * 1000)
+            agendaBlocks.push({
+              id: event.id,
+              startTime: startTime.toISOString(),
+              endTime: endTime.toISOString(),
+              durationSeconds: event.duration ?? 0,
+              taskTitle: event.taskTitle,
+              projectName: event.projectName || 'Sem projeto',
+              isActive: false,
+            })
+          }
+        }
+
         // Calcular tempo trabalhado hoje
-        const timeWorked = todayTasks.reduce((total, task) => {
-          return total + task.timeEntries.reduce((taskTotal, entry) => {
-            return taskTotal + (entry.duration || 0)
-          }, 0)
+        const timeWorked = todayTimeEntries.reduce((total, entry) => {
+          let durationSeconds = entry.duration ?? 0
+          if (!entry.endTime) {
+            durationSeconds = Math.max(
+              durationSeconds,
+              Math.floor((Date.now() - entry.startTime.getTime()) / 1000)
+            )
+          } else if (!durationSeconds) {
+            durationSeconds = Math.floor(
+              (entry.endTime.getTime() - entry.startTime.getTime()) / 1000
+            )
+          }
+          return total + durationSeconds
         }, 0)
 
         // Tarefa atual (em progresso com timer ativo)
@@ -146,7 +229,8 @@ export async function GET(request: NextRequest) {
             tasksCompleted: todayTasks.filter(t => t.status === 'COMPLETED').length,
             timeWorked: Math.floor(timeWorked / 60), // converter para minutos
             tasksInProgress: todayTasks.filter(t => t.status === 'IN_PROGRESS').length
-          }
+          },
+          agendaBlocks,
         }
       })
     )

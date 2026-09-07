@@ -277,6 +277,29 @@ export class TimerEventService {
         }
       }
 
+      const dailyMap = new Map<string, number>()
+      const projectMap = new Map<string, number>()
+
+      for (const event of events) {
+        if (
+          (event.type === TimerEventType.TIMER_PAUSE || event.type === TimerEventType.TIMER_STOP) &&
+          event.duration
+        ) {
+          const dayKey = event.timestamp.toISOString().slice(0, 10)
+          dailyMap.set(dayKey, (dailyMap.get(dayKey) || 0) + event.duration)
+        }
+      }
+
+      for (const task of taskStats.values()) {
+        const projectName = task.projectName || 'Sem projeto'
+        projectMap.set(projectName, (projectMap.get(projectName) || 0) + task.totalTime)
+      }
+
+      const formatDayLabel = (dayKey: string) => {
+        const [, month, day] = dayKey.split('-')
+        return `${day}/${month}`
+      }
+
       return {
         totalWorkTime, // em segundos
         totalSessions,
@@ -285,7 +308,20 @@ export class TimerEventService {
         taskBreakdown: Array.from(taskStats.entries()).map(([taskId, stats]) => ({
           taskId,
           ...stats
-        }))
+        })),
+        dailyBreakdown: Array.from(dailyMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, seconds]) => ({
+            date,
+            label: formatDayLabel(date),
+            minutes: Math.round(seconds / 60),
+          })),
+        projectBreakdown: Array.from(projectMap.entries())
+          .map(([name, seconds]) => ({
+            name,
+            minutes: Math.round(seconds / 60),
+          }))
+          .sort((a, b) => b.minutes - a.minutes),
       }
     } catch (error) {
       console.error('Erro ao calcular estatísticas de produtividade:', error)

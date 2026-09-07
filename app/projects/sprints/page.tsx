@@ -1,15 +1,23 @@
 'use client'
 
-import { Suspense, useState, useEffect, useMemo } from 'react'
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
+import { StatsCard } from '@/components/ui/stats-card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import { LoadingAnimation, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -34,12 +42,9 @@ import { cn } from "@/lib/utils"
 import { 
   Target, 
   Calendar as CalendarIcon, 
-  TrendingUp, 
   Search,
   Eye,
   Trash,
-  Play,
-  Pause,
   CheckCircle2,
   Plus,
   ChevronDown,
@@ -56,7 +61,6 @@ import { CreateSprintModal } from '@/components/scrum/CreateSprintModal'
 import { isSprintArchivable, sprintArchiveBlockedReason } from '@/lib/sprint-archive'
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from 'react-big-calendar'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface Sprint {
@@ -150,7 +154,8 @@ function SprintsPageContent() {
   })
   const [deleteTarget, setDeleteTarget] = useState<Sprint | null>(null)
   const [expandedProjects, setExpandedProjects] = useState<string[]>([])
-  const [isCalendarExpanded, setIsCalendarExpanded] = useState(true)
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false)
+  const calendarAutoOpened = useRef(false)
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [calendarView, setCalendarView] = useState<View>(Views.MONTH)
 
@@ -224,6 +229,32 @@ function SprintsPageContent() {
     })
   }, [filteredSprints])
 
+  const sprintStats = useMemo(() => {
+    const active = filteredSprints.filter((s) => s.status === 'ACTIVE').length
+    const planning = filteredSprints.filter((s) => s.status === 'PLANNING').length
+    const completed = filteredSprints.filter((s) => s.status === 'COMPLETED').length
+    const projects = new Set(
+      filteredSprints.flatMap((s) => [
+        s.project?.id,
+        ...(s.projects?.map((p) => p.id) ?? []),
+      ].filter(Boolean))
+    ).size
+    return {
+      total: filteredSprints.length,
+      active,
+      planning,
+      completed,
+      projects,
+    }
+  }, [filteredSprints])
+
+  useEffect(() => {
+    if (!loading && !calendarAutoOpened.current) {
+      calendarAutoOpened.current = true
+      setShowCalendarDialog(true)
+    }
+  }, [loading])
+
   useEffect(() => {
     if (groupedSprints.length > 0) {
       const firstId = groupedSprints[0].project.id
@@ -246,11 +277,12 @@ function SprintsPageContent() {
   }, [filteredSprints])
 
   const eventStyleGetter = (event: SprintEvent) => {
-    let className = 'bg-gray-500 text-white border-none rounded'
-    if (event.status === 'PLANNING') className = 'bg-amber-500 text-white border-none rounded'
-    else if (event.status === 'ACTIVE') className = 'bg-emerald-600 text-white border-none rounded'
-    else if (event.status === 'COMPLETED') className = 'bg-[#161f46] text-white border-none rounded'
-    else if (event.status === 'CANCELLED') className = 'bg-rose-600 text-white border-none rounded'
+    let className = 'border-none rounded-md text-[11px] font-medium shadow-sm'
+    if (event.status === 'PLANNING') className += ' !bg-amber-500/90 !text-white'
+    else if (event.status === 'ACTIVE') className += ' !bg-emerald-600/90 !text-white'
+    else if (event.status === 'COMPLETED') className += ' !bg-primary/80 !text-primary-foreground'
+    else if (event.status === 'CANCELLED') className += ' !bg-rose-600/90 !text-white'
+    else className += ' !bg-muted-foreground/70 !text-white'
     return { className, style: { border: 'none' } }
   }
 
@@ -533,30 +565,15 @@ function SprintsPageContent() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'PLANNING':
-        return 'bg-amber-100 text-amber-800 border border-amber-200'
+        return 'border-amber-200/80 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300'
       case 'ACTIVE':
-        return 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+        return 'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
       case 'COMPLETED':
-        return 'bg-[#161f46]/10 text-[#161f46] border border-[#161f46]/20'
+        return 'border-border bg-muted/60 text-foreground'
       case 'CANCELLED':
-        return 'bg-rose-100 text-rose-800 border border-rose-200'
+        return 'border-rose-200/80 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300'
       default:
-        return 'bg-gray-100 text-gray-800 border border-muted'
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PLANNING':
-        return <CalendarIcon className="w-4 h-4" />
-      case 'ACTIVE':
-        return <Play className="w-4 h-4" />
-      case 'COMPLETED':
-        return <CheckCircle2 className="w-4 h-4" />
-      case 'CANCELLED':
-        return <Pause className="w-4 h-4" />
-      default:
-        return <CalendarIcon className="w-4 h-4" />
+        return 'border-border bg-muted text-muted-foreground'
     }
   }
 
@@ -636,493 +653,405 @@ function SprintsPageContent() {
     <PageLoadingGate loading={loading}>
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {showArchived ? 'Sprints Arquivadas' : 'Todas as Sprints'}
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            {showArchived ? 'Sprints arquivadas' : 'Sprints'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="mt-1 text-muted-foreground">
             {showArchived
-              ? 'Sprints concluídas ou canceladas que foram arquivadas'
-              : 'Visualize e gerencie todas as sprints dos seus projetos'}
+              ? 'Histórico de sprints concluídas ou canceladas'
+              : 'Planeje ciclos, acompanhe progresso e abra o quadro de cada sprint'}
           </p>
         </div>
-        <div className="flex gap-2">
-          <div className="bg-muted p-1 rounded-lg flex gap-1">
-            <Button
-              variant={viewMode === 'mkt' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('mkt')}
-              className="text-xs h-8"
-            >
-              MKT
-            </Button>
-            <Button
-              variant={viewMode === 'dev' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('dev')}
-              className="text-xs h-8"
-            >
-              Dev
-            </Button>
-            <Button
-              variant={viewMode === 'all' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('all')}
-              className="text-xs h-8"
-            >
-              Todos
-            </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-md border border-border/80 bg-muted/30 p-0.5">
+            {(['mkt', 'dev', 'all'] as const).map((mode) => (
+              <Button
+                key={mode}
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setViewMode(mode)}
+                className={cn(
+                  'h-8 rounded-sm px-3 text-xs font-medium text-muted-foreground',
+                  viewMode === mode && 'bg-background text-foreground shadow-sm'
+                )}
+              >
+                {mode === 'mkt' ? 'MKT' : mode === 'dev' ? 'Dev' : 'Todos'}
+              </Button>
+            ))}
           </div>
-          <Button
-            onClick={() => setShowCreateSprint(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 h-10"
-            disabled={showArchived}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Sprint
+          <Button onClick={() => setShowCreateSprint(true)} disabled={showArchived}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova sprint
           </Button>
         </div>
       </div>
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Buscar sprints, projetos ou clientes..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex gap-2 items-center">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-[240px] justify-start text-left font-normal",
-                      !dateFilter && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFilter ? format(dateFilter, "PPP", { locale: ptBR }) : <span>Filtrar por data</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <UiCalendar
-                    mode="single"
-                    selected={dateFilter}
-                    onSelect={(date) => {
-                      setDateFilter(date)
-                      if (date) setCalendarDate(date)
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {dateFilter && (
-                <Button 
-                  variant="ghost" 
-                  onClick={() => setDateFilter(undefined)}
-                  className="h-9 w-9 p-0"
-                >
-                  <Trash className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                </Button>
-              )}
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatsCard title="Sprints visíveis" value={sprintStats.total} change={{ value: `${sprintStats.projects} projetos`, type: 'neutral' }} />
+        <StatsCard title="Ativas" value={sprintStats.active} change={{ value: 'Em execução', type: 'neutral' }} />
+        <StatsCard title="Planejamento" value={sprintStats.planning} change={{ value: 'A iniciar', type: 'neutral' }} />
+        <StatsCard title="Concluídas" value={sprintStats.completed} change={{ value: showArchived ? 'Modo arquivo' : 'Finalizadas', type: 'neutral' }} />
+      </div>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm h-10 bg-background"
-              >
-                <option value="all">Todos os Status</option>
-                <option value="PLANNING">Planejamento</option>
-                <option value="ACTIVE">Ativa</option>
-                <option value="COMPLETED">Concluída</option>
-                <option value="CANCELLED">Cancelada</option>
-              </select>
-              <Button
-                variant={showArchived ? 'default' : 'outline'}
-                size="sm"
-                className="h-10"
-                onClick={() => setShowArchived((v) => !v)}
-              >
-                <Archive className="w-4 h-4 mr-2" />
-                {showArchived ? 'Ver ativas' : 'Arquivadas'}
-              </Button>
-            </div>
+      {/* Toolbar */}
+      <div className="rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar sprint, projeto ou cliente..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-9 border-border/80 bg-background pl-9"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex flex-wrap items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    'h-9 justify-start font-normal',
+                    !dateFilter && 'text-muted-foreground'
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                  {dateFilter ? format(dateFilter, 'PPP', { locale: ptBR }) : 'Filtrar por data'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <UiCalendar
+                  mode="single"
+                  selected={dateFilter}
+                  onSelect={(date) => {
+                    setDateFilter(date)
+                    if (date) setCalendarDate(date)
+                  }}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            {dateFilter && (
+              <Button variant="ghost" size="icon-sm" onClick={() => setDateFilter(undefined)} aria-label="Limpar data">
+                <Trash className="h-4 w-4" />
+              </Button>
+            )}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="PLANNING">Planejamento</SelectItem>
+                <SelectItem value="ACTIVE">Ativa</SelectItem>
+                <SelectItem value="COMPLETED">Concluída</SelectItem>
+                <SelectItem value="CANCELLED">Cancelada</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant={showArchived ? 'default' : 'outline'}
+              size="sm"
+              className="h-9"
+              onClick={() => setShowArchived((v) => !v)}
+            >
+              <Archive className="mr-2 h-4 w-4" />
+              {showArchived ? 'Ver ativas' : 'Arquivadas'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9"
+              onClick={() => setShowCalendarDialog(true)}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              Agenda
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {dateFilter && (
-        <Card className="border-primary/50 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
-              <h3 className="text-lg font-semibold">
-                Tarefas do Dia: {format(dateFilter, "dd 'de' MMMM", { locale: ptBR })}
-              </h3>
-            </div>
-            
-            <div className="grid gap-3">
-              {filteredSprints.flatMap(sprint => 
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">
+              Tarefas em {format(dateFilter, "dd 'de' MMMM", { locale: ptBR })}
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {filteredSprints.flatMap(sprint =>
+              sprint.tasks
+                .filter(task => task.dueDate && isSameDay(new Date(task.dueDate), dateFilter))
+                .map(task => ({ ...task, sprintName: sprint.name, projectName: sprint.project?.name || 'Sem Projeto' }))
+            ).length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma tarefa agendada para este dia.</p>
+            ) : (
+              filteredSprints.flatMap(sprint =>
                 sprint.tasks
                   .filter(task => task.dueDate && isSameDay(new Date(task.dueDate), dateFilter))
-                  .map(task => ({ ...task, sprintName: sprint.name, projectName: sprint.project?.name || 'Sem Projeto' }))
-              ).length === 0 ? (
-                <p className="text-sm text-muted-foreground pl-7">Nenhuma tarefa agendada para este dia nas sprints selecionadas.</p>
-              ) : (
-                filteredSprints.flatMap(sprint => 
-                  sprint.tasks
-                    .filter(task => task.dueDate && isSameDay(new Date(task.dueDate), dateFilter))
-                    .map(task => ({ ...task, sprintName: sprint.name, projectName: sprint.project?.name || 'Sem Projeto', sprintId: sprint.id, projectId: sprint.project?.id }))
-                ).map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-3 bg-background rounded-lg border shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        task.status === 'COMPLETED' ? 'bg-green-500' : 
-                        task.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-amber-500'
-                      }`} />
-                      <div>
-                        <p className="font-medium text-sm">{task.title}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{task.sprintName}</span>
-                          <span>•</span>
-                          <span>{task.projectName}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {task.storyPoints && (
-                        <Badge variant="outline" className="text-[10px] h-5">
-                          {task.storyPoints} SP
-                        </Badge>
-                      )}
-                      <Badge variant="secondary" className="text-[10px]">
-                        {task.status === 'TODO' ? 'A Fazer' :
-                         task.status === 'IN_PROGRESS' ? 'Em Progresso' :
-                         task.status === 'COMPLETED' ? 'Concluído' : task.status}
-                      </Badge>
-                      <Link href={`/projects/${task.projectId || 'unknown'}/scrum?sprint=${task.sprintId}`}>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                          <Eye className="w-3 h-3" />
-                        </Button>
-                      </Link>
-                    </div>
+                  .map(task => ({ ...task, sprintName: sprint.name, projectName: sprint.project?.name || 'Sem Projeto', sprintId: sprint.id, projectId: sprint.project?.id }))
+              ).map(task => (
+                <div key={task.id} className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-card px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {task.sprintName} · {task.projectName}
+                    </p>
                   </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {task.storyPoints != null && (
+                      <Badge variant="outline" className="text-[10px]">{task.storyPoints} SP</Badge>
+                    )}
+                    <Badge variant="secondary" className="text-[10px]">
+                      {task.status === 'TODO' ? 'A fazer' :
+                       task.status === 'IN_PROGRESS' ? 'Em andamento' :
+                       task.status === 'COMPLETED' ? 'Concluído' : task.status}
+                    </Badge>
+                    <Link href={`/projects/${task.projectId || 'unknown'}/scrum?sprint=${task.sprintId}`}>
+                      <Button variant="ghost" size="icon-sm" aria-label="Ver sprint">
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       )}
 
-      <Card className="overflow-hidden">
-        <div 
-          className="flex flex-row items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <CalendarIcon className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex flex-col">
-              <h3 className="text-base font-semibold leading-none">
-                {viewMode === 'mkt' ? 'Agenda MKT' : viewMode === 'dev' ? 'Agenda de Desenvolvimento' : 'Agenda Geral'}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isCalendarExpanded 
-                  ? 'Visualize a distribuição das sprints no calendário'
-                  : 'Clique para expandir e visualizar o calendário'}
-              </p>
-            </div>
+      <Dialog open={showCalendarDialog} onOpenChange={setShowCalendarDialog}>
+        <DialogContent className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-3 p-4 sm:max-w-[96vw]">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>
+              {viewMode === 'mkt' ? 'Calendário MKT' : viewMode === 'dev' ? 'Calendário Dev' : 'Calendário de sprints'}
+            </DialogTitle>
+          </DialogHeader>
+          <style>{`
+            .rbc-today { background-color: hsl(var(--muted) / 0.55) !important; }
+            .rbc-calendar { color: hsl(var(--foreground)); font-size: 14px; height: 100% !important; }
+            .rbc-off-range-bg { background-color: hsl(var(--muted) / 0.25) !important; }
+            .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-month-row, .rbc-day-bg, .rbc-header {
+              border-color: hsl(var(--border)) !important;
+            }
+            .rbc-header { padding: 10px 0; font-weight: 600; font-size: 13px; }
+            .rbc-toolbar button {
+              color: hsl(var(--foreground));
+              border-color: hsl(var(--border));
+              border-radius: 6px;
+              font-size: 13px;
+              padding: 6px 12px;
+            }
+            .rbc-toolbar button:hover {
+              background-color: hsl(var(--muted));
+            }
+            .rbc-toolbar button.rbc-active {
+              background-color: hsl(var(--primary));
+              color: hsl(var(--primary-foreground));
+              border-color: hsl(var(--primary));
+            }
+            .rbc-toolbar-label { color: hsl(var(--foreground)); font-weight: 600; font-size: 16px; }
+            .rbc-event { padding: 3px 6px !important; font-size: 12px; }
+            .rbc-month-row { min-height: 100px; }
+          `}</style>
+          <div className="min-h-0 flex-1">
+            <RBCalendar
+              components={components}
+              localizer={localizer}
+              events={sprintEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: '100%' }}
+              view={calendarView}
+              onView={(v) => setCalendarView(v)}
+              date={calendarDate}
+              onNavigate={(d) => setCalendarDate(d)}
+              culture="pt-BR"
+              onSelectEvent={(event: SprintEvent) => {
+                if (event.projectId) {
+                  setShowCalendarDialog(false)
+                  router.push(`/projects/${event.projectId}/scrum?sprint=${event.id}`)
+                } else {
+                  toast.error('Sprint sem projeto associado')
+                }
+              }}
+              messages={{
+                next: 'Próximo',
+                previous: 'Anterior',
+                today: 'Hoje',
+                month: 'Mês',
+                week: 'Semana',
+                day: 'Dia',
+                agenda: 'Agenda',
+                date: 'Data',
+                time: 'Hora',
+                event: 'Sprint',
+                noEventsInRange: 'Não há sprints neste período.',
+                allDay: 'Dia todo'
+              }}
+              eventPropGetter={eventStyleGetter}
+            />
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 shrink-0 text-muted-foreground"
-          >
-            {isCalendarExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
-        </div>
-        {isCalendarExpanded && (
-          <CardContent className="p-0 border-t transition-all duration-200 ease-in-out">
-            <style>{`
-              .rbc-today {
-                background-color: hsl(var(--muted)) !important;
-              }
-              .dark .rbc-today {
-                background-color: #ffffff !important;
-              }
-              .dark .rbc-today .rbc-button-link {
-                color: #2563eb !important;
-              }
-              .rbc-calendar {
-                color: hsl(var(--foreground));
-              }
-              .rbc-off-range-bg {
-                background-color: hsl(var(--muted) / 0.3) !important;
-              }
-              .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-month-row, .rbc-day-bg, .rbc-header {
-                border-color: hsl(var(--border)) !important;
-              }
-              .rbc-header {
-                padding: 8px 0;
-                font-weight: 600;
-              }
-              .rbc-toolbar button {
-                color: hsl(var(--foreground));
-                border-color: hsl(var(--border));
-              }
-              .rbc-toolbar button:hover {
-                background-color: hsl(var(--accent));
-                color: hsl(var(--accent-foreground));
-              }
-              .rbc-toolbar button.rbc-active {
-                background-color: hsl(var(--primary));
-                color: hsl(var(--primary-foreground));
-                border-color: hsl(var(--primary));
-              }
-              .rbc-toolbar button.rbc-active:hover {
-                background-color: hsl(var(--primary) / 0.9);
-              }
-              .rbc-toolbar-label {
-                color: hsl(var(--foreground));
-                font-weight: 600;
-              }
-            `}</style>
-            <div className="h-[500px] p-4">
-              <RBCalendar
-                components={components}
-                localizer={localizer}
-                events={sprintEvents}
-                startAccessor="start"
-                endAccessor="end"
-                style={{ height: '100%' }}
-                view={calendarView}
-                onView={(v) => setCalendarView(v)}
-                date={calendarDate}
-                onNavigate={(d) => setCalendarDate(d)}
-                culture="pt-BR"
-                onSelectEvent={(event: SprintEvent) => {
-                  if (event.projectId) {
-                    router.push(`/projects/${event.projectId}/scrum?sprint=${event.id}`)
-                  } else {
-                    toast.error('Sprint sem projeto associado')
-                  }
-                }}
-                messages={{
-                  next: 'Próximo',
-                  previous: 'Anterior',
-                  today: 'Hoje',
-                  month: 'Mês',
-                  week: 'Semana',
-                  day: 'Dia',
-                  agenda: 'Agenda',
-                  date: 'Data',
-                  time: 'Hora',
-                  event: 'Sprint',
-                  noEventsInRange: 'Não há sprints neste período.',
-                  allDay: 'Dia todo'
-                }}
-                eventPropGetter={eventStyleGetter}
-              />
-            </div>
-          </CardContent>
-        )}
-      </Card>
+        </DialogContent>
+      </Dialog>
 
-      {/* Lista de Sprints Agrupada por Projeto */}
-      <div className="space-y-4">
+      {/* Lista por projeto */}
+      <div className="space-y-3">
         {groupedSprints.map(({ project, sprints }) => {
           const isExpanded = expandedProjects.includes(project.id)
-          
+
           return (
-            <div key={project.id} className="border rounded-lg bg-card text-card-foreground shadow-sm overflow-hidden">
-              <div 
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+            <div key={project.id} className="overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40"
                 onClick={() => toggleProject(project.id)}
               >
-                <div className="flex items-center gap-4">
-                  {isExpanded ? <ChevronDown className="w-5 h-5 text-muted-foreground" /> : <ChevronRight className="w-5 h-5 text-muted-foreground" />}
-                  <div>
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      {project.name}
-                      <Badge variant="secondary" className="text-xs font-normal">
-                        {project.client?.name || 'Cliente não definido'}
+                <div className="flex min-w-0 items-center gap-3">
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-sm font-semibold text-foreground">{project.name}</h3>
+                      <Badge variant="secondary" className="text-[10px] font-normal">
+                        {project.client?.name || 'Sem cliente'}
                       </Badge>
-                    </h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {sprints.length} sprint{sprints.length !== 1 ? 's' : ''} encontrada{sprints.length !== 1 ? 's' : ''}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {sprints.length} sprint{sprints.length !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              
+                <Badge variant="outline" className="shrink-0 text-[11px] tabular-nums">
+                  {sprints.length}
+                </Badge>
+              </button>
+
               {isExpanded && (
-                <div className="p-4 border-t bg-muted/10">
-                   <div className="flex flex-col gap-3">
-                    {sprints.map(sprint => {
-                      const metrics = getSprintMetrics(sprint)
-                      const timeInfo = getSprintTimeInfo(sprint)
-                      const startDate = new Date(sprint.startDate)
-                      const endDate = new Date(sprint.endDate)
-                      const today = new Date()
-                      const isCurrent = isWithinInterval(today, { start: startOfDay(startDate), end: endOfDay(endDate) })
-                      
-                      return (
-                        <Card 
-                          key={sprint.id} 
-                          className={`hover:shadow-md transition-all bg-background border-l-4 ${isCurrent ? 'border-l-primary ring-1 ring-primary/20' : 'border-l-transparent'}`}
-                        >
-                          <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center gap-4">
-                            {/* Info Principal */}
-                            <div className="flex-1 min-w-[200px]">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="text-base font-semibold line-clamp-1">{sprint.name}</h3>
-                                <Badge className={`${getStatusColor(sprint.status)} text-[10px] px-1.5 py-0 h-5`}>
-                                  {getStatusLabel(sprint.status)}
-                                </Badge>
-                              </div>
-                              {sprint.goal && (
-                                <p className="text-xs text-muted-foreground line-clamp-1 mb-2" title={sprint.goal}>
-                                  {sprint.goal}
-                                </p>
+                <div className="space-y-2 border-t border-border bg-muted/20 p-3">
+                  {sprints.map((sprint) => {
+                    const metrics = getSprintMetrics(sprint)
+                    const timeInfo = getSprintTimeInfo(sprint)
+                    const startDate = new Date(sprint.startDate)
+                    const endDate = new Date(sprint.endDate)
+                    const today = new Date()
+                    const isCurrent = isWithinInterval(today, { start: startOfDay(startDate), end: endOfDay(endDate) })
+
+                    return (
+                      <div
+                        key={sprint.id}
+                        className={cn(
+                          'rounded-md border border-border/80 bg-card p-3 transition-colors hover:border-border',
+                          isCurrent && 'ring-1 ring-primary/20'
+                        )}
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                          <div className="min-w-0 flex-1">
+                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                              <h4 className="truncate text-sm font-semibold text-foreground">{sprint.name}</h4>
+                              <Badge variant="outline" className={cn('border text-[10px] font-medium', getStatusColor(sprint.status))}>
+                                {getStatusLabel(sprint.status)}
+                              </Badge>
+                            </div>
+                            {sprint.goal && (
+                              <p className="mb-2 line-clamp-1 text-xs text-muted-foreground" title={sprint.goal}>
+                                {sprint.goal}
+                              </p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1">
+                                <CalendarIcon className="h-3.5 w-3.5" />
+                                {format(startDate, 'dd/MM', { locale: ptBR })} – {format(endDate, 'dd/MM/yyyy', { locale: ptBR })}
+                              </span>
+                              {timeInfo.statusText && (
+                                <span className={cn(isCurrent && 'font-medium text-primary', timeInfo.isDelayed && 'text-destructive')}>
+                                  {timeInfo.statusText}
+                                </span>
                               )}
-                              
-                              <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2">
-                                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${isCurrent ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted/50 border-border/50 text-muted-foreground'}`}>
-                                    <CalendarIcon className="w-3.5 h-3.5" />
-                                    <span className="text-sm font-medium">
-                                      {format(startDate, 'dd/MM', { locale: ptBR })} - {format(endDate, 'dd/MM', { locale: ptBR })}
-                                    </span>
-                                  </div>
-                                </div>
-                                
-                                {timeInfo.statusText && (
-                                  <div className="flex flex-col gap-0.5 ml-1">
-                                    <span className={`text-xs ${isCurrent ? 'text-primary font-medium' : (timeInfo.isDelayed ? 'text-destructive font-medium' : 'text-muted-foreground')}`}>
-                                      {timeInfo.statusText}
-                                      {isCurrent && timeInfo.remainingBusinessDays > 0 && (
-                                        <span className="opacity-80"> ({timeInfo.remainingBusinessDays} úteis)</span>
-                                      )}
-                                    </span>
-                                    {timeInfo.totalDays > 0 && (
-                                      <span className="text-[10px] text-muted-foreground opacity-80">
-                                        Duração: {timeInfo.totalDays} dias ({timeInfo.totalBusinessDays} úteis)
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
                             </div>
+                          </div>
 
-                            {/* Métricas e Progresso */}
-                            <div className="flex-1 w-full md:w-auto flex flex-col gap-2 min-w-[200px]">
-                              <div className="flex justify-between text-xs text-muted-foreground">
-                                <div className="flex gap-3">
-                                  <span className="flex items-center gap-1" title="Tarefas">
-                                    <Target className="w-3 h-3" /> {metrics.completedTasks}/{metrics.totalTasks}
-                                  </span>
-                                  <span className="flex items-center gap-1" title="Story Points">
-                                    <TrendingUp className="w-3 h-3" /> {metrics.completedStoryPoints}/{metrics.totalStoryPoints} SP
-                                  </span>
-                                </div>
-                                <span>{metrics.progress}%</span>
-                              </div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div 
-                                  className="bg-[#161f46] h-1.5 rounded-full transition-all duration-300"
-                                  style={{ width: `${metrics.progress}%` }}
-                                />
-                              </div>
+                          <div className="w-full min-w-[180px] lg:max-w-xs lg:flex-1">
+                            <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                              <span>{metrics.completedTasks}/{metrics.totalTasks} tarefas · {metrics.completedStoryPoints}/{metrics.totalStoryPoints} SP</span>
+                              <span className="font-medium text-foreground">{metrics.progress}%</span>
                             </div>
+                            <Progress value={metrics.progress} className="h-1.5" />
+                          </div>
 
-                            {/* Ações */}
-                            <div className="flex items-center w-full md:w-auto justify-end border-t md:border-t-0 pt-2 md:pt-0 mt-2 md:mt-0">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                                    aria-label="Ações da sprint"
-                                  >
-                                    <MoreHorizontal className="w-4 h-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-44">
-                                  {!showArchived && (
-                                    <>
-                                      <DropdownMenuItem asChild>
-                                        <Link
-                                          href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`}
-                                          className="cursor-pointer"
-                                        >
-                                          <Eye className="w-4 h-4 mr-2" />
-                                          Ver quadro
-                                        </Link>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => openEdit(sprint)}>
-                                        <Pencil className="w-4 h-4 mr-2" />
-                                        Editar
-                                      </DropdownMenuItem>
-                                      {(() => {
-                                        const blocked = sprintArchiveBlockedReason(sprint)
-                                        return (
-                                          <DropdownMenuItem
-                                            disabled={!!blocked || archiveLoading === sprint.id}
-                                            title={blocked ?? undefined}
-                                            onClick={() => {
-                                              if (blocked) return
-                                              handleArchiveSprint(sprint, true)
-                                            }}
-                                          >
-                                            <Archive className="w-4 h-4 mr-2" />
-                                            Arquivar
-                                          </DropdownMenuItem>
-                                        )
-                                      })()}
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        className="text-destructive focus:text-destructive"
-                                        onClick={() => setDeleteTarget(sprint)}
+                          <div className="flex shrink-0 items-center justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon-sm" aria-label="Ações da sprint">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                {!showArchived && (
+                                  <>
+                                    <DropdownMenuItem asChild>
+                                      <Link
+                                        href={`/projects/${sprint.project?.id || (sprint.projects && sprint.projects[0]?.id) || 'unknown'}/scrum?sprint=${sprint.id}`}
+                                        className="cursor-pointer"
                                       >
-                                        <Trash className="w-4 h-4 mr-2" />
-                                        Excluir
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                  {showArchived && (
-                                    <DropdownMenuItem
-                                      disabled={archiveLoading === sprint.id}
-                                      onClick={() => handleArchiveSprint(sprint, false)}
-                                    >
-                                      <ArchiveRestore className="w-4 h-4 mr-2" />
-                                      Restaurar
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Ver quadro
+                                      </Link>
                                     </DropdownMenuItem>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                   </div>
+                                    <DropdownMenuItem onClick={() => openEdit(sprint)}>
+                                      <Pencil className="mr-2 h-4 w-4" />
+                                      Editar
+                                    </DropdownMenuItem>
+                                    {(() => {
+                                      const blocked = sprintArchiveBlockedReason(sprint)
+                                      return (
+                                        <DropdownMenuItem
+                                          disabled={!!blocked || archiveLoading === sprint.id}
+                                          title={blocked ?? undefined}
+                                          onClick={() => {
+                                            if (blocked) return
+                                            handleArchiveSprint(sprint, true)
+                                          }}
+                                        >
+                                          <Archive className="mr-2 h-4 w-4" />
+                                          Arquivar
+                                        </DropdownMenuItem>
+                                      )
+                                    })()}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={() => setDeleteTarget(sprint)}
+                                    >
+                                      <Trash className="mr-2 h-4 w-4" />
+                                      Excluir
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {showArchived && (
+                                  <DropdownMenuItem
+                                    disabled={archiveLoading === sprint.id}
+                                    onClick={() => handleArchiveSprint(sprint, false)}
+                                  >
+                                    <ArchiveRestore className="mr-2 h-4 w-4" />
+                                    Restaurar
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -1131,25 +1060,29 @@ function SprintsPageContent() {
       </div>
 
       {filteredSprints.length === 0 && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">
-              {showArchived
-                ? 'Nenhuma sprint arquivada'
-                : searchTerm || statusFilter !== 'all'
-                  ? 'Nenhuma sprint encontrada'
-                  : 'Nenhuma sprint criada'}
-            </h3>
-            <p className="text-muted-foreground">
-              {showArchived
-                ? 'Arquive sprints concluídas ou canceladas para organizar a lista'
-                : searchTerm || statusFilter !== 'all'
-                  ? 'Tente ajustar os filtros de busca'
-                  : 'Crie sprints nos seus projetos para vê-las aqui'}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center">
+          <Target className="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
+          <h3 className="text-base font-medium text-foreground">
+            {showArchived
+              ? 'Nenhuma sprint arquivada'
+              : searchTerm || statusFilter !== 'all'
+                ? 'Nenhuma sprint encontrada'
+                : 'Nenhuma sprint criada'}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {showArchived
+              ? 'Arquive sprints concluídas para organizar a lista'
+              : searchTerm || statusFilter !== 'all'
+                ? 'Ajuste os filtros ou limpe a busca'
+                : 'Crie uma sprint ou vincule ciclos aos seus projetos'}
+          </p>
+          {!showArchived && !searchTerm && statusFilter === 'all' && (
+            <Button className="mt-4" onClick={() => setShowCreateSprint(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova sprint
+            </Button>
+          )}
+        </div>
       )}
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
@@ -1211,7 +1144,7 @@ function SprintsPageContent() {
             </div>
             <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setShowEditSprint(false)}>Cancelar</Button>
-              <Button onClick={submitEdit} className="bg-blue-600 hover:bg-blue-700">Salvar</Button>
+              <Button onClick={submitEdit}>Salvar</Button>
             </div>
           </div>
         </DialogContent>

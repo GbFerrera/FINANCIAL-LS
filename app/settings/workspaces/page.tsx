@@ -41,6 +41,7 @@ export default function WorkspacesSettingsPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const [canManage, setCanManage] = useState(false)
 
   const [workspaces, setWorkspaces] = useState<WorkspaceDTO[]>([])
   const [form, setForm] = useState(emptyForm())
@@ -60,11 +61,25 @@ export default function WorkspacesSettingsPage() {
   }
 
   useEffect(() => {
-    if (session && !isAdmin) {
-      router.replace('/dashboard')
-      return
+    if (!session?.user?.id) return
+
+    const loadAccess = async () => {
+      const permRes = await fetch(`/api/users/${session.user.id}/permissions`)
+      if (!permRes.ok) {
+        router.replace('/dashboard')
+        return
+      }
+      const data = await permRes.json()
+      const allowed = isAdmin || data.workspaceAccess?.canCreateWorkspaces
+      setCanManage(Boolean(allowed))
+      if (!allowed) {
+        router.replace('/dashboard')
+        return
+      }
+      load()
     }
-    if (isAdmin) load()
+
+    void loadAccess()
   }, [session, isAdmin, router])
 
   const openCreate = () => {
@@ -164,7 +179,7 @@ export default function WorkspacesSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold">Espaços de trabalho</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Agrupe projetos em áreas separadas (estilo Plane). Colaboradores navegam por espaço; você gerencia tudo em Gestão CEO.
+            Agrupe projetos em áreas separadas (estilo Plane). Colaboradores navegam por espaço; você gerencia tudo em Gestão.
           </p>
         </div>
         <div className="flex shrink-0 gap-2">

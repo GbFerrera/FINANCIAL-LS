@@ -12,7 +12,7 @@ type SprintTask = {
   id: string
   title: string
   description?: string
-  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
+  status: 'DRAFT' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   storyPoints?: number
   assignee?: { id: string; name: string; email: string; avatar?: string }
@@ -36,7 +36,7 @@ export function SprintKanbanColumns({ sprintId, tasks, onEdit, onDelete }: Sprin
   const { isCollapsed, toggle } = useKanbanColumnCollapse(`kanban-sprint-${sprintId}`)
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
       {SPRINT_COLUMNS.map((col) => {
         const columnKey = `${sprintId}|${col.id}`
         const tasksInColumn = tasks

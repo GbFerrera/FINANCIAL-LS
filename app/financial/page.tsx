@@ -3,31 +3,31 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { parseISO, format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays } from "date-fns"
+import { format, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, subDays } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
-import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import { PageLoadingGate } from '@/components/ui/loading-animation'
 import {
   Plus,
   Download,
-  Filter,
   Search,
   Calendar as CalendarIcon,
-  DollarSign,
-  TrendingUp,
-  TrendingDown,
-  Eye,
   Edit,
   Trash2,
   Paperclip,
   X,
   Upload,
-  FileText
+  FileText,
+  Users,
+  MoreHorizontal,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react"
 import { StatsCard } from "@/components/ui/stats-card"
+import { CurrencyAmount } from "@/components/ui/currency-amount"
 import { AddEntryModal } from "@/components/financial/add-entry-modal"
-import { ClientsFinancialOverview } from "@/components/financial/clients-financial-overview"
+import { ClientsFinancialOverviewDialog } from "@/components/financial/clients-financial-overview"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,7 +42,24 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import toast from "react-hot-toast"
 
 interface FinancialEntry {
@@ -99,6 +116,7 @@ export default function FinancialPage() {
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
+  const [showClientsOverview, setShowClientsOverview] = useState(false)
   const [showAttachmentsModal, setShowAttachmentsModal] = useState(false)
   const [attachmentsEntry, setAttachmentsEntry] = useState<FinancialEntry | null>(null)
   const [existingEntryAttachments, setExistingEntryAttachments] = useState<NonNullable<FinancialEntry['attachments']>>([])
@@ -304,212 +322,199 @@ export default function FinancialPage() {
     return matchesFilter && matchesSearch
   })
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(value)
-  }
-
   const formatDate = (dateString: string) => {
-    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
     const datePart = dateString.split('T')[0]
     const [year, month, day] = datePart.split('-')
     return `${day}/${month}/${year}`
   }
 
-  const getTypeColor = (type: string) => {
-    return type === 'INCOME' 
-      ? 'text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-300' 
-      : 'text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-300'
-  }
-
-  const getTypeIcon = (type: string) => {
-    return type === 'INCOME' ? TrendingUp : TrendingDown
+  const projectLabel = (entry: FinancialEntry) => {
+    const distributions = entry.projectDistributions ?? []
+    if (distributions.length === 0) return entry.projectName || '—'
+    if (distributions.length === 1) return distributions[0].projectName
+    return `${distributions.length} projetos`
   }
 
   return (
     <PageLoadingGate loading={status === "loading" || loading}>
- <>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="md:flex md:items-center md:justify-between">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-bold leading-7 text-foreground sm:text-3xl sm:truncate">
-              Fluxo de Caixa            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Controle completo das entradas e saídas financeiras
+      <div className="space-y-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Fluxo de caixa</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Controle de entradas e saídas financeiras
             </p>
           </div>
-          <div className="mt-4 flex space-x-3 md:mt-0 md:ml-4">
-            <button className="inline-flex items-center px-4 py-2 border border-input rounded-md shadow-sm text-sm font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground">
-              <Download className="-ml-1 mr-2 h-5 w-5" />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowClientsOverview(true)}>
+              <Users className="mr-2 h-4 w-4" />
+              Por cliente
+              {selectedClientId ? (
+                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1.5 text-[10px] font-normal">
+                  1
+                </Badge>
+              ) : null}
+            </Button>
+            <Button variant="outline" size="sm" type="button">
+              <Download className="mr-2 h-4 w-4" />
               Exportar
-            </button>
-            <button 
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90"
-            >
-              <Plus className="-ml-1 mr-2 h-5 w-5" />
-              Nova Entrada
-            </button>
+            </Button>
+            <Button size="sm" onClick={() => setShowAddModal(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova entrada
+            </Button>
           </div>
         </div>
 
-        {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatsCard
-              title="Receita Total"
-              value={formatCurrency(stats.totalIncome)}
-              icon={TrendingUp}
-              color="green"
-              change={{
-                value: formatCurrency(stats.monthlyIncome),
-                type: 'neutral'
-              }}
+              title="Receita total"
+              value={<CurrencyAmount value={stats.totalIncome} size="xl" />}
+              description="No período selecionado"
             />
             <StatsCard
-              title="Despesas Total"
-              value={formatCurrency(stats.totalExpenses)}
-              icon={TrendingDown}
-              color="red"
-              change={{
-                value: formatCurrency(stats.monthlyExpenses),
-                type: 'neutral'
-              }}
+              title="Despesas total"
+              value={<CurrencyAmount value={stats.totalExpenses} size="xl" />}
+              description="No período selecionado"
             />
             <StatsCard
-              title="Lucro Líquido"
-              value={formatCurrency(stats.netProfit)}
-              icon={DollarSign}
-              color={stats.netProfit >= 0 ? 'green' : 'red'}
-              change={{
-                value: formatCurrency(stats.monthlyProfit),
-                type: stats.monthlyProfit >= 0 ? 'increase' : 'decrease'
-              }}
+              title="Lucro líquido"
+              value={<CurrencyAmount value={stats.netProfit} size="xl" />}
+              description={`Mês atual: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(stats.monthlyProfit)}`}
             />
             <StatsCard
-              title="Margem de Lucro"
+              title="Margem"
               value={`${stats.totalIncome > 0 ? ((stats.netProfit / stats.totalIncome) * 100).toFixed(1) : 0}%`}
-              icon={TrendingUp}
-              color={stats.netProfit >= 0 ? 'blue' : 'red'}
-              change={{
-                value: `${stats.monthlyIncome > 0 ? ((stats.monthlyProfit / stats.monthlyIncome) * 100).toFixed(1) : 0}% este mês`,
-                type: 'neutral'
-              }}
+              description="Sobre a receita do período"
             />
           </div>
         )}
 
-        {/* Filters and Search */}
-        <div className="bg-card shadow rounded-lg border border-border">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-              {/* Search */}
-              <div className="sm:col-span-2">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Buscar por descrição, categoria ou projeto..."
+        <Card className="gap-0 overflow-hidden py-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <CardHeader className="border-b border-border px-4 py-3">
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Lançamentos</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    {filteredEntries.length} registro{filteredEntries.length === 1 ? '' : 's'}
+                  </CardDescription>
+                </div>
+                {selectedClientId && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 gap-1 self-start text-xs"
+                    onClick={() => setSelectedClientId(null)}
+                  >
+                    Filtro por cliente
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1fr_140px_minmax(200px,240px)]">
+                <div className="relative min-w-0">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar descrição, categoria ou projeto..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-input rounded-md leading-5 bg-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                    className="h-9 pl-9"
                   />
                 </div>
-              </div>
-              
-              {/* Type Filter */}
-              <div>
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value as 'all' | 'income' | 'expense')}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-input bg-background focus:outline-none focus:ring-primary focus:border-primary rounded-md"
-                >
-                  <option value="all">Todos os tipos</option>
-                  <option value="income">Receitas</option>
-                  <option value="expense">Despesas</option>
-                </select>
-              </div>
-              
-              {/* Date Range */}
-              <div className="sm:col-span-1">
+                <Select value={filter} onValueChange={(v) => setFilter(v as 'all' | 'income' | 'expense')}>
+                  <SelectTrigger size="sm" className="h-9 w-full">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="income">Receitas</SelectItem>
+                    <SelectItem value="expense">Despesas</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       id="date"
-                      variant={"outline"}
+                      variant="outline"
+                      size="sm"
                       className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dateRange && "text-muted-foreground"
+                        'h-9 w-full justify-start text-left font-normal',
+                        !dateRange && 'text-muted-foreground'
                       )}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>
-                            {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                            {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                          </>
+                      <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                      <span className="truncate">
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, 'dd/MM/yyyy', { locale: ptBR })} –{' '}
+                              {format(dateRange.to, 'dd/MM/yyyy', { locale: ptBR })}
+                            </>
+                          ) : (
+                            format(dateRange.from, 'dd/MM/yyyy', { locale: ptBR })
+                          )
                         ) : (
-                          format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                        )
-                      ) : (
-                        <span>Selecione o período</span>
-                      )}
+                          'Período'
+                        )}
+                      </span>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <div className="flex flex-col space-y-2 p-2 border-b">
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <div className="flex flex-col space-y-2 border-b p-2">
                       <div className="grid grid-cols-2 gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDateRange({
-                            from: startOfMonth(new Date()),
-                            to: endOfMonth(new Date())
-                          })}
+                          onClick={() =>
+                            setDateRange({
+                              from: startOfMonth(new Date()),
+                              to: endOfMonth(new Date()),
+                            })
+                          }
                           className="justify-start text-xs"
                         >
-                          Mês Atual
+                          Mês atual
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDateRange({
-                            from: startOfMonth(subMonths(new Date(), 1)),
-                            to: endOfMonth(subMonths(new Date(), 1))
-                          })}
+                          onClick={() =>
+                            setDateRange({
+                              from: startOfMonth(subMonths(new Date(), 1)),
+                              to: endOfMonth(subMonths(new Date(), 1)),
+                            })
+                          }
                           className="justify-start text-xs"
                         >
-                          Mês Anterior
+                          Mês anterior
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDateRange({
-                            from: subDays(new Date(), 30),
-                            to: new Date()
-                          })}
+                          onClick={() =>
+                            setDateRange({
+                              from: subDays(new Date(), 30),
+                              to: new Date(),
+                            })
+                          }
                           className="justify-start text-xs"
                         >
-                          Últimos 30 dias
+                          30 dias
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDateRange({
-                            from: startOfYear(new Date()),
-                            to: endOfYear(new Date())
-                          })}
+                          onClick={() =>
+                            setDateRange({
+                              from: startOfYear(new Date()),
+                              to: endOfYear(new Date()),
+                            })
+                          }
                           className="justify-start text-xs"
                         >
-                          Este Ano
+                          Este ano
                         </Button>
                       </div>
                     </div>
@@ -526,149 +531,125 @@ export default function FinancialPage() {
                 </Popover>
               </div>
             </div>
-          </div>
-        </div>
+          </CardHeader>
 
-        {/* Clients Financial Overview */}
-        <ClientsFinancialOverview 
-          onClientFilter={(clientId) => setSelectedClientId(clientId)}
-        />
-
-        {/* Entries Table */}
-        <div className="bg-card shadow rounded-lg overflow-hidden border border-border">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-foreground mb-4">
-              Entradas Financeiras ({filteredEntries.length})
-            </h3>
-            
+          <CardContent className="p-0">
             {filteredEntries.length === 0 ? (
-              <div className="text-center py-12">
-                <DollarSign className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhuma entrada encontrada</h3>
+              <div className="px-4 py-16 text-center">
+                <ArrowUpRight className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
+                <p className="text-sm font-medium text-foreground">Nenhum lançamento encontrado</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {searchTerm || filter !== 'all' ? 'Tente ajustar os filtros' : 'Comece adicionando uma nova entrada financeira'}
+                  {searchTerm || filter !== 'all'
+                    ? 'Ajuste os filtros ou limpe a busca.'
+                    : 'Adicione a primeira entrada financeira.'}
                 </p>
+                {!searchTerm && filter === 'all' ? (
+                  <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowAddModal(true)}>
+                    Nova entrada
+                  </Button>
+                ) : null}
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Tipo
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Descrição
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Categoria
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Valor
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Data
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Projeto
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Ações
-                      </th>
+                <table className="w-full min-w-[920px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-2.5 font-medium">Lançamento</th>
+                      <th className="px-3 py-2.5 font-medium">Tipo</th>
+                      <th className="px-3 py-2.5 font-medium">Valor</th>
+                      <th className="px-3 py-2.5 font-medium">Data</th>
+                      <th className="px-3 py-2.5 font-medium">Projeto</th>
+                      <th className="px-3 py-2.5 text-right font-medium">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-card divide-y divide-border">
+                  <tbody>
                     {filteredEntries.map((entry) => {
-                      const TypeIcon = getTypeIcon(entry.type)
-                      const hasDistributions = entry.projectDistributions && entry.projectDistributions.length > 0
+                      const hasDistributions =
+                        entry.projectDistributions && entry.projectDistributions.length > 0
+                      const attachmentCount = entry.attachments?.length ?? 0
+
                       return (
-                        <tr key={entry.id} className="hover:bg-muted/50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeColor(entry.type)}`}>
-                                <TypeIcon className="w-3 h-3 mr-1" />
-                                {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
+                        <tr
+                          key={entry.id}
+                          className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/30"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium text-foreground">{entry.description}</p>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground">{entry.category}</span>
+                                {entry.isRecurring ? (
+                                  <Badge variant="outline" className="text-[10px] font-normal">
+                                    Recorrente
+                                  </Badge>
+                                ) : null}
+                                {entry.collaboratorName ? (
+                                  <Badge variant="outline" className="text-[10px] font-normal">
+                                    {entry.collaboratorName}
+                                  </Badge>
+                                ) : null}
+                                {hasDistributions ? (
+                                  <Badge variant="outline" className="text-[10px] font-normal">
+                                    {entry.projectDistributions?.length} projetos
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <Badge
+                              variant={entry.type === 'INCOME' ? 'secondary' : 'outline'}
+                              className="gap-1 font-normal"
+                            >
+                              {entry.type === 'INCOME' ? (
+                                <ArrowUpRight className="h-3 w-3" />
+                              ) : (
+                                <ArrowDownLeft className="h-3 w-3" />
+                              )}
+                              {entry.type === 'INCOME' ? 'Receita' : 'Despesa'}
+                            </Badge>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            <span className="inline-flex items-baseline gap-0.5 tabular-nums">
+                              <span className="text-xs text-muted-foreground">
+                                {entry.type === 'INCOME' ? '+' : '−'}
                               </span>
-                            </div>
+                              <CurrencyAmount value={Math.abs(entry.amount)} size="sm" />
+                            </span>
                           </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-medium text-foreground">{entry.description}</div>
-                            {entry.isRecurring && (
-                              <div className="text-xs text-muted-foreground">Recorrente</div>
-                            )}
-                            {entry.collaboratorName && (
-                              <div className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-1">
-                                Colaborador: {entry.collaboratorName}
-                              </div>
-                            )}
-                            {hasDistributions && (
-                              <div className="text-xs text-purple-600 dark:text-purple-400 font-medium mt-1">
-                                Distribuído entre {entry.projectDistributions?.length} projeto{(entry.projectDistributions?.length || 0) > 1 ? 's' : ''}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                            {entry.category}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`text-sm font-medium ${entry.type === 'INCOME' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                              {entry.type === 'INCOME' ? '+' : '-'}{formatCurrency(Math.abs(entry.amount))}
-                            </div>
-                            {hasDistributions && (
-                              <div className="mt-2 space-y-1">
-                                {entry.projectDistributions?.map((dist, index) => (
-                                  <div key={index} className="text-xs bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded border border-purple-200 dark:border-purple-800">
-                                    <span className="font-medium text-purple-700 dark:text-purple-300">{dist.projectName}:</span>
-                                    <span className="text-purple-600 dark:text-purple-400 ml-1">{formatCurrency(dist.amount)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          <td className="px-3 py-3 whitespace-nowrap text-muted-foreground">
                             {formatDate(entry.date)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                            {hasDistributions ? (
-                              <div className="space-y-1">
-                                {entry.projectDistributions?.map((dist, index) => (
-                                  <div key={index} className="text-xs bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded border border-blue-200 dark:border-blue-800">
-                                    <span className="text-blue-700 dark:text-blue-300 font-medium">{dist.projectName}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              entry.projectName || '-'
-                            )}
+                          <td className="max-w-[160px] truncate px-3 py-3 text-muted-foreground">
+                            {projectLabel(entry)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button 
-                                onClick={() => openAttachmentsModal(entry)}
-                                className="text-primary hover:text-primary/80"
-                                title="Gerenciar anexos"
-                              >
-                                <Paperclip className="h-4 w-4" />
-                              </button>
-                              {Array.isArray(entry.attachments) && entry.attachments.length > 0 && (
-                                <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-xs bg-primary/10 text-primary border border-primary/20">
-                                  {entry.attachments.length}
-                                </span>
-                              )}
-                              <button 
-                                onClick={() => handleEditEntry(entry)}
-                                className="text-muted-foreground hover:text-foreground"
-                                title="Editar"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button 
-                                onClick={() => confirmDelete(entry.id)}
-                                className="text-destructive hover:text-destructive/80"
-                                title="Excluir"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                          <td className="px-3 py-3">
+                            <div className="flex justify-end">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  <DropdownMenuItem onClick={() => openAttachmentsModal(entry)}>
+                                    <Paperclip className="mr-2 h-4 w-4" />
+                                    Anexos{attachmentCount > 0 ? ` (${attachmentCount})` : ''}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleEditEntry(entry)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => confirmDelete(entry.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </td>
                         </tr>
@@ -678,10 +659,15 @@ export default function FinancialPage() {
                 </table>
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Add Entry Modal */}
+        <ClientsFinancialOverviewDialog
+          open={showClientsOverview}
+          onOpenChange={setShowClientsOverview}
+          selectedClientId={selectedClientId}
+          onClientFilter={(clientId) => setSelectedClientId(clientId)}
+        />
         <AddEntryModal
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
@@ -817,7 +803,6 @@ export default function FinancialPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </>
     </PageLoadingGate>
   )
 }

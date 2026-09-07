@@ -16,6 +16,7 @@ const updateSchema = z.object({
   subject: z.string().min(1).optional(),
   body: z.string().min(1).optional(),
   daysBeforeDue: z.number().int().min(0).max(60).optional(),
+  daysAfterDue: z.number().int().min(0).max(60).optional(),
   isActive: z.boolean().optional(),
   sendEmail: z.boolean().optional(),
   sendWhatsApp: z.boolean().optional(),

@@ -13,7 +13,7 @@ interface RouteParams {
 const taskSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
-  status: z.enum(['TODO', 'IN_PROGRESS', 'COMPLETED']).default('TODO'),
+  status: z.enum(['DRAFT', 'TODO', 'IN_PROGRESS', 'COMPLETED']).default('TODO'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
   dueDate: z.string().optional().nullable(),
   startTime: z.string().optional().nullable(),
@@ -75,7 +75,7 @@ export async function POST(
       })
 
       if (!milestone) {
-        return NextResponse.json({ error: 'Milestone não encontrado neste projeto' }, { status: 404 })
+        return NextResponse.json({ error: 'Módulo não encontrado neste projeto' }, { status: 404 })
       }
     }
 

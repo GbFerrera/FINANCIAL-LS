@@ -17,13 +17,14 @@ import { SprintTimeline } from './SprintTimeline'
 import { isSprintArchivable } from '@/lib/sprint-archive'
 import Link from 'next/link'
 import { SprintKanbanColumns } from './SprintKanbanColumns'
+import { PageLoadingGate } from '@/components/ui/loading-animation'
 
-import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import { MODULE_LABEL, MODULES_LABEL, MODULE_LABEL_LOWER, MODULES_LABEL_LOWER } from '@/lib/module-labels'
 interface Task {
   id: string
   title: string
   description?: string
-  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
+  status: 'DRAFT' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   storyPoints?: number
   assignee?: {
@@ -827,19 +828,19 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                 </Badge>
               </CardTitle>
               
-              {/* Filtro por Milestone */}
+              {/* Filtro por Módulo */}
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <Filter className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Filtrar por milestone:</span>
+                  <span className="text-sm text-muted-foreground">Filtrar por {MODULE_LABEL_LOWER}:</span>
                 </div>
                 <Select value={selectedMilestone} onValueChange={setSelectedMilestone}>
                   <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Todas as milestones" />
+                    <SelectValue placeholder={`Todos os ${MODULES_LABEL_LOWER}`} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas as milestones</SelectItem>
-                    <SelectItem value="none">Sem milestone</SelectItem>
+                    <SelectItem value="all">Todos os {MODULES_LABEL_LOWER}</SelectItem>
+                    <SelectItem value="none">Sem {MODULE_LABEL_LOWER}</SelectItem>
                     {milestones.map((milestone) => (
                       <SelectItem key={milestone.id} value={milestone.id}>
                         {milestone.title}
@@ -966,7 +967,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                           <p className="text-sm">
                             {selectedMilestone === 'all' 
                               ? (sprintId ? 'Nenhuma tarefa pendente no backlog' : 'Nenhuma tarefa no backlog')
-                              : 'Nenhuma tarefa encontrada para esta milestone'
+                              : `Nenhuma tarefa encontrada para este ${MODULE_LABEL_LOWER}`
                             }
                           </p>
                           <p className="text-xs text-gray-400">
@@ -975,7 +976,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                                   ? 'Todas as tarefas estão concluídas ou não há tarefas pendentes' 
                                   : 'Clique em "Nova Tarefa" para começar'
                                 )
-                              : 'Tente selecionar outra milestone ou "Todas as milestones"'
+                              : `Tente selecionar outro ${MODULE_LABEL_LOWER} ou "Todos os ${MODULES_LABEL_LOWER}"`
                             }
                           </p>
                         </div>

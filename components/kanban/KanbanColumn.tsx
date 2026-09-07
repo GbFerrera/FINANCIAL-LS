@@ -107,8 +107,8 @@ export function KanbanColumn({
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col rounded-xl border border-border/70 bg-muted/10 p-2 transition-all duration-200 min-h-0',
-        variant === 'board' ? 'h-full min-h-0 w-[380px] min-w-[380px]' : 'w-full min-h-[160px]',
+        'flex min-h-0 flex-col self-stretch rounded-xl border border-border/70 bg-muted/10 p-2 transition-all duration-200',
+        variant === 'board' ? 'h-full max-h-full w-80 min-w-80 shrink-0' : 'w-full min-h-[160px]',
         className
       )}
     >
@@ -152,7 +152,7 @@ export function KanbanColumn({
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={cn(
-              'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain rounded-lg px-1.5 pb-2 scrollbar-thin scrollbar-thumb-muted-foreground/20',
+              'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain rounded-lg px-1.5 pb-2 scrollbar-thin scrollbar-thumb-muted-foreground/20',
               snapshot.isDraggingOver && 'bg-primary/5 ring-1 ring-inset ring-primary/15'
             )}
           >

@@ -3,6 +3,12 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { mapWorkspace, slugifyWorkspace, workspaceInclude } from '@/lib/workspace-utils'
+import {
+  canManageWorkspaces,
+  filterWorkspacesForUser,
+  hasWorkspaceFeatureAccess,
+} from '@/lib/workspace-permissions'
+import { getUserPermissionsSnapshot } from '@/lib/user-permissions-server'
 
 async function requireSession() {
   const session = await getServerSession(authOptions)
@@ -17,12 +23,23 @@ export async function GET() {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
+    const isAdmin = session.user.role === 'ADMIN'
+    const snapshot = await getUserPermissionsSnapshot(session.user.id)
+    if (!snapshot) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
+    if (!hasWorkspaceFeatureAccess(snapshot.allowedPaths, isAdmin)) {
+      return NextResponse.json([])
+    }
+
     const rows = await prisma.workspace.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       include: workspaceInclude,
     })
 
-    return NextResponse.json(rows.map(mapWorkspace))
+    const filtered = filterWorkspacesForUser(rows, snapshot.workspaceAccess, isAdmin)
+    return NextResponse.json(filtered.map(mapWorkspace))
   } catch (error) {
     console.error('Erro ao listar workspaces:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
@@ -35,7 +52,14 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
-    if (session.user.role !== 'ADMIN') {
+
+    const isAdmin = session.user.role === 'ADMIN'
+    const snapshot = await getUserPermissionsSnapshot(session.user.id)
+    if (!snapshot) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
+    if (!canManageWorkspaces(snapshot.workspaceAccess, isAdmin)) {
       return NextResponse.json({ error: 'Permissão insuficiente' }, { status: 403 })
     }
 

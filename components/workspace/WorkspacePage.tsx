@@ -7,13 +7,15 @@ export function WorkspacePage({
 }: {
   children: React.ReactNode
   className?: string
-  size?: 'default' | 'narrow'
+  size?: 'default' | 'narrow' | 'full'
 }) {
   return (
     <div
       className={cn(
-        'mx-auto w-full px-5 py-5 md:px-8 md:py-6',
-        size === 'narrow' ? 'max-w-4xl' : 'max-w-5xl',
+        'mx-auto w-full',
+        size === 'full'
+          ? 'max-w-none px-0 py-0'
+          : cn('px-5 py-5 md:px-8 md:py-6', size === 'narrow' ? 'max-w-4xl' : 'max-w-5xl'),
         className
       )}
     >

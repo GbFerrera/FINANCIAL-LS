@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { signIn, getSession } from "next-auth/react"
+import { signIn, getSession, useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { toast } from "react-hot-toast"
 import { Eye, EyeOff, Link as LinkIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { getPostLoginPath } from "@/lib/post-login"
 
 export default function SignIn() {
   const [email, setEmail] = useState("")
@@ -16,6 +17,12 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const router = useRouter()
+  const { data: session, status } = useSession()
+
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user?.role) return
+    router.replace(getPostLoginPath(session.user.role))
+  }, [session, status, router])
 
   useEffect(() => {
     const video = videoRef.current
@@ -47,14 +54,8 @@ export default function SignIn() {
       } else {
         const session = await getSession()
         toast.success("Login realizado com sucesso!")
-
-        if (session?.user.role === "ADMIN") {
-          router.push("/dashboard")
-        } else if (session?.user.role === "TEAM") {
-          router.push("/team")
-        } else {
-          router.push("/client")
-        }
+        const role = session?.user?.role ?? "TEAM"
+        router.push(getPostLoginPath(role))
       }
     } catch {
       toast.error("Erro ao fazer login")

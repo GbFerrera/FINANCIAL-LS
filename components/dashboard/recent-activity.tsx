@@ -1,11 +1,13 @@
 "use client"
 
 import { parseISO } from "date-fns"
-import { Clock, User, FileText, DollarSign, CheckCircle, AlertCircle } from "lucide-react"
+import { Clock } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 interface Activity {
   id: string
-  type: 'task_completed' | 'payment_received' | 'comment_added' | 'project_updated' | 'milestone_reached'
+  type: "task_completed" | "payment_received" | "comment_added" | "project_updated" | "milestone_reached"
   title: string
   description: string
   user: string
@@ -21,143 +23,103 @@ interface RecentActivityProps {
   activities: Activity[]
 }
 
-const activityIcons = {
-  task_completed: CheckCircle,
-  payment_received: DollarSign,
-  comment_added: FileText,
-  project_updated: AlertCircle,
-  milestone_reached: CheckCircle
+const activityLabels: Record<Activity["type"], string> = {
+  task_completed: "Tarefa",
+  payment_received: "Pagamento",
+  comment_added: "Comentário",
+  project_updated: "Projeto",
+  milestone_reached: "Marco",
 }
 
-const activityColors = {
-  task_completed: 'text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/20',
-  payment_received: 'text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/20',
-  comment_added: 'text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/20',
-  project_updated: 'text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20',
-  milestone_reached: 'text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/20'
-}
+const VISIBLE_LIMIT = 6
 
 export function RecentActivity({ activities }: RecentActivityProps) {
   const formatTimeAgo = (timestamp: string) => {
     const now = new Date()
     const activityTime = parseISO(timestamp)
     const diffInMinutes = Math.floor((now.getTime() - activityTime.getTime()) / (1000 * 60))
-    
-    if (diffInMinutes < 1) return 'Agora mesmo'
-    if (diffInMinutes < 60) return `${diffInMinutes}m atrás`
-    
+
+    if (diffInMinutes < 1) return "Agora"
+    if (diffInMinutes < 60) return `${diffInMinutes}m`
     const diffInHours = Math.floor(diffInMinutes / 60)
-    if (diffInHours < 24) return `${diffInHours}h atrás`
-    
+    if (diffInHours < 24) return `${diffInHours}h`
     const diffInDays = Math.floor(diffInHours / 24)
-    if (diffInDays < 7) return `${diffInDays}d atrás`
-    
-    return activityTime.toLocaleDateString('pt-BR')
+    if (diffInDays < 7) return `${diffInDays}d`
+    return activityTime.toLocaleDateString("pt-BR")
   }
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value)
   }
 
+  const sortedActivities = [...activities]
+    .sort((a, b) => parseISO(b.timestamp).getTime() - parseISO(a.timestamp).getTime())
+    .slice(0, VISIBLE_LIMIT)
+
+  const hasMore = activities.length > VISIBLE_LIMIT
+
   return (
-    <div className="bg-card shadow rounded-lg">
-      <div className="px-4 py-5 sm:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg leading-6 font-medium text-card-foreground">
-            Atividades Recentes
-          </h3>
-          <button className="text-sm text-primary hover:text-primary/80">
-            Ver todas
-          </button>
-        </div>
+    <Card className="h-full">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle className="text-base font-semibold">Atividades Recentes</CardTitle>
+        <button type="button" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+          Ver todas
+        </button>
+      </CardHeader>
 
-        <div className="flow-root">
-          <ul className="-mb-8">
-            {activities.length === 0 ? (
-              <li className="text-center py-8">
-                <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Nenhuma atividade recente</p>
-              </li>
-            ) : (
-              activities.map((activity, activityIdx) => {
-                const Icon = activityIcons[activity.type]
-                const colorClasses = activityColors[activity.type]
-                
-                return (
-                  <li key={activity.id}>
-                    <div className="relative pb-8">
-                      {activityIdx !== activities.length - 1 ? (
-                        <span
-                          className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-border"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                      <div className="relative flex space-x-3">
-                        <div>
-                          <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-card ${colorClasses}`}>
-                            <Icon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
-                          <div>
-                            <p className="text-sm font-medium text-card-foreground">
-                              {activity.title}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {activity.description}
-                            </p>
-                            {activity.metadata && (
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                {activity.metadata.projectName && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground mr-2">
-                                    {activity.metadata.projectName}
-                                  </span>
-                                )}
-                                {activity.metadata.amount && (
-                                  <span className="font-medium text-green-600 dark:text-green-400">
-                                    {formatCurrency(activity.metadata.amount)}
-                                  </span>
-                                )}
-                                {activity.metadata.taskName && (
-                                  <span className="text-muted-foreground">
-                                    Tarefa: {activity.metadata.taskName}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            <div className="mt-1 flex items-center text-xs text-muted-foreground">
-                              <User className="h-3 w-3 mr-1" />
-                              <span>{activity.user}</span>
-                            </div>
-                          </div>
-                          <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
-                            <time dateTime={activity.timestamp}>
-                              {formatTimeAgo(activity.timestamp)}
-                            </time>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })
-            )}
-          </ul>
-        </div>
-
-        {activities.length > 0 && (
-          <div className="mt-6">
-            <button className="w-full bg-secondary/50 text-secondary-foreground py-2 px-4 rounded-md hover:bg-secondary transition-colors">
-              Carregar mais atividades
-            </button>
+      <CardContent className="space-y-3">
+        {sortedActivities.length === 0 ? (
+          <div className="py-10 text-center">
+            <Clock className="mx-auto h-8 w-8 text-muted-foreground/60" />
+            <p className="mt-2 text-sm text-muted-foreground">Nenhuma atividade recente</p>
           </div>
+        ) : (
+          sortedActivities.map((activity) => (
+            <div
+              key={activity.id}
+              className="rounded-lg border border-border p-3 transition-colors hover:bg-muted/30"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="font-normal">
+                      {activityLabels[activity.type]}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{formatTimeAgo(activity.timestamp)}</span>
+                  </div>
+                  <p className="text-sm font-medium text-foreground">{activity.title}</p>
+                  <p className="line-clamp-2 text-sm text-muted-foreground">{activity.description}</p>
+                  {(activity.metadata?.projectName || activity.metadata?.amount) && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
+                      {activity.metadata.projectName && <span>{activity.metadata.projectName}</span>}
+                      {activity.metadata.amount != null && (
+                        <span className="font-medium tabular-nums text-foreground">
+                          {formatCurrency(activity.metadata.amount)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">{activity.user}</p>
+                </div>
+              </div>
+            </div>
+          ))
         )}
-      </div>
-    </div>
+
+        {sortedActivities.length > 0 && (
+          <button
+            type="button"
+            className="w-full rounded-md border border-border bg-background py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            {hasMore ? `Ver mais (${activities.length - VISIBLE_LIMIT})` : "Ver todas as atividades"}
+          </button>
+        )}
+      </CardContent>
+    </Card>
   )
 }

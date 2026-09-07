@@ -22,9 +22,7 @@ const updateProjectSchema = z.object({
 })
 
 interface RouteParams {
-  params: {
-    id: string
-  }
+  params: Promise<{ id: string }>
 }
 
 // GET - Buscar projeto por ID
@@ -33,13 +31,14 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const project = await prisma.project.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         client: {
           select: {
@@ -163,6 +162,7 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -173,7 +173,7 @@ export async function PUT(
 
     // Verificar se o projeto existe
     const existingProject = await prisma.project.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingProject) {
@@ -219,7 +219,7 @@ export async function PUT(
 
     const { additionalClientIds, ...dataToUpdate } = updateData
     const updatedProject = await prisma.project.update({
-      where: { id: params.id },
+      where: { id },
       data: dataToUpdate,
       include: {
         client: {
@@ -282,6 +282,7 @@ export async function DELETE(
   { params }: RouteParams
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
@@ -289,7 +290,7 @@ export async function DELETE(
 
     // Verificar se o projeto existe
     const existingProject = await prisma.project.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         _count: {
           select: {
@@ -315,34 +316,34 @@ export async function DELETE(
       await tx.comment.deleteMany({
         where: {
           task: {
-            projectId: params.id
+            projectId: id
           }
         }
       })
 
       // Excluir tarefas do projeto
       await tx.task.deleteMany({
-        where: { projectId: params.id }
+        where: { projectId: id }
       })
 
       // Excluir milestones do projeto
       await tx.milestone.deleteMany({
-        where: { projectId: params.id }
+        where: { projectId: id }
       })
 
       // Excluir membros da equipe do projeto
       await tx.projectTeam.deleteMany({
-        where: { projectId: params.id }
+        where: { projectId: id }
       })
 
       // Excluir arquivos do projeto
       await tx.projectFile.deleteMany({
-        where: { projectId: params.id }
+        where: { projectId: id }
       })
 
       // Atualizar entradas financeiras (remover associação com o projeto)
       await tx.financialEntry.updateMany({
-        where: { projectId: params.id },
+        where: { projectId: id },
         data: { projectId: null }
       })
 
@@ -358,7 +359,7 @@ export async function DELETE(
 
       // Finalmente, excluir o projeto
       await tx.project.delete({
-        where: { id: params.id }
+        where: { id }
       })
     })
 

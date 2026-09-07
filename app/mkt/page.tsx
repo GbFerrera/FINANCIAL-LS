@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect, useMemo } from 'react'
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -522,7 +522,8 @@ function MktPageContent() {
   })
   const [deleteTarget, setDeleteTarget] = useState<Sprint | null>(null)
   const [expandedProjects, setExpandedProjects] = useState<string[]>([])
-  const [isCalendarExpanded, setIsCalendarExpanded] = useState(true)
+  const [showCalendarDialog, setShowCalendarDialog] = useState(false)
+  const calendarAutoOpened = useRef(false)
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [calendarView, setCalendarView] = useState<View>(Views.MONTH)
 
@@ -618,6 +619,13 @@ function MktPageContent() {
       })
     }
   }, [groupedSprints])
+
+  useEffect(() => {
+    if (!loading && !calendarAutoOpened.current) {
+      calendarAutoOpened.current = true
+      setShowCalendarDialog(true)
+    }
+  }, [loading])
 
   const sprintEvents = useMemo<SprintEvent[]>(() => {
     return filteredSprints.map(s => ({
@@ -1072,6 +1080,14 @@ function MktPageContent() {
                 <option value="COMPLETED">Concluída</option>
                 <option value="CANCELLED">Cancelada</option>
               </select>
+              <Button
+                variant="outline"
+                className="h-10"
+                onClick={() => setShowCalendarDialog(true)}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                Agenda
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -1140,118 +1156,80 @@ function MktPageContent() {
         </Card>
       )}
 
-      <Card className="overflow-hidden">
-        <div 
-          className="flex flex-row items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-          onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <CalendarIcon className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex flex-col">
-              <h3 className="text-base font-semibold leading-none">
-                {viewMode === 'mkt' ? 'Agenda MKT' : viewMode === 'dev' ? 'Agenda de Desenvolvimento' : 'Agenda Geral'}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isCalendarExpanded 
-                  ? 'Visualize a distribuição das sprints no calendário'
-                  : 'Clique para expandir e visualizar o calendário'}
-              </p>
-            </div>
+      <Dialog open={showCalendarDialog} onOpenChange={setShowCalendarDialog}>
+        <DialogContent className="flex h-[92vh] max-h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-3 p-4 sm:max-w-[96vw]">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>
+              {viewMode === 'mkt' ? 'Calendário MKT' : viewMode === 'dev' ? 'Calendário Dev' : 'Calendário de sprints'}
+            </DialogTitle>
+          </DialogHeader>
+          <style>{`
+            .rbc-today { background-color: hsl(var(--muted) / 0.55) !important; }
+            .rbc-calendar { color: hsl(var(--foreground)); font-size: 14px; height: 100% !important; }
+            .rbc-off-range-bg { background-color: hsl(var(--muted) / 0.25) !important; }
+            .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-month-row, .rbc-day-bg, .rbc-header {
+              border-color: hsl(var(--border)) !important;
+            }
+            .rbc-header { padding: 10px 0; font-weight: 600; font-size: 13px; }
+            .rbc-toolbar button {
+              color: hsl(var(--foreground));
+              border-color: hsl(var(--border));
+              border-radius: 6px;
+              font-size: 13px;
+              padding: 6px 12px;
+            }
+            .rbc-toolbar button:hover {
+              background-color: hsl(var(--muted));
+            }
+            .rbc-toolbar button.rbc-active {
+              background-color: hsl(var(--primary));
+              color: hsl(var(--primary-foreground));
+              border-color: hsl(var(--primary));
+            }
+            .rbc-toolbar-label { color: hsl(var(--foreground)); font-weight: 600; font-size: 16px; }
+            .rbc-event { padding: 3px 6px !important; font-size: 12px; }
+            .rbc-month-row { min-height: 100px; }
+          `}</style>
+          <div className="min-h-0 flex-1">
+            <RBCalendar
+              components={components}
+              localizer={localizer}
+              events={sprintEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: '100%' }}
+              view={calendarView}
+              onView={(v) => setCalendarView(v)}
+              date={calendarDate}
+              onNavigate={(d) => setCalendarDate(d)}
+              culture="pt-BR"
+              onSelectEvent={(event: SprintEvent) => {
+                if (event.projectId) {
+                  setShowCalendarDialog(false)
+                  router.push(`/projects/${event.projectId}/scrum?sprint=${event.id}`)
+                } else {
+                  toast.error('Sprint sem projeto associado')
+                }
+              }}
+              messages={{
+                next: 'Próximo',
+                previous: 'Anterior',
+                today: 'Hoje',
+                month: 'Mês',
+                week: 'Semana',
+                day: 'Dia',
+                agenda: 'Agenda',
+                date: 'Data',
+                time: 'Hora',
+                event: 'Sprint',
+                noEventsInRange: 'Não há sprints neste período.',
+                allDay: 'Dia todo'
+              }}
+              eventPropGetter={eventStyleGetter}
+            />
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8 shrink-0 text-muted-foreground"
-          >
-            {isCalendarExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
-        </div>
-        {isCalendarExpanded && (
-          <CardContent className="p-0 border-t transition-all duration-200 ease-in-out">
-            <style>{`
-              .rbc-today {
-                background-color: hsl(var(--muted)) !important;
-              }
-              .dark .rbc-today {
-                background-color: #ffffff !important;
-              }
-              .dark .rbc-today .rbc-button-link {
-                color: #2563eb !important;
-              }
-              .rbc-calendar {
-                color: hsl(var(--foreground));
-              }
-              .rbc-off-range-bg {
-                background-color: hsl(var(--muted) / 0.3) !important;
-              }
-              .rbc-month-view, .rbc-time-view, .rbc-agenda-view, .rbc-month-row, .rbc-day-bg, .rbc-header {
-                border-color: hsl(var(--border)) !important;
-              }
-              .rbc-header {
-                padding: 8px 0;
-                font-weight: 600;
-              }
-              .rbc-toolbar button {
-                color: hsl(var(--foreground));
-                border-color: hsl(var(--border));
-              }
-              .rbc-toolbar button:hover {
-                background-color: hsl(var(--accent));
-                color: hsl(var(--accent-foreground));
-              }
-              .rbc-toolbar button.rbc-active {
-                background-color: hsl(var(--primary));
-                color: hsl(var(--primary-foreground));
-                border-color: hsl(var(--primary));
-              }
-              .rbc-toolbar button.rbc-active:hover {
-                background-color: hsl(var(--primary) / 0.9);
-              }
-              .rbc-toolbar-label {
-                color: hsl(var(--foreground));
-                font-weight: 600;
-              }
-            `}</style>
-            <div className="h-[500px] p-4">
-              <RBCalendar
-                components={components}
-                localizer={localizer}
-                events={sprintEvents}
-                startAccessor="start"
-                endAccessor="end"
-                style={{ height: '100%' }}
-                view={calendarView}
-                onView={(v) => setCalendarView(v)}
-                date={calendarDate}
-                onNavigate={(d) => setCalendarDate(d)}
-                culture="pt-BR"
-                onSelectEvent={(event: SprintEvent) => {
-                  if (event.projectId) {
-                    router.push(`/projects/${event.projectId}/scrum?sprint=${event.id}`)
-                  }
-                }}
-                messages={{
-                  next: 'Próximo',
-                  previous: 'Anterior',
-                  today: 'Hoje',
-                  month: 'Mês',
-                  week: 'Semana',
-                  day: 'Dia',
-                  agenda: 'Agenda',
-                  date: 'Data',
-                  time: 'Hora',
-                  event: 'Sprint',
-                  noEventsInRange: 'Não há sprints neste período.',
-                  allDay: 'Dia todo'
-                }}
-                eventPropGetter={eventStyleGetter}
-              />
-            </div>
-          </CardContent>
-        )}
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       {/* Lista de Sprints Agrupada por Projeto */}
       <div className="space-y-4">

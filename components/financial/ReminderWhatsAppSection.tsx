@@ -2,13 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react"
 import toast from "react-hot-toast"
-import { Plus, QrCode, RefreshCw, Trash2 } from "lucide-react"
+import { MessageCircle, MoreHorizontal, Plus, QrCode, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { LoadingAnimation } from "@/components/ui/loading-animation"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -28,9 +35,25 @@ export type ReminderWhatsAppInstance = {
 }
 
 function statusBadge(status: string) {
-  if (status === "CONNECTED") return <Badge className="bg-green-600">Conectado</Badge>
-  if (status === "CONNECTING") return <Badge variant="secondary">Aguardando QR</Badge>
-  return <Badge variant="outline">Desconectado</Badge>
+  if (status === "CONNECTED") {
+    return (
+      <Badge variant="secondary" className="text-[10px] font-normal">
+        Conectado
+      </Badge>
+    )
+  }
+  if (status === "CONNECTING") {
+    return (
+      <Badge variant="outline" className="text-[10px] font-normal">
+        Aguardando QR
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="outline" className="text-[10px] font-normal">
+      Desconectado
+    </Badge>
+  )
 }
 
 function formatPhone(digits: string | null) {
@@ -174,79 +197,103 @@ export function ReminderWhatsAppSection({ onInstancesChange }: Props) {
   return (
     <>
       {!evolutionConfigured && (
-        <Card className="border-amber-500/50 bg-amber-500/5">
+        <Card className="border-border bg-muted/20">
           <CardHeader>
             <CardTitle className="text-base">WhatsApp não configurado no servidor</CardTitle>
             <CardDescription>
-              Defina <code className="text-xs">EVOLUTION_API_URL</code> e{" "}
-              <code className="text-xs">EVOLUTION_API_KEY</code> ou rode{" "}
-              <code className="text-xs">npm run evo:up</code>.
+              Defina <code className="rounded bg-muted px-1 text-xs">EVOLUTION_API_URL</code> e{" "}
+              <code className="rounded bg-muted px-1 text-xs">EVOLUTION_API_KEY</code> ou rode{" "}
+              <code className="rounded bg-muted px-1 text-xs">npm run evo:up</code>.
             </CardDescription>
           </CardHeader>
         </Card>
       )}
 
       {evolutionConfigured && evolutionVersion?.startsWith("2.2.") && (
-        <Card className="border-destructive/40 bg-destructive/5">
+        <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader>
             <CardTitle className="text-base">Serviço WhatsApp desatualizado ({evolutionVersion})</CardTitle>
             <CardDescription>
-              Rode <code className="text-xs bg-muted px-1 rounded">npm run evo:upgrade</code> para o QR aparecer aqui.
+              Rode <code className="rounded bg-muted px-1 text-xs">npm run evo:upgrade</code> para o QR aparecer aqui.
             </CardDescription>
           </CardHeader>
         </Card>
       )}
 
       <Card id="whatsapp-lembretes">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
           <div>
-            <CardTitle>WhatsApp</CardTitle>
-            <CardDescription>Conecte números para enviar lembretes. Vincule cada template a um número abaixo.</CardDescription>
+            <CardTitle className="text-base">WhatsApp</CardTitle>
+            <CardDescription>
+              Conecte números para enviar lembretes. Vincule cada template a um número abaixo.
+            </CardDescription>
           </div>
           <Button size="sm" onClick={() => setCreateOpen(true)} disabled={!evolutionConfigured || loading}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Conectar número
           </Button>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           {loading ? (
             <p className="text-sm text-muted-foreground">Carregando números…</p>
           ) : instances.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum número cadastrado.</p>
+            <div className="rounded-lg border border-dashed border-border py-10 text-center">
+              <MessageCircle className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">Nenhum número cadastrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Conecte um número para enviar lembretes por WhatsApp.
+              </p>
+            </div>
           ) : (
             instances.map((inst) => (
               <div
                 key={inst.id}
-                className="rounded-lg border p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                className="group flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/30"
               >
-                <div>
-                  <div className="font-semibold flex items-center gap-2 flex-wrap">
-                    {inst.label}
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-foreground">{inst.label}</p>
                     {statusBadge(inst.status)}
-                    {inst.isDefault && <Badge variant="outline">Padrão</Badge>}
+                    {inst.isDefault && (
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        Padrão
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {formatPhone(inst.phone)}
                     {inst._count?.reminderTemplates
                       ? ` · ${inst._count.reminderTemplates} template(s)`
                       : ""}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  {inst.status !== "CONNECTING" && inst.status !== "CONNECTED" && (
-                    <Button variant="outline" size="sm" onClick={() => openQr(inst)}>
-                      <QrCode className="h-4 w-4 mr-1" />
-                      QR Code
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 shrink-0 p-0 opacity-70 group-hover:opacity-100"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
                     </Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={() => syncInstance(inst.id)}>
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    Atualizar
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => deleteInstance(inst)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    {inst.status !== "CONNECTING" && inst.status !== "CONNECTED" && (
+                      <DropdownMenuItem onClick={() => openQr(inst)}>
+                        <QrCode className="mr-2 h-4 w-4" />
+                        QR Code
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => syncInstance(inst.id)}>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Atualizar status
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={() => deleteInstance(inst)}>
+                      Remover
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ))
           )}

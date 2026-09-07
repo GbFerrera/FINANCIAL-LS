@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { MODULES_LABEL } from '@/lib/module-labels'
 import {
   AtSign,
   Calendar,
@@ -453,7 +453,7 @@ export function TaskFilterBadges({
   addList('assigneeIds', 'Responsável')
   addList('projectIds', 'Projeto')
   addList('sprintIds', 'Ciclo')
-  addList('milestoneIds', 'Etiqueta')
+  addList('milestoneIds', MODULES_LABEL)
 
   if (filters.mentionSearch.trim()) {
     badges.push({

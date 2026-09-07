@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
       startDate,
       startTime,
       estimatedMinutes,
-      hasBonus
+      hasBonus,
+      status: requestedStatus,
     } = body
 
     if (!title || !projectId) {
@@ -76,7 +77,9 @@ export async function POST(request: NextRequest) {
           estimatedMinutes: estimatedMinutes || null,
           ...(hasBonus !== undefined ? ({ hasBonus: !!hasBonus } as any) : {}),
           order: nextOrder,
-          status: 'TODO'
+          status: ['DRAFT', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'].includes(requestedStatus)
+            ? requestedStatus
+            : 'TODO',
         },
         include: {
           assignee: {

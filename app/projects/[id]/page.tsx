@@ -8,6 +8,8 @@ import { parseISO, format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { calculateEstimatedTime, formatEstimatedTime } from "@/lib/time-utils"
 import { calculateBasicProjectProgress } from "@/lib/progress-utils"
+import { statusLabel } from "@/lib/pipeline/task-utils"
+import { MODULE_LABEL, MODULES_LABEL, MODULE_LABEL_LOWER, MODULES_LABEL_LOWER } from "@/lib/module-labels"
 import {
   ArrowLeft,
   Calendar,
@@ -47,6 +49,9 @@ import {
 import toast from "react-hot-toast"
 import { KanbanBoard } from "@/components/projects/KanbanBoard"
 import { ProjectCreateTaskModal } from "@/components/projects/ProjectCreateTaskModal"
+import { ProjectDetailHeader } from "@/components/projects/ProjectDetailHeader"
+import { ProjectOverviewPanel } from "@/components/projects/ProjectOverviewPanel"
+import { cn } from "@/lib/utils"
 
 interface ProjectDetails {
   id: string
@@ -174,6 +179,13 @@ export default function ProjectDetailsPage() {
   }, [session, status, router, params.id])
 
   useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    if (tab === 'modules' || tab === 'milestones') {
+      setActiveTab('milestones')
+    }
+  }, [])
+
+  useEffect(() => {
     if (activeTab === 'sprints' && params.id) {
       fetchSprints()
     }
@@ -222,6 +234,8 @@ export default function ProjectDetailsPage() {
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
       case 'CANCELLED':
         return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+      case 'DRAFT':
+        return 'bg-muted text-muted-foreground border border-dashed border-border'
       case 'TODO':
         return 'bg-secondary text-secondary-foreground'
       default:
@@ -322,7 +336,7 @@ export default function ProjectDetailsPage() {
 
   const handleAddMilestone = async () => {
     if (!newMilestone.name.trim()) {
-      toast.error('Nome do milestone é obrigatório')
+      toast.error(`Nome do ${MODULE_LABEL_LOWER} é obrigatório`)
       return
     }
 
@@ -340,10 +354,10 @@ export default function ProjectDetailsPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao criar milestone')
+        throw new Error(`Erro ao criar ${MODULE_LABEL_LOWER}`)
       }
 
-      toast.success('Milestone criado com sucesso!')
+      toast.success(`${MODULE_LABEL} criado com sucesso!`)
       setShowAddMilestoneModal(false)
       setNewMilestone({ name: '', dueDate: '', status: 'PENDING' })
       
@@ -352,14 +366,14 @@ export default function ProjectDetailsPage() {
         fetchProjectDetails(params.id)
       }
     } catch (error) {
-      console.error('Erro ao criar milestone:', error)
-      toast.error('Erro ao criar milestone')
+      console.error(`Erro ao criar ${MODULE_LABEL_LOWER}:`, error)
+      toast.error(`Erro ao criar ${MODULE_LABEL_LOWER}`)
     }
   }
 
   const handleEditMilestone = async (milestoneId: string) => {
     if (!editingMilestone?.name.trim()) {
-      toast.error('Nome do milestone é obrigatório')
+      toast.error(`Nome do ${MODULE_LABEL_LOWER} é obrigatório`)
       return
     }
 
@@ -377,10 +391,10 @@ export default function ProjectDetailsPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao atualizar milestone')
+        throw new Error(`Erro ao atualizar ${MODULE_LABEL_LOWER}`)
       }
 
-      toast.success('Milestone atualizado com sucesso!')
+      toast.success(`${MODULE_LABEL} atualizado com sucesso!`)
       setEditingMilestone(null)
       
       // Recarregar dados do projeto
@@ -388,13 +402,13 @@ export default function ProjectDetailsPage() {
         fetchProjectDetails(params.id)
       }
     } catch (error) {
-      console.error('Erro ao atualizar milestone:', error)
-      toast.error('Erro ao atualizar milestone')
+      console.error(`Erro ao atualizar ${MODULE_LABEL_LOWER}:`, error)
+      toast.error(`Erro ao atualizar ${MODULE_LABEL_LOWER}`)
     }
   }
 
   const handleDeleteMilestone = async (milestoneId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este milestone?')) {
+    if (!confirm(`Tem certeza que deseja excluir este ${MODULE_LABEL_LOWER}?`)) {
       return
     }
 
@@ -404,18 +418,18 @@ export default function ProjectDetailsPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao excluir milestone')
+        throw new Error(`Erro ao excluir ${MODULE_LABEL_LOWER}`)
       }
 
-      toast.success('Milestone excluído com sucesso!')
+      toast.success(`${MODULE_LABEL} excluído com sucesso!`)
       
       // Recarregar dados do projeto
       if (params.id && typeof params.id === 'string') {
         fetchProjectDetails(params.id)
       }
     } catch (error) {
-      console.error('Erro ao excluir milestone:', error)
-      toast.error('Erro ao excluir milestone')
+      console.error(`Erro ao excluir ${MODULE_LABEL_LOWER}:`, error)
+      toast.error(`Erro ao excluir ${MODULE_LABEL_LOWER}`)
     }
   }
 
@@ -633,112 +647,57 @@ export default function ProjectDetailsPage() {
     )
   }
 
-  const completedMilestones = project?.milestones.filter(m => m.status === 'COMPLETED' || !!m.completedAt).length ?? 0
-  const completedTasks = project?.tasks.filter(t => t.status === 'DONE' || t.status === 'COMPLETED').length ?? 0
   const progress = project ? calculateBasicProjectProgress(project.milestones, project.tasks) : 0
 
   return (
     <PageLoadingGate loading={status === "loading" || loading || !project}>
       {project ? (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-card shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => router.push('/projects')}
-                className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4 mr-1" />
-                Voltar aos Projetos
-              </button>
-              
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => params?.id && router.push(`/projects/${params.id}/canvas`)}
-                  className="inline-flex items-center px-3 py-1.5 border border-primary/30 shadow-sm text-sm font-medium rounded text-primary bg-card hover:bg-primary/5 transition-colors"
-                  title="Abrir Canvas (Excalidraw)"
-                >
-                  Canvas
-                </button>
-                {session?.user.role === 'ADMIN' && (
-                  <button className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-sm font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors">
-                    <Edit className="h-4 w-4 mr-1" />
-                    Editar
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
-                <p className="mt-2 text-muted-foreground">{project.description}</p>
-                
-                <div className="mt-4 flex items-center space-x-6">
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <User className="h-4 w-4 mr-1" />
-                    Cliente: {project.client.name}
-                  </div>
-                  <div className="flex items-center text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    Início: {formatDate(project.startDate)}
-                  </div>
-                  {project.endDate && (
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Fim: {formatDate(project.endDate)}
-                    </div>
-                  )}
-                  {session?.user.role === 'ADMIN' && (
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      {formatCurrency(project.budget)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex flex-col items-end space-y-2">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                  {project.status === 'IN_PROGRESS' ? 'Em Andamento' : 
-                   project.status === 'COMPLETED' ? 'Concluído' :
-                   project.status === 'PLANNING' ? 'Planejamento' :
-                   project.status === 'ON_HOLD' ? 'Pausado' : 'Cancelado'}
-                </span>
-                
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-foreground">{progress}%</div>
-                  <div className="text-sm text-muted-foreground">Progresso</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="space-y-5">
+        <ProjectDetailHeader
+          name={project.name}
+          description={project.description}
+          status={project.status}
+          startDate={project.startDate}
+          endDate={project.endDate}
+          budget={project.budget}
+          clientName={project.client.name}
+          progress={progress}
+          isAdmin={session?.user.role === 'ADMIN'}
+          onBack={() => router.push('/projects')}
+          onCanvas={() => params?.id && router.push(`/projects/${params.id}/canvas`)}
+          onEdit={
+            session?.user.role === 'ADMIN' && params?.id
+              ? () => router.push(`/projects?edit=${params.id}`)
+              : undefined
+          }
+        />
 
         {/* Tabs */}
-        <div className="bg-card shadow rounded-lg">
-          <div className="border-b border-border">
-            <nav className="-mb-px flex space-x-8 px-6">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+          <div className="border-b border-border bg-muted/20 px-4 sm:px-6">
+            <nav className="-mb-px flex gap-1 overflow-x-auto py-1">
               {[
                 { id: 'overview', name: 'Visão Geral', icon: Telescope },
-                { id: 'milestones', name: 'Milestones', icon: Flag },
+                { id: 'milestones', name: MODULES_LABEL, icon: Flag },
                 { id: 'tasks', name: 'Tarefas', icon: CheckCircle },
                 { id: 'team', name: 'Equipe', icon: Users },
                 { id: 'sprints', name: 'Sprints', icon: GitBranch },
                 { id: 'files', name: 'Docs', icon: FileIcon }
               ].map((tab) => {
                 const Icon = tab.icon
+                const isActive = activeTab === tab.id
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`${activeTab === tab.id
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center relative transition-colors`}
+                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                    className={cn(
+                      'inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                        : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                    )}
                   >
-                    <Icon className="h-4 w-4 mr-2" />
+                    <Icon className="h-4 w-4" />
                     {tab.name}
                   </button>
                 )
@@ -746,98 +705,39 @@ export default function ProjectDetailsPage() {
             </nav>
           </div>
 
-          <div className="p-6">
-            {/* Overview Tab */}
+          <div className="p-5 sm:p-6">
             {activeTab === 'overview' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center">
-                      <Flag className="h-8 w-8 text-primary" />
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-muted-foreground">Milestones</p>
-                        <p className="text-2xl font-semibold text-foreground">
-                          {completedMilestones}/{project.milestones.length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center">
-                      <CheckCircle className="h-8 w-8 text-primary" />
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-muted-foreground">Tarefas</p>
-                        <p className="text-2xl font-semibold text-foreground">
-                          {completedTasks}/{project.tasks.length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center">
-                      <Users className="h-8 w-8 text-primary" />
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-muted-foreground">Equipe</p>
-                        <p className="text-2xl font-semibold text-foreground">
-                          {project.team.length}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {session?.user.role === 'ADMIN' && (
-                    <div className="bg-card border border-border rounded-lg p-4 shadow-sm">
-                      <div className="flex items-center">
-                        <DollarSign className="h-8 w-8 text-primary" />
-                        <div className="ml-3">
-                          <p className="text-sm font-medium text-muted-foreground">Orçamento</p>
-                          <p className="text-lg font-semibold text-foreground">
-                            {formatCurrency(project.budget)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Progress Bar */}
-                <div>
-                  <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                    <span>Progresso Geral</span>
-                    <span>{progress}%</span>
-                  </div>
-                  <div className="w-full bg-secondary rounded-full h-3">
-                    <div 
-                      className="bg-primary h-3 rounded-full transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+              <ProjectOverviewPanel
+                milestones={project.milestones}
+                tasks={project.tasks}
+                teamCount={project.team.length}
+                progress={progress}
+                modulesLabel={MODULES_LABEL}
+                isAdmin={session?.user.role === 'ADMIN'}
+                budget={project.budget}
+              />
             )}
 
-            {/* Milestones Tab */}
+            {/* Módulos Tab */}
             {activeTab === 'milestones' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium text-foreground">
-                    Milestones ({project.milestones.length})
+                    {MODULES_LABEL} ({project.milestones.length})
                   </h3>
                   {session?.user.role === 'ADMIN' && (
                     <Dialog open={showAddMilestoneModal} onOpenChange={setShowAddMilestoneModal}>
                       <DialogTrigger asChild>
                         <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 transition-colors">
                           <Plus className="-ml-1 mr-2 h-4 w-4" />
-                          Novo Milestone
+                          Novo {MODULE_LABEL}
                         </button>
                       </DialogTrigger>
                       <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
-                          <DialogTitle>Novo Milestone</DialogTitle>
+                          <DialogTitle>Novo {MODULE_LABEL}</DialogTitle>
                           <DialogDescription>
-                            Adicione um novo milestone ao projeto.
+                            Adicione um novo {MODULE_LABEL_LOWER} ao projeto.
                           </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
@@ -850,7 +750,7 @@ export default function ProjectDetailsPage() {
                               value={newMilestone.name}
                               onChange={(e) => setNewMilestone({...newMilestone, name: e.target.value})}
                               className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                              placeholder="Nome do milestone"
+                              placeholder={`Nome do ${MODULE_LABEL_LOWER}`}
                             />
                           </div>
                           <div className="grid grid-cols-4 items-center gap-4">
@@ -895,7 +795,7 @@ export default function ProjectDetailsPage() {
                             onClick={handleAddMilestone}
                             className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 transition-colors"
                           >
-                            Criar Milestone
+                            Criar {MODULE_LABEL}
                           </button>
                         </div>
                       </DialogContent>
@@ -928,7 +828,7 @@ export default function ProjectDetailsPage() {
                             )}
                             <div className="flex items-center">
                               <CheckCircle className="h-4 w-4 mr-1" />
-                              Milestone #{milestone.order}
+                              {MODULE_LABEL} #{milestone.order}
                             </div>
                           </div>
                         </div>
@@ -963,14 +863,14 @@ export default function ProjectDetailsPage() {
               </div>
             )}
 
-            {/* Modal de Edição de Milestone */}
+            {/* Modal de Edição de Módulo */}
             {editingMilestone && (
               <Dialog open={!!editingMilestone} onOpenChange={() => setEditingMilestone(null)}>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
-                    <DialogTitle>Editar Milestone</DialogTitle>
+                    <DialogTitle>Editar {MODULE_LABEL}</DialogTitle>
                     <DialogDescription>
-                      Edite as informações do milestone.
+                      Edite as informações do {MODULE_LABEL_LOWER}.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
@@ -983,7 +883,7 @@ export default function ProjectDetailsPage() {
                         value={editingMilestone.name}
                         onChange={(e) => setEditingMilestone({...editingMilestone, name: e.target.value})}
                         className="col-span-3 px-3 py-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="Nome do milestone"
+                        placeholder={`Nome do ${MODULE_LABEL_LOWER}`}
                       />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
@@ -1218,7 +1118,7 @@ export default function ProjectDetailsPage() {
                           Tempo Estimado
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Milestone
+                          {MODULE_LABEL}
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                           Ações
@@ -1242,9 +1142,7 @@ export default function ProjectDetailsPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(task.status)}`}>
-                              {task.status === 'TODO' ? 'A Fazer' :
-                               task.status === 'IN_PROGRESS' ? 'Em Andamento' :
-                               task.status === 'DONE' ? 'Concluído' : task.status}
+                              {statusLabel(task.status)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -1291,7 +1189,9 @@ export default function ProjectDetailsPage() {
                   </table>
                 </div>
                 ) : (
-                  <KanbanBoard 
+                  <div className="h-[min(720px,calc(100dvh-13rem))] min-h-[420px]">
+                  <KanbanBoard
+                    className="h-full"
                     tasks={project.tasks.filter(task => taskStatusFilter === 'all' || task.status === taskStatusFilter)} 
                     onTasksChange={(updated) => {
                       setProject((prev) => {
@@ -1313,6 +1213,7 @@ export default function ProjectDetailsPage() {
                     onTaskEdit={handleEditTask}
                     onTaskDelete={isAdmin ? handleDeleteTask : undefined}
                   />
+                  </div>
                 )}
               </div>
             )}
@@ -1583,9 +1484,7 @@ export default function ProjectDetailsPage() {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Status</label>
                     <p className="text-foreground">
-                      {selectedTask.status === 'TODO' ? 'A Fazer' :
-                       selectedTask.status === 'IN_PROGRESS' ? 'Em Andamento' :
-                       selectedTask.status === 'DONE' ? 'Concluído' : selectedTask.status}
+                      {statusLabel(selectedTask.status)}
                     </p>
                   </div>
                   <div>

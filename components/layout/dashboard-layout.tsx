@@ -1,77 +1,72 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect } from "react"
+import { Suspense, useState, useEffect, useLayoutEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
 import NextLink from "next/link"
 import {
-  BarChart3,
-  Building2,
   DollarSign,
-  FolderOpen,
-  Home,
   LogOut,
   Menu,
   Settings,
   Users,
   X,
   Bell,
-  ChevronLeft,
-  ChevronRight,
-  Kanban,
-  Target,
-  Calendar,
   ChevronDown,
   ChevronUp,
-  Activity,
   Link as LinkIcon,
   GitBranch,
-  BookUser,
   User,
   ChartNoAxesColumnIncreasing,
-  HatGlasses,
-  ChartNetwork,
-  ChartNoAxesCombined,
   FolderGit2,
   Wallet,
   FilePen,
-  Megaphone,
   CreditCard,
   Mail,
-  Bot,
   LayoutGrid,
   PanelLeft,
+  Map,
+  Calendar,
 } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { isPathAllowed, resolveNavHref, firstAllowedFinancialPath } from "@/lib/access-control"
+import { disconnectTeamSocket } from '@/lib/team-socket'
+import { isPathAllowed, resolveNavHref } from "@/lib/access-control"
+import { useAllowedPaths } from "@/hooks/use-allowed-paths"
+import { hasWorkspaceFeatureAccess } from "@/lib/workspace-permissions"
 import { cn } from "@/lib/utils"
+import { WorkspaceSidebarNav } from "@/components/workspace/WorkspaceSidebarNav"
+import { PresenceTracker } from "@/components/presence/PresenceTracker"
+import { NavIcon, SidebarNavIcon } from "@/components/layout/SidebarNavIcon"
+import type { SidebarLottieKey } from "@/lib/sidebar-lottie-icons"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
+type SidebarMode = 'gestao' | 'espacos'
+
 type NavItem = {
   name: string
   href: string
-  icon: React.ElementType
+  lottie?: SidebarLottieKey
+  icon?: React.ElementType
   submenu?: { name: string; href: string; icon: React.ElementType }[]
 }
 
 const SIDEBAR_PAD = 'px-3'
-const SIDEBAR_ICON = 'h-5 w-5'
 const SIDEBAR_SUB_ICON = 'h-4 w-4'
 
 function navItemClass(active: boolean, collapsed?: boolean) {
   return cn(
-    'flex h-9 w-full items-center rounded-[6px] text-[13px] leading-none transition-colors',
+    'group/nav flex h-10 w-full items-center rounded-[6px] text-[13px] leading-none transition-colors',
     collapsed ? 'justify-center px-2' : 'gap-2 px-2',
     active
       ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-      : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground'
+      : 'text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]'
   )
 }
 
@@ -85,24 +80,32 @@ function subNavItemClass(active: boolean) {
 }
 
 const navigation: NavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: ChartNoAxesCombined },
+  { name: "Dashboard", href: "/dashboard", lottie: "dashboard" },
   { 
     name: "Projetos", 
     href: "/projects", 
-    icon: FolderOpen,
+    lottie: "projects",
     submenu: [
       { name: "Todos os Projetos", href: "/projects", icon: FolderGit2 },
-      { name: "Agente PM", href: "/agent", icon: Bot },
       { name: "Anotações", href: "/projects/notes", icon: FilePen },
       { name: "Sprints", href: "/projects/sprints", icon: GitBranch },
     ]
   },
-  { name: "Pipeline", href: "/pipeline", icon: Kanban },
-  { name: "Marketing", href: "/mkt", icon: Megaphone },
+  { name: "Pipeline", href: "/pipeline", lottie: "pipeline" },
+  {
+    name: "Chat",
+    href: "/team/chat",
+    lottie: "chat",
+    submenu: [
+      { name: "Grupos", href: "/team/chat", icon: Users },
+      { name: "Escritório 2D", href: "/team/office", icon: Map },
+    ],
+  },
+  { name: "Marketing", href: "/mkt", lottie: "marketing" },
   { 
     name: "Clientes", 
     href: "/clients", 
-    icon: User,
+    lottie: "clients",
     submenu: [
       { name: "Gestão", href: "/clients", icon: User },
       { name: "Propostas", href: "/clients/proposals", icon: FilePen },
@@ -111,10 +114,10 @@ const navigation: NavItem[] = [
   { 
     name: "Financeiro", 
     href: "/financial", 
-    icon: Wallet,
+    lottie: "financial",
     submenu: [
-      { name: "Visão", href: "/financial", icon: Wallet },
-      { name: "Calendário", href: "/financial/calendar", icon: Calendar },
+      { name: "Fluxo de caixa", href: "/financial", icon: Wallet },
+      { name: "Cobranças", href: "/financial/calendar", icon: Calendar },
       { name: "Assinaturas", href: "/subscriptions", icon: CreditCard },
       { name: "Comissões", href: "/financial/commissions", icon: DollarSign },
       { name: "Lembretes", href: "/financial/reminders", icon: Mail },
@@ -123,16 +126,16 @@ const navigation: NavItem[] = [
   { 
     name: "Equipe", 
     href: "/team", 
-    icon: Users,
+    lottie: "team",
     submenu: [
       { name: "Membros", href: "/team", icon: Users },
       { name: "Agenda", href: "/team/agenda", icon: Calendar },
       { name: "Performance", href: "/team/performance", icon: ChartNoAxesColumnIncreasing }
     ]
   },
-  { name: "Supervisor", href: "/supervisor/dashboard", icon: HatGlasses },
-  { name: "Relatórios", href: "/reports", icon: ChartNetwork },
-  { name: "Configurações", href: "/settings", icon: Settings,
+  { name: "Supervisor", href: "/supervisor/dashboard", lottie: "supervisor" },
+  { name: "Relatórios", href: "/reports", lottie: "reports" },
+  { name: "Configurações", href: "/settings", lottie: "settings",
     submenu: [
       { name: "Geral", href: "/settings", icon: Settings },
       { name: "Espaços de trabalho", href: "/settings/workspaces", icon: LayoutGrid },
@@ -144,66 +147,62 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarHidden, setSidebarHidden] = useState(false)
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('gestao')
   const [hydrated, setHydrated] = useState(false)
   const { data: session, status } = useSession()
-  const [allowedPaths, setAllowedPaths] = useState<string[] | null>(null)
+  const { allowedPaths, workspaceAccess } = useAllowedPaths(session?.user?.id)
   const router = useRouter()
   const pathname = usePathname() || ""
   const isFullBleed =
     pathname === '/agent' ||
     pathname === '/pipeline' ||
+    /^\/workspace\/[^/]+\/pipeline\/?$/.test(pathname) ||
+    pathname === '/team/chat' ||
+    pathname.startsWith('/team/call/') ||
+    pathname === '/team/office' ||
     (pathname.startsWith("/projects/") && pathname.includes("/canvas"))
   const isAdmin = session?.user?.role === "ADMIN"
+
+  const showEspacosTab =
+    isAdmin ||
+    (hasWorkspaceFeatureAccess(allowedPaths, false) &&
+      Boolean(
+        workspaceAccess?.canCreateWorkspaces ||
+          workspaceAccess?.workspaceIds === null ||
+          (workspaceAccess?.workspaceIds?.length ?? 0) > 0
+      ))
 
   // Carregar estado da sidebar do localStorage sem flicker
   useLayoutEffect(() => {
     const savedCollapsed = localStorage.getItem('sidebarCollapsed')
     const savedHidden = localStorage.getItem('sidebarHidden')
+    const savedMode = localStorage.getItem('sidebarMode')
     if (savedCollapsed !== null) {
       setSidebarCollapsed(JSON.parse(savedCollapsed))
     }
     if (savedHidden !== null) {
       setSidebarHidden(JSON.parse(savedHidden))
     }
+    if (savedMode === 'gestao' || savedMode === 'espacos') {
+      setSidebarMode(savedMode)
+    }
     setHydrated(true)
   }, [])
 
+  // Rotas /workspace/* sempre exibem modo Espaços na sidebar
   useEffect(() => {
-    if (status === "loading") return
-    if (!session) return
-    const run = async () => {
-      try {
-        const res = await fetch(`/api/users/${session.user.id}/permissions`)
-        if (res.ok) {
-          const data = await res.json()
-          setAllowedPaths(data.allowedPaths || [])
-        } else {
-          setAllowedPaths([])
-        }
-      } catch {
-        setAllowedPaths([])
-      }
+    if (pathname.startsWith('/workspace') && showEspacosTab) {
+      setSidebarMode('espacos')
+      localStorage.setItem('sidebarMode', 'espacos')
     }
-    run()
-  }, [session, status])
+  }, [pathname, showEspacosTab])
 
   useEffect(() => {
-    const handler = () => {
-      if (!session) return
-      fetch(`/api/users/${session.user.id}/permissions`)
-        .then(async (res) => {
-          if (res.ok) {
-            const data = await res.json()
-            setAllowedPaths(data.allowedPaths || [])
-          }
-        })
-        .catch(() => {})
+    if (!showEspacosTab && sidebarMode === 'espacos') {
+      setSidebarMode('gestao')
+      localStorage.setItem('sidebarMode', 'gestao')
     }
-    window.addEventListener('permissionsUpdated', handler)
-    return () => {
-      window.removeEventListener('permissionsUpdated', handler)
-    }
-  }, [session])
+  }, [showEspacosTab, sidebarMode])
 
   // Salvar estado da sidebar no localStorage
   const toggleSidebarCollapsed = () => {
@@ -225,7 +224,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     setSidebarOpen(false)
   }
 
+  const handleSidebarModeChange = (mode: SidebarMode) => {
+    setSidebarMode(mode)
+    localStorage.setItem('sidebarMode', mode)
+    if (mode === 'espacos') {
+      router.push('/workspace')
+    } else {
+      router.push('/dashboard')
+    }
+    closeMobileSidebar()
+  }
+
   const handleSignOut = async () => {
+    disconnectTeamSocket()
     await signOut({ redirect: false })
     router.push("/auth/signin")
   }
@@ -249,12 +260,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     href: resolveNavHref(item, allowedPaths, isAdmin),
   }))
 
-  const financialQuickLink = isAdmin
-    ? '/financial'
-    : firstAllowedFinancialPath(allowedPaths || [])
-
   return (
     <TooltipProvider>
+      <PresenceTracker />
       <div className="flex h-screen overflow-hidden bg-card">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 z-40 flex md:hidden ${sidebarOpen ? '' : 'hidden'}`}>
@@ -268,7 +276,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               <X className="h-5 w-5" />
             </button>
           </div>
-          <SidebarContent items={filteredNavigation} onNavigate={closeMobileSidebar} />
+          <SidebarContent
+            items={filteredNavigation}
+            onNavigate={closeMobileSidebar}
+            sidebarMode={sidebarMode}
+            onSidebarModeChange={handleSidebarModeChange}
+            showEspacosTab={showEspacosTab}
+          />
         </div>
       </div>
 
@@ -292,6 +306,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               items={filteredNavigation}
               collapsed={sidebarCollapsed}
               onToggleCollapse={toggleSidebarCollapsed}
+              sidebarMode={sidebarMode}
+              onSidebarModeChange={handleSidebarModeChange}
+              showEspacosTab={showEspacosTab}
             />
           )}
         </div>
@@ -304,7 +321,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           onToggleSidebar={toggleSidebarHidden}
           sidebarHidden={sidebarHidden}
           onSignOut={handleSignOut}
-          financialQuickLink={financialQuickLink}
+          sidebarMode={sidebarMode}
         />
 
         <main
@@ -327,20 +344,16 @@ function DashboardTopBar({
   onToggleSidebar,
   sidebarHidden,
   onSignOut,
-  financialQuickLink,
+  sidebarMode,
 }: {
   onMenuClick?: () => void
   onToggleSidebar?: () => void
   sidebarHidden?: boolean
   onSignOut: () => void
-  financialQuickLink?: string | null
+  sidebarMode: SidebarMode
 }) {
   const { data: session } = useSession()
-  const pathname = usePathname() || ''
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const financeActive =
-    !!financialQuickLink &&
-    (pathname === financialQuickLink || pathname.startsWith(`${financialQuickLink}/`))
 
   useEffect(() => {
     const userId = session?.user?.id
@@ -396,30 +409,13 @@ function DashboardTopBar({
           </Tooltip>
         )}
         <span className="truncate text-sm font-medium text-foreground">
-          {(pathname || '').startsWith('/workspace') ? 'Espaços' : 'Gestão CEO'}
+          {sidebarMode === 'espacos' ? 'Espaços' : 'Gestão'}
         </span>
       </div>
       <div className="flex items-center gap-1">
         <NextLink href="/notifications" className="rounded-md p-2 text-muted-foreground hover:bg-muted">
           <Bell className="h-4 w-4" />
         </NextLink>
-        {financialQuickLink && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <NextLink
-                href={financialQuickLink}
-                className={cn(
-                  'rounded-md p-2 text-muted-foreground hover:bg-muted',
-                  financeActive && 'bg-muted text-foreground'
-                )}
-                aria-label="Financeiro"
-              >
-                <Wallet className="h-4 w-4" />
-              </NextLink>
-            </TooltipTrigger>
-            <TooltipContent>Financeiro</TooltipContent>
-          </Tooltip>
-        )}
         <ModeToggle />
         <Tooltip>
           <TooltipTrigger asChild>
@@ -444,7 +440,23 @@ function DashboardTopBar({
   )
 }
 
-function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse }: { items: NavItem[]; collapsed?: boolean; onNavigate?: () => void; onToggleCollapse?: () => void }) {
+function SidebarContent({
+  items,
+  collapsed = false,
+  onNavigate,
+  onToggleCollapse,
+  sidebarMode,
+  onSidebarModeChange,
+  showEspacosTab = true,
+}: {
+  items: NavItem[]
+  collapsed?: boolean
+  onNavigate?: () => void
+  onToggleCollapse?: () => void
+  sidebarMode: SidebarMode
+  onSidebarModeChange: (mode: SidebarMode) => void
+  showEspacosTab?: boolean
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const [currentPath, setCurrentPath] = useState(pathname || '')
@@ -454,16 +466,24 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
   useEffect(() => {
     setCurrentPath(pathname || '')
     items.forEach(item => {
+      const chatSectionActive =
+        item.href === '/team/chat' &&
+        ((pathname || '').startsWith('/team/chat') ||
+          (pathname || '').startsWith('/team/office') ||
+          (pathname || '').startsWith('/team/call'))
+
       if (item.submenu) {
         const hasActiveSubmenu = item.submenu.some(subItem => 
           (pathname || '').startsWith(subItem.href)
         )
-        if (hasActiveSubmenu && !expandedMenus.includes(item.name)) {
+        if ((hasActiveSubmenu || chatSectionActive) && !expandedMenus.includes(item.name)) {
           setExpandedMenus(prev => [...prev, item.name])
         }
+      } else if (chatSectionActive && !expandedMenus.includes(item.name)) {
+        setExpandedMenus(prev => [...prev, item.name])
       }
     })
-  }, [pathname, expandedMenus])
+  }, [pathname, expandedMenus, items])
 
   const handleNavigation = (href: string) => {
     router.push(href)
@@ -488,76 +508,122 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
         className={cn(
           'flex h-11 shrink-0 items-center border-b border-sidebar-border',
           SIDEBAR_PAD,
-          collapsed ? 'justify-center' : 'justify-between gap-2'
+          collapsed ? 'justify-center' : 'justify-start'
         )}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <NextLink href="/dashboard" aria-label="Dashboard" className="flex min-w-0 items-center gap-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-sidebar-border bg-card text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-                <LinkIcon className="h-4 w-4 text-foreground" />
-              </div>
-              {!collapsed && (
-                <div className="min-w-0">
-                  <span className="block truncate text-[13px] font-semibold text-foreground">Link System</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">Software House</span>
+        {onToggleCollapse ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className={cn(
+                  'flex min-w-0 items-center rounded-[4px] transition-colors hover:bg-black/[0.04]',
+                  collapsed ? 'justify-center p-1' : 'gap-2 p-0.5'
+                )}
+                aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-sidebar-border bg-card text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <LinkIcon className="h-4 w-4 text-foreground" />
                 </div>
-              )}
-            </NextLink>
-          </TooltipTrigger>
-          <TooltipContent side="right">Dashboard</TooltipContent>
-        </Tooltip>
-        {onToggleCollapse && (
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="hidden rounded-[4px] p-1 text-muted-foreground hover:bg-black/[0.04] md:inline-flex"
-            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
+                {!collapsed && (
+                  <div className="min-w-0 text-left">
+                    <span className="block truncate text-[13px] font-semibold text-foreground">Link System</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">Software House</span>
+                  </div>
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              {collapsed ? 'Expandir menu' : 'Recolher menu'}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <NextLink href="/dashboard" aria-label="Dashboard" className="flex min-w-0 items-center gap-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-sidebar-border bg-card text-[13px] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <LinkIcon className="h-4 w-4 text-foreground" />
+                </div>
+                {!collapsed && (
+                  <div className="min-w-0">
+                    <span className="block truncate text-[13px] font-semibold text-foreground">Link System</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">Software House</span>
+                  </div>
+                )}
+              </NextLink>
+            </TooltipTrigger>
+            <TooltipContent side="right">Dashboard</TooltipContent>
+          </Tooltip>
         )}
       </div>
 
-      {!collapsed && (
+      {!collapsed && showEspacosTab && (
         <div className={cn('pb-3 pt-3', SIDEBAR_PAD)}>
           <div className="grid grid-cols-2 gap-1 rounded-[6px] border border-sidebar-border bg-card p-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-            <NextLink
-              href="/dashboard"
-              className={cn(
-                'rounded-[4px] px-2 py-1.5 text-center text-[11px] font-medium transition-colors',
-                (pathname || '').startsWith('/workspace')
-                  ? 'text-muted-foreground hover:bg-black/[0.04]'
-                  : 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
-              )}
-            >
-              Gestão CEO
-            </NextLink>
-            <NextLink
-              href="/workspace"
+            <button
+              type="button"
+              onClick={() => onSidebarModeChange('gestao')}
               className={cn(
                 'flex items-center justify-center gap-1 rounded-[4px] px-2 py-1.5 text-center text-[11px] font-medium transition-colors',
-                (pathname || '').startsWith('/workspace')
+                sidebarMode === 'gestao'
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:bg-black/[0.04]'
               )}
             >
-              <LayoutGrid className="h-3 w-3" />
+              <SidebarNavIcon
+                lottie="dashboardG"
+                active={sidebarMode === 'gestao'}
+                invertWhenActive
+                size={16}
+              />
+              Gestão
+            </button>
+            <button
+              type="button"
+              onClick={() => onSidebarModeChange('espacos')}
+              className={cn(
+                'flex items-center justify-center gap-1 rounded-[4px] px-2 py-1.5 text-center text-[11px] font-medium transition-colors',
+                sidebarMode === 'espacos'
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-black/[0.04]'
+              )}
+            >
+              <SidebarNavIcon
+                lottie="spaces"
+                active={sidebarMode === 'espacos'}
+                invertWhenActive
+                size={16}
+              />
               Espaços
-            </NextLink>
+            </button>
           </div>
         </div>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto py-2">
+        {sidebarMode === 'espacos' && showEspacosTab ? (
+          <Suspense fallback={null}>
+            <WorkspaceSidebarNav collapsed={collapsed} />
+          </Suspense>
+        ) : (
         <nav className={cn('space-y-0.5', SIDEBAR_PAD)}>
           {items.map((item) => {
-            const isActive = currentPath === item.href
+            const isChatNav = item.href === '/team/chat'
+            const isActive =
+              currentPath === item.href ||
+              (isChatNav &&
+                (currentPath.startsWith('/team/office') ||
+                  currentPath.startsWith('/team/call')))
             const hasSubmenu = item.submenu && item.submenu.length > 0
             const isExpanded = expandedMenus.includes(item.name)
-            const hasActiveSubmenu = hasSubmenu && item.submenu?.some(subItem => 
-              currentPath.startsWith(subItem.href)
-            )
+            const hasActiveSubmenu =
+              hasSubmenu &&
+              (item.submenu?.some((subItem) => currentPath.startsWith(subItem.href)) ||
+                (isChatNav &&
+                  (currentPath.startsWith('/team/chat') ||
+                    currentPath.startsWith('/team/office') ||
+                    currentPath.startsWith('/team/call'))))
 
             return (
               <div key={item.name}>
@@ -571,7 +637,11 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                           className={navItemClass(isActive || !!hasActiveSubmenu, true)}
                           aria-label={item.name}
                         >
-                          <item.icon className={cn(SIDEBAR_ICON, 'shrink-0 opacity-70')} />
+                          <NavIcon
+                            lottie={item.lottie}
+                            icon={item.icon}
+                            active={isActive || !!hasActiveSubmenu}
+                          />
                         </button>
                       </HoverCardTrigger>
                       <HoverCardContent side="right" align="start" sideOffset={10} className="w-48 border border-border bg-popover p-2 shadow-lg">
@@ -606,7 +676,11 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                           className={navItemClass(isActive, true)}
                           aria-label={item.name}
                         >
-                          <item.icon className={cn(SIDEBAR_ICON, 'shrink-0 opacity-70')} />
+                          <NavIcon
+                            lottie={item.lottie}
+                            icon={item.icon}
+                            active={isActive || !!hasActiveSubmenu}
+                          />
                         </NextLink>
                       </TooltipTrigger>
                       <TooltipContent side="right">{item.name}</TooltipContent>
@@ -623,7 +697,11 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
                     }}
                     className={navItemClass(isActive || !!hasActiveSubmenu)}
                   >
-                    <item.icon className={cn(SIDEBAR_ICON, 'shrink-0 opacity-70')} />
+                    <NavIcon
+                      lottie={item.lottie}
+                      icon={item.icon}
+                      active={isActive || !!hasActiveSubmenu}
+                    />
                     <span className="flex-1 truncate text-left">{item.name}</span>
                     {hasSubmenu && (
                       isExpanded ? (
@@ -659,33 +737,8 @@ function SidebarContent({ items, collapsed = false, onNavigate, onToggleCollapse
             )
           })}
         </nav>
+        )}
       </div>
-
-      {!collapsed && onToggleCollapse && (
-        <div className={cn('shrink-0 border-t border-sidebar-border py-3', SIDEBAR_PAD)}>
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="flex h-8 w-full items-center justify-center gap-2 rounded-[6px] border border-border bg-card px-3 text-[12px] font-medium text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-background"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            Recolher menu
-          </button>
-        </div>
-      )}
-
-      {collapsed && onToggleCollapse && (
-        <div className={cn('shrink-0 border-t border-sidebar-border py-3', SIDEBAR_PAD)}>
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className="flex h-8 w-full items-center justify-center rounded-[6px] border border-border bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:bg-background"
-            aria-label="Expandir menu"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
     </div>
   )
 }

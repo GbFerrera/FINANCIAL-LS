@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { Calendar as RBCalendar, dateFnsLocalizer, Views } from "react-big-calendar"
+import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from "react-big-calendar"
 import { format, parse, startOfWeek, getDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import "react-big-calendar/lib/css/react-big-calendar.css"
@@ -19,8 +19,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Calendar as CalendarIcon, Mail, MessageCircle, Plus, RefreshCw, TrendingDown, TrendingUp, Wallet, MoreHorizontal } from "lucide-react"
+import { Calendar as CalendarIcon, Mail, MessageCircle, Plus, RefreshCw, TrendingDown, TrendingUp, Wallet, MoreHorizontal, ArrowDownLeft, ArrowUpRight } from "lucide-react"
 import { AddPaymentDialog } from "@/components/payments/add-payment-dialog"
+import { CurrencyAmount } from "@/components/ui/currency-amount"
+import { cn } from "@/lib/utils"
 
 const locales = {
   "pt-BR": ptBR,
@@ -251,6 +253,7 @@ export default function FinancialCalendarPage() {
   }>>([])
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [calendarView, setCalendarView] = useState<View>(Views.MONTH)
   const [addChargeOpen, setAddChargeOpen] = useState(false)
   const [addExpenseOpen, setAddExpenseOpen] = useState(false)
   const [sendingDailyEmail, setSendingDailyEmail] = useState(false)
@@ -357,7 +360,7 @@ export default function FinancialCalendarPage() {
       const data = await res.json()
       setSubscriptions(Array.isArray(data.subscriptions) ? data.subscriptions : [])
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao carregar calendário financeiro")
+      toast.error(e instanceof Error ? e.message : "Erro ao carregar Calendário de Cobranças")
       setSubscriptions([])
     } finally {
       setLoading(false)
@@ -1070,12 +1073,50 @@ export default function FinancialCalendarPage() {
     return {}
   }
 
+  const chargeStatusMeta = (c: FinancialChargeEvent) => {
+    if (c.source === "EXPENSE") {
+      if (c.status === "PAID") {
+        return { label: "Pago", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" }
+      }
+      const overdue = dateKey(c.dueDate) < todayKey
+      return {
+        label: overdue ? "Vencido" : "A pagar",
+        className: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+      }
+    }
+
+    const isReceived = c.status === "PAID" || c.status === "RECEIVED"
+    const overdue = c.status === "PENDING" && dateKey(c.dueDate) < todayKey
+    if (isReceived) {
+      return {
+        label: c.source === "PAYMENT" ? "Recebido" : "Pago",
+        className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+      }
+    }
+    return {
+      label: c.source === "PAYMENT" ? "Pendente" : "Pendente",
+      className: overdue
+        ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+        : "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+    }
+  }
+
+  const reminderStatusMeta = (status: CalendarReminderRow["status"]) => {
+    if (status === "sent") {
+      return { label: "Enviado", className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" }
+    }
+    if (status === "partial") {
+      return { label: "Parcial", className: "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300" }
+    }
+    return { label: "Agendado", className: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" }
+  }
+
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Calendário financeiro</h1>
+          <h1 className="text-3xl font-bold text-foreground">Calendário de Cobranças</h1>
           <p className="text-muted-foreground">
             Visualize cobranças por dia, valores a receber e status de pagamento
           </p>
@@ -1137,15 +1178,15 @@ export default function FinancialCalendarPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 overflow-hidden shadow-sm border-none bg-card">
           <CardContent className="p-0 h-[calc(100vh-290px)]">
-            <div className="financial-calendar h-full">
+            <div className="financial-calendar h-full min-h-0">
               <RBCalendar
                 localizer={localizer}
                 events={calendarEvents}
                 startAccessor="start"
                 endAccessor="end"
                 style={{ height: "100%" }}
-                view={Views.MONTH}
-                views={[Views.MONTH]}
+                view={calendarView}
+                onView={(v) => setCalendarView(v)}
                 date={calendarDate}
                 onNavigate={(d) => setCalendarDate(d)}
                 culture="pt-BR"
@@ -1178,9 +1219,9 @@ export default function FinancialCalendarPage() {
                     const ev = props.event as CalendarDayTotalEvent
                     const key = dateKey(ev.start)
                     const dayData = calendarEvents.find(e => e.id === `day:${key}`)
-                    
+
                     if (!dayData) return <>{props.children}</>
-                    
+
                     return (
                       <TooltipProvider>
                         <Tooltip>
@@ -1237,7 +1278,7 @@ export default function FinancialCalendarPage() {
                           ? "h-2 w-2 rounded-full bg-amber-500 flex-shrink-0"
                           : "h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0"
                     const isSplitBorder = className?.includes("split-border-event")
-                    
+
                     const content = (
                       <div className="text-[11px] leading-tight">
                         <div className="flex items-center gap-2 min-w-0">
@@ -1273,7 +1314,7 @@ export default function FinancialCalendarPage() {
                         </div>
                       </div>
                     )
-                    
+
                     if (isSplitBorder) {
                       return (
                         <div style={style} className={className}>
@@ -1283,7 +1324,7 @@ export default function FinancialCalendarPage() {
                         </div>
                       )
                     }
-                    
+
                     return content
                   },
                 }}
@@ -1292,326 +1333,364 @@ export default function FinancialCalendarPage() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-none bg-card">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}
-            </CardTitle>
+        <Card className="flex h-[calc(100vh-290px)] flex-col overflow-hidden border shadow-sm">
+          <CardHeader className="shrink-0 border-b pb-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium capitalize text-muted-foreground">
+                  {format(selectedDate, "EEEE", { locale: ptBR })}
+                </p>
+                <CardTitle className="text-lg font-semibold tracking-tight">
+                  {format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}
+                </CardTitle>
+              </div>
+              {selectedKey === todayKey ? (
+                <Badge variant="secondary" className="shrink-0 text-[11px] font-normal">
+                  Hoje
+                </Badge>
+              ) : null}
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground">
-                Receber: <span className="text-foreground font-semibold">{formatBRL2(dayReceiveTotal)}</span>
+
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                <p className="text-xs font-medium text-muted-foreground">A receber</p>
+                <CurrencyAmount value={dayReceivePending} size="lg" className="mt-1.5" />
               </div>
-              <div className="text-sm text-muted-foreground">
-                Recebido: <span className="text-foreground font-semibold">{formatBRL2(dayReceiveReceived)}</span>
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                <p className="text-xs font-medium text-muted-foreground">Recebido</p>
+                <CurrencyAmount value={dayReceiveReceived} size="lg" className="mt-1.5" />
               </div>
-              <div className="text-sm text-muted-foreground">
-                A receber: <span className="text-foreground font-semibold">{formatBRL2(dayReceivePending)}</span>
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                <p className="text-xs font-medium text-muted-foreground">A pagar</p>
+                <CurrencyAmount value={dayPayTotal} size="lg" className="mt-1.5" />
               </div>
-              <div className="text-sm text-muted-foreground">
-                A pagar: <span className="text-foreground font-semibold">{formatBRL2(dayPayTotal)}</span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Entradas: <span className="text-foreground font-semibold">{formatBRL2(dayFinancialIncome)}</span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Saídas: <span className="text-foreground font-semibold">{formatBRL2(dayFinancialExpense)}</span>
+              <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+                <p className="text-xs font-medium text-muted-foreground">Saldo do dia</p>
+                <CurrencyAmount
+                  value={dayReceiveReceived + dayFinancialIncome - dayPayTotal - dayFinancialExpense}
+                  size="lg"
+                  className="mt-1.5"
+                />
               </div>
             </div>
 
             {dayReminders.length > 0 && (
-              <div className="space-y-2 border-t pt-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Lembretes de cobrança
-                </p>
-                {dayReminders.map((r) => {
-                  const rowKey = `${r.source}-${r.sourceId}-${r.sendDateKey}-${r.dueDateKey}`
-                  const resending = resendingReminderKey === `${r.source}-${r.sourceId}-${r.sendDateKey}`
-                  return (
-                  <div
-                    key={rowKey}
-                    className="flex items-start justify-between gap-2 text-sm"
-                  >
-                    <div className="min-w-0">
-                      <div className="font-medium truncate flex items-center gap-1.5">
-                        {r.channels.includes("EMAIL") && (
-                          <Mail className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-                        )}
-                        {r.channels.includes("WHATSAPP") && (
-                          <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                        )}
-                        {r.clientName}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        Lembrete · {reminderChannelsLabel(r.channels)}
-                        {" · "}
-                        {r.source === "PAYMENT"
-                          ? r.label
-                          : `${r.templateName || "Assinatura"} · ${r.label}`}
-                        {r.daysUntilDue === 0
-                          ? " · vence hoje"
-                          : ` · ${r.daysUntilDue} dia(s) antes`}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                      <div className="text-xs font-medium">{r.amountLabel}</div>
-                      <Badge
-                        variant="outline"
-                        className={
-                          r.status === "sent"
-                            ? "text-green-600 border-green-600/40"
-                            : r.status === "partial"
-                              ? "text-orange-600 border-orange-600/40"
-                              : "text-amber-600 border-amber-600/40"
-                        }
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Lembretes
+                </h3>
+                <div className="space-y-2">
+                  {dayReminders.map((r) => {
+                    const rowKey = `${r.source}-${r.sourceId}-${r.sendDateKey}-${r.dueDateKey}`
+                    const resending = resendingReminderKey === `${r.source}-${r.sourceId}-${r.sendDateKey}`
+                    const statusMeta = reminderStatusMeta(r.status)
+                    return (
+                      <div
+                        key={rowKey}
+                        className="rounded-lg border border-border/70 bg-card p-3"
                       >
-                        {r.status === "sent"
-                          ? "Enviado"
-                          : r.status === "partial"
-                            ? "Parcial"
-                            : "Agendado"}
-                      </Badge>
-                      {r.canResend && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs"
-                          disabled={resending}
-                          onClick={() => void resendReminder(r)}
-                        >
-                          <RefreshCw className={`h-3 w-3 mr-1 ${resending ? "animate-spin" : ""}`} />
-                          Reenviar
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  )
-                })}
-              </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 truncate text-sm font-medium">
+                              {r.channels.includes("EMAIL") && (
+                                <Mail className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                              )}
+                              {r.channels.includes("WHATSAPP") && (
+                                <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              )}
+                              <span className="truncate">{r.clientName}</span>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                              {reminderChannelsLabel(r.channels)}
+                              {" · "}
+                              {r.source === "PAYMENT"
+                                ? r.label
+                                : `${r.templateName || "Assinatura"} · ${r.label}`}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              {r.daysUntilDue === 0
+                                ? "Vence hoje"
+                                : `${r.daysUntilDue} dia(s) antes do vencimento`}
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-xs font-medium tabular-nums">{r.amountLabel}</p>
+                            <Badge variant="outline" className={cn("mt-1 text-[10px] font-normal", statusMeta.className)}>
+                              {statusMeta.label}
+                            </Badge>
+                          </div>
+                        </div>
+                        {r.canResend && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="mt-2 h-7 w-full px-2 text-xs"
+                            disabled={resending}
+                            onClick={() => void resendReminder(r)}
+                          >
+                            <RefreshCw className={cn("mr-1.5 h-3 w-3", resending && "animate-spin")} />
+                            Reenviar lembrete
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
             )}
 
             {dayCharges.length === 0 && dayFinancialEntries.length === 0 && dayReminders.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                Nenhum registro para este dia.
+              <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
+                <CalendarIcon className="mb-2 h-8 w-8 text-muted-foreground/35" />
+                <p className="text-sm font-medium text-foreground">Dia sem movimentações</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Selecione outro dia no calendário
+                </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {dayCharges.map((c) => (
-                  <div key={c.id} className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-sm truncate text-foreground">
-                        {c.source === "EXPENSE"
-                          ? `${c.clientName} · ${c.subscriptionName}`
-                          : c.source === "PAYMENT"
-                            ? `${c.clientName} · Cobrança avulsa`
-                            : `${c.clientName} · ${c.subscriptionName}`}
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {c.source === "EXPENSE"
-                          ? `${format(c.dueDate, "dd/MM/yyyy", { locale: ptBR })}${c.isRecurring ? ` · Recorrente (${recurringLabel(c.recurringType)})` : ""}${c.projectName ? ` · ${c.projectName}` : ""}`
-                          : c.manualDescription
-                            ? c.manualDescription
-                            : c.groupName
-                              ? c.groupName
-                              : "—"}
-                      </div>
-                      {c.status === "PAID" && c.paidAt ? (
-                        <div className="text-xs text-muted-foreground">
-                          Pago em {format(c.paidAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                      <div className="font-semibold text-sm text-foreground">
-                        {c.source === "EXPENSE" ? `- ${formatBRL2(c.amount)}` : formatBRL2(c.amount)}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {(() => {
-                          if (c.source === "EXPENSE") {
-                            if (c.status === "PAID") {
-                              return <Badge className="bg-green-600 hover:bg-green-600 text-white font-semibold">Pago</Badge>
-                            }
-                            const overdue = dateKey(c.dueDate) < todayKey
-                            return (
-                              <Badge className="bg-red-600 hover:bg-red-600 text-white font-semibold">
-                                {overdue ? "Vencido" : "A pagar"}
-                              </Badge>
-                            )
-                          }
-
-                          const isReceived = c.status === "PAID" || c.status === "RECEIVED"
-                          const isPending = c.status === "PENDING"
-                          const overdue = isPending && dateKey(c.dueDate) < todayKey
-                          const badgeClass = isReceived
-                            ? "bg-green-600 hover:bg-green-600 text-white font-semibold"
-                            : overdue
-                              ? "bg-red-600 hover:bg-red-600 text-white font-semibold"
-                              : "bg-amber-500 hover:bg-amber-500 text-black font-semibold"
-
-                          const label = c.source === "PAYMENT"
-                            ? isReceived
-                              ? "Recebido"
-                              : "Pendente"
-                            : c.status === "PAID"
-                              ? "Pago"
-                              : "Pendente"
-
-                          return <Badge className={badgeClass}>{label}</Badge>
-                        })()}
-                        {c.source === "PAYMENT" && c.paymentId ? (
-                          <>
-                            {c.status === "PENDING" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={markingReceivedId === c.paymentId}
-                                onClick={() => markPaymentAsReceived(c.paymentId!)}
-                              >
-                                {markingReceivedId === c.paymentId ? "Marcando..." : "Marcar recebido"}
-                              </Button>
+              <section className="space-y-2">
+                {(dayCharges.length > 0 || dayFinancialEntries.length > 0) && (
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Movimentações
+                  </h3>
+                )}
+                <div className="space-y-2">
+                  {dayCharges.map((c) => {
+                    const statusMeta = chargeStatusMeta(c)
+                    const isExpense = c.source === "EXPENSE"
+                    return (
+                      <div
+                        key={c.id}
+                        className="rounded-lg border border-border/70 bg-card p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              {isExpense ? (
+                                <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                              ) : (
+                                <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              )}
+                              <p className="truncate text-sm font-medium text-foreground">
+                                {isExpense
+                                  ? c.clientName
+                                  : c.source === "PAYMENT"
+                                    ? c.clientName
+                                    : c.clientName}
+                              </p>
+                            </div>
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {isExpense
+                                ? c.subscriptionName
+                                : c.source === "PAYMENT"
+                                  ? "Cobrança avulsa"
+                                  : c.subscriptionName}
+                            </p>
+                            {(c.manualDescription || c.groupName || c.projectName || (isExpense && c.isRecurring)) && (
+                              <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                                {isExpense
+                                  ? [
+                                      c.isRecurring ? `Recorrente (${recurringLabel(c.recurringType)})` : null,
+                                      c.projectName,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")
+                                  : c.manualDescription || c.groupName || c.projectName}
+                              </p>
                             )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const payment = payments.find(p => p.id === c.paymentId)
-                                    if (payment) {
-                                      setPaymentToEdit({
-                                        id: payment.id,
-                                        clientId: payment.client.id,
-                                        amount: payment.amount,
-                                        description: payment.description,
-                                        paymentDate: payment.paymentDate,
-                                        method: payment.method || 'BANK_TRANSFER',
-                                        reminderSendEmail: payment.reminderSendEmail,
-                                        reminderSendWhatsApp: payment.reminderSendWhatsApp,
-                                        reminderDaysBefore: payment.reminderDaysBefore,
-                                        reminderSendTime: payment.reminderSendTime,
-                                        whatsAppInstanceId: payment.whatsAppInstanceId,
-                                      })
-                                      setAddChargeOpen(true)
-                                    }
-                                  }}
-                                >
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  disabled={deletingPaymentId === c.paymentId}
-                                  onClick={() => {
-                                    if (confirm("Tem certeza que deseja excluir esta cobrança?")) {
-                                      deletePayment(c.paymentId!)
-                                    }
-                                  }}
-                                >
-                                  {deletingPaymentId === c.paymentId ? "Excluindo..." : "Excluir"}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </>
-                        ) : null}
-                        {c.source === "SUBSCRIPTION" && c.status === "PENDING" && c.clientSubscriptionId ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={markingPaidId === c.clientSubscriptionId}
-                            onClick={() => markSubscriptionAsPaid(c.clientSubscriptionId!, c.dueDate)}
-                          >
-                            {markingPaidId === c.clientSubscriptionId ? "Marcando..." : "Marcar pago"}
-                          </Button>
-                        ) : null}
-                        {c.source === "EXPENSE" && c.expenseBillId ? (
-                          <>
-                            {c.status === "PENDING" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}`}
-                                onClick={() => markExpenseAsPaid(c.expenseBillId!, c.dueDate)}
-                              >
-                                {markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}` ? "Marcando..." : "Marcar pago"}
-                              </Button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    const expense = expenseOccurrences.find(e => e.billId === c.expenseBillId)
-                                    if (expense) {
-                                      setExpenseToEdit({
-                                        id: expense.billId,
-                                        category: expense.category,
-                                        description: expense.description,
-                                        amount: expense.amount,
-                                        dueDate: expense.dueDate,
-                                        isRecurring: expense.isRecurring,
-                                        recurringType: expense.recurringType as any,
-                                        dueDay: String(expense.dueDay).padStart(2, "0")
-                                      })
-                                      setAddExpenseOpen(true)
-                                    }
-                                  }}
-                                >
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  disabled={deletingExpenseId === c.expenseBillId}
-                                  onClick={() => {
-                                    if (confirm("Tem certeza que deseja excluir esta despesa?")) {
-                                      deleteExpense(c.expenseBillId!)
-                                    }
-                                  }}
-                                >
-                                  {deletingExpenseId === c.expenseBillId ? "Excluindo..." : "Excluir"}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                {dayFinancialEntries.length ? (
-                  <div className="pt-2 border-t border-border space-y-3">
-                    {dayFinancialEntries.map((e) => (
-                      <div key={e.id} className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-semibold text-sm truncate text-foreground">
-                            {e.category || "Entrada"}
+                            {c.status === "PAID" && c.paidAt ? (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                Pago em {format(c.paidAt, "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </p>
+                            ) : null}
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {e.description || "—"}{e.projectName ? ` · ${e.projectName}` : ""}
+                          <div className="shrink-0 text-right">
+                            <span className={cn(isExpense && "text-red-600 dark:text-red-400")}>
+                              <CurrencyAmount
+                                value={isExpense ? -c.amount : c.amount}
+                                size="sm"
+                                className={isExpense ? "text-red-600 dark:text-red-400" : undefined}
+                              />
+                            </span>
                           </div>
                         </div>
-                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                          <div className="font-semibold text-sm text-foreground">
-                            {e.type === "EXPENSE" ? `- ${formatBRL2(e.amount)}` : formatBRL2(e.amount)}
-                          </div>
-                          <Badge className={e.type === "EXPENSE" ? "bg-red-600 hover:bg-red-600 text-white font-semibold" : "bg-green-600 hover:bg-green-600 text-white font-semibold"}>
-                            {e.type === "EXPENSE" ? "Saída" : "Entrada"}
+
+                        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className={cn("text-[10px] font-normal", statusMeta.className)}>
+                            {statusMeta.label}
                           </Badge>
+
+                          {c.source === "PAYMENT" && c.paymentId ? (
+                            <>
+                              {c.status === "PENDING" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={markingReceivedId === c.paymentId}
+                                  onClick={() => markPaymentAsReceived(c.paymentId!)}
+                                >
+                                  {markingReceivedId === c.paymentId ? "Marcando..." : "Marcar recebido"}
+                                </Button>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon-sm" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      const payment = payments.find(p => p.id === c.paymentId)
+                                      if (payment) {
+                                        setPaymentToEdit({
+                                          id: payment.id,
+                                          clientId: payment.client.id,
+                                          amount: payment.amount,
+                                          description: payment.description,
+                                          paymentDate: payment.paymentDate,
+                                          method: payment.method || "BANK_TRANSFER",
+                                        })
+                                        setAddChargeOpen(true)
+                                      }
+                                    }}
+                                  >
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    disabled={deletingPaymentId === c.paymentId}
+                                    onClick={() => {
+                                      if (confirm("Tem certeza que deseja excluir esta cobrança?")) {
+                                        deletePayment(c.paymentId!)
+                                      }
+                                    }}
+                                  >
+                                    {deletingPaymentId === c.paymentId ? "Excluindo..." : "Excluir"}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </>
+                          ) : null}
+
+                          {c.source === "SUBSCRIPTION" && c.status === "PENDING" && c.clientSubscriptionId ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={markingPaidId === c.clientSubscriptionId}
+                              onClick={() => markSubscriptionAsPaid(c.clientSubscriptionId!, c.dueDate)}
+                            >
+                              {markingPaidId === c.clientSubscriptionId ? "Marcando..." : "Marcar pago"}
+                            </Button>
+                          ) : null}
+
+                          {c.source === "EXPENSE" && c.expenseBillId ? (
+                            <>
+                              {c.status === "PENDING" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}`}
+                                  onClick={() => markExpenseAsPaid(c.expenseBillId!, c.dueDate)}
+                                >
+                                  {markingExpensePaidId === `${c.expenseBillId}:${dateKey(c.dueDate)}`
+                                    ? "Marcando..."
+                                    : "Marcar pago"}
+                                </Button>
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon-sm" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      const expense = expenseOccurrences.find(e => e.billId === c.expenseBillId)
+                                      if (expense) {
+                                        setExpenseToEdit({
+                                          id: expense.billId,
+                                          category: expense.category,
+                                          description: expense.description,
+                                          amount: expense.amount,
+                                          dueDate: expense.dueDate,
+                                          isRecurring: expense.isRecurring,
+                                          recurringType: expense.recurringType as "MONTHLY" | "QUARTERLY" | "YEARLY",
+                                          dueDay: String(expense.dueDay).padStart(2, "0"),
+                                        })
+                                        setAddExpenseOpen(true)
+                                      }
+                                    }}
+                                  >
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    disabled={deletingExpenseId === c.expenseBillId}
+                                    onClick={() => {
+                                      if (confirm("Tem certeza que deseja excluir esta despesa?")) {
+                                        deleteExpense(c.expenseBillId!)
+                                      }
+                                    }}
+                                  >
+                                    {deletingExpenseId === c.expenseBillId ? "Excluindo..." : "Excluir"}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </>
+                          ) : null}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+                    )
+                  })}
+
+                  {dayFinancialEntries.map((e) => (
+                    <div key={e.id} className="rounded-lg border border-border/70 bg-card p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {e.type === "EXPENSE" ? (
+                              <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                            ) : (
+                              <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                            )}
+                            <p className="truncate text-sm font-medium">{e.category || "Entrada"}</p>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {e.description || "—"}
+                            {e.projectName ? ` · ${e.projectName}` : ""}
+                          </p>
+                        </div>
+                        <CurrencyAmount
+                          value={e.type === "EXPENSE" ? -e.amount : e.amount}
+                          size="sm"
+                          className={e.type === "EXPENSE" ? "text-red-600 dark:text-red-400" : undefined}
+                        />
+                      </div>
+                      <div className="mt-2">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-normal",
+                            e.type === "EXPENSE"
+                              ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
+                              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          )}
+                        >
+                          {e.type === "EXPENSE" ? "Saída manual" : "Entrada manual"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
             )}
           </CardContent>
         </Card>
@@ -1758,6 +1837,11 @@ export default function FinancialCalendarPage() {
       <style jsx global>{`
         .financial-calendar .rbc-calendar {
           color: var(--foreground);
+          height: 100% !important;
+        }
+
+        .financial-calendar .rbc-month-row {
+          min-height: 100px;
         }
 
         .financial-calendar .rbc-toolbar {

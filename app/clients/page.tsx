@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { StatsCard } from '@/components/ui/stats-card'
 import {
   Dialog,
@@ -17,27 +16,38 @@ import {
   Users,
   UserPlus,
   Search,
-  Filter,
-  MoreVertical,
+  MoreHorizontal,
   Eye,
   Edit,
   Trash2,
-  Link,
   Copy,
-  Building,
+  Building2,
   Mail,
   Phone,
-  MapPin,
-  Calendar,
-  DollarSign,
   FolderOpen,
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react'
-import { parseISO } from 'date-fns'
+import { format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { FileUpload } from '@/components/ui/file-upload'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { PageLoadingGate } from '@/components/ui/loading-animation'
+import { CurrencyAmount } from '@/components/ui/currency-amount'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 10
@@ -68,7 +78,6 @@ interface NewClient {
 }
 
 export default function ClientsPage() {
-  const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -314,334 +323,326 @@ export default function ClientsPage() {
 
 
 
-  const stats = [
-    {
-      title: 'Total de Clientes',
-      value: totalClients.toString(),
-      icon: Users,
-      change: {
-         value: '+12%',
-         type: 'increase' as const
-       }
-    },
-    {
-      title: 'Clientes Ativos',
-      value: totalClients.toString(),
-      icon: Users,
-      change: {
-         value: '+8%',
-         type: 'increase' as const
-       }
-    },
-    {
-      title: 'Valor Total',
-      value: `R$ ${summary.totalValue.toLocaleString('pt-BR')}`,
-      icon: DollarSign,
-      change: {
-         value: '+15%',
-         type: 'increase' as const
-       }
-    },
-    {
-      title: 'Projetos Ativos',
-      value: summary.totalProjects.toString(),
-      icon: FolderOpen,
-      change: {
-         value: '+5%',
-         type: 'increase' as const
-       }
-    }
-  ]
+  const openViewClient = (client: Client) => {
+    setSelectedClient(client)
+    setIsViewClientOpen(true)
+  }
+
+  const openEditClient = (client: Client) => {
+    setSelectedClient(client)
+    setEditClient({
+      name: client.name,
+      email: client.email,
+      phone: client.phone,
+      company: client.company,
+    })
+    setIsEditClientOpen(true)
+  }
+
+  const clientInitials = (name: string) =>
+    name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || 'C'
 
   return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+    <PageLoadingGate loading={loading && clients.length === 0}>
+      <div className="space-y-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Clientes</h1>
-            <p className="text-muted-foreground">
-              Gerencie seus clientes e gere links de acesso para o portal
+            <h1 className="text-xl font-semibold text-foreground sm:text-2xl">Clientes</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Gerencie clientes e links de acesso ao portal
             </p>
           </div>
           <Dialog open={isAddClientOpen} onOpenChange={setIsAddClientOpen}>
             <DialogTrigger asChild>
-              <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Adicionar Cliente
-              </button>
+              <Button size="sm">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Adicionar cliente
+              </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Adicionar Novo Cliente</DialogTitle>
+            <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+              <DialogHeader className="border-b border-border px-6 py-5">
+                <DialogTitle>Adicionar cliente</DialogTitle>
                 <DialogDescription>
-                  Preencha as informações do cliente. Um link de acesso será gerado automaticamente.
+                  Preencha os dados. Um link de portal será gerado automaticamente.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleAddClient} className="space-y-4">
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
-                      <input
-                        type="text"
+              <form onSubmit={handleAddClient} className="flex flex-col">
+                <div className="space-y-4 px-6 py-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-name">Nome</Label>
+                      <Input
+                        id="new-name"
                         value={newClient.name}
-                        onChange={(e) => setNewClient({...newClient, name: e.target.value})}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                      <input
+                    <div className="space-y-2">
+                      <Label htmlFor="new-email">Email</Label>
+                      <Input
+                        id="new-email"
                         type="email"
                         value={newClient.email}
-                        onChange={(e) => setNewClient({...newClient, email: e.target.value})}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
                         required
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
-                      <input
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-phone">Telefone</Label>
+                      <Input
+                        id="new-phone"
                         type="tel"
                         value={newClient.phone}
-                        onChange={(e) => setNewClient({...newClient, phone: e.target.value})}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Empresa</label>
-                      <input
-                        type="text"
+                    <div className="space-y-2">
+                      <Label htmlFor="new-company">Empresa</Label>
+                      <Input
+                        id="new-company"
                         value={newClient.company}
-                        onChange={(e) => setNewClient({...newClient, company: e.target.value})}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
+                        onChange={(e) => setNewClient({ ...newClient, company: e.target.value })}
                         required
                       />
                     </div>
                   </div>
-
                 </div>
-                <DialogFooter>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddClientOpen(false)}
-                    className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  >
+                <DialogFooter className="border-t border-border px-6 py-4">
+                  <Button type="button" variant="outline" onClick={() => setIsAddClientOpen(false)}>
                     Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
-                  >
-                    Adicionar Cliente
-                  </button>
+                  </Button>
+                  <Button type="submit">Adicionar cliente</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => (
-            <StatsCard key={index} {...stat} />
-          ))}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatsCard title="Total de clientes" value={totalClients} />
+          <StatsCard title="Clientes ativos" value={totalClients} />
+          <StatsCard
+            title="Valor total"
+            value={<CurrencyAmount value={summary.totalValue} size="md" />}
+          />
+          <StatsCard title="Projetos vinculados" value={summary.totalProjects} />
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <input
-              type="text"
-              placeholder="Buscar clientes..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                setPage(1)
-              }}
-              className="pl-10 pr-4 py-2 w-full border border-input rounded-md focus:ring-2 focus:ring-primary bg-background text-foreground"
-            />
-          </div>
-
-        </div>
-
-        {/* Clients Table */}
-        <div className="bg-card shadow rounded-lg overflow-hidden border border-border">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-border">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Contato
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Empresa
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Projetos
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Valor Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Link de Acesso
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className={cn('bg-card divide-y divide-border', loading && 'opacity-50')}>
-                {clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-muted/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-primary" />
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-foreground">{client.name}</div>
-                          <div className="text-sm text-muted-foreground">Cliente desde {parseISO(client.createdAt).toLocaleDateString('pt-BR')}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">{client.email}</div>
-                      <div className="text-sm text-muted-foreground">{client.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-foreground">{client.company}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                        Ativo
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                      {client.totalProjects}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
-                      R$ {client.totalValue.toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => copyClientLink(client)}
-                          className="inline-flex items-center px-2 py-1 border border-input rounded text-xs font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copiar Link
-                        </button>
-                        <a
-                          href={generateClientLink(client)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-2 py-1 border border-primary/20 rounded text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Abrir Portal
-                        </a>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => {
-                            setSelectedClient(client)
-                            setIsViewClientOpen(true)
-                          }}
-                          className="text-primary hover:text-primary/80 transition-colors"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedClient(client)
-                            setEditClient({
-                              name: client.name,
-                              email: client.email,
-                              phone: client.phone,
-                              company: client.company
-                            })
-                            setIsEditClientOpen(true)
-                          }}
-                          className="text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400 transition-colors"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClient(client.id)}
-                          className="text-destructive hover:text-destructive/80 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {totalClients > 0 && (
-            <div className="flex flex-col gap-3 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">
-                Mostrando {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalClients)} de {totalClients} clientes
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1 || loading}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Anterior
-                </Button>
-                <span className="min-w-[4.5rem] text-center text-sm text-muted-foreground">
-                  {page} / {totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages || loading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Próxima
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+        <Card className="gap-0 overflow-hidden py-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <CardHeader className="border-b border-border px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-base">Lista de clientes</CardTitle>
+                <CardDescription className="mt-0.5">
+                  {totalClients} cadastro{totalClients === 1 ? '' : 's'}
+                </CardDescription>
+              </div>
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar clientes..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setPage(1)
+                  }}
+                  className="h-9 pl-9"
+                />
               </div>
             </div>
-          )}
-        </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[880px] text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-2.5 font-medium">Cliente</th>
+                    <th className="px-3 py-2.5 font-medium">Contato</th>
+                    <th className="px-3 py-2.5 font-medium">Projetos</th>
+                    <th className="px-3 py-2.5 font-medium">Valor</th>
+                    <th className="px-3 py-2.5 text-right font-medium">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className={cn(loading && clients.length > 0 && 'opacity-60')}>
+                  {clients.length === 0 && !loading ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-16 text-center">
+                        <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
+                        <p className="text-sm font-medium text-foreground">Nenhum cliente encontrado</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {searchTerm
+                            ? 'Ajuste a busca ou limpe o filtro.'
+                            : 'Adicione o primeiro cliente para começar.'}
+                        </p>
+                        {searchTerm ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4"
+                            onClick={() => {
+                              setSearchTerm('')
+                              setPage(1)
+                            }}
+                          >
+                            Limpar busca
+                          </Button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ) : loading && clients.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-16 text-center text-muted-foreground">
+                        <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
+                        Carregando clientes…
+                      </td>
+                    </tr>
+                  ) : (
+                    clients.map((client) => (
+                      <tr
+                        key={client.id}
+                        className="border-b border-border transition-colors last:border-b-0 hover:bg-muted/30"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <Avatar className="h-9 w-9 shrink-0">
+                              <AvatarFallback className="text-xs">{clientInitials(client.name)}</AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate font-medium text-foreground">{client.name}</p>
+                                <Badge variant="secondary" className="text-[10px] font-normal">
+                                  Ativo
+                                </Badge>
+                              </div>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                {client.company ? (
+                                  <span className="inline-flex items-center gap-1 truncate">
+                                    <Building2 className="h-3 w-3 shrink-0" />
+                                    {client.company}
+                                  </span>
+                                ) : null}
+                                <span>
+                                  desde{' '}
+                                  {format(parseISO(client.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="space-y-0.5 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5">
+                              <Mail className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate max-w-[220px] text-foreground">{client.email}</span>
+                            </div>
+                            {client.phone ? (
+                              <div className="flex items-center gap-1.5">
+                                <Phone className="h-3.5 w-3.5 shrink-0" />
+                                <span>{client.phone}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="inline-flex items-center gap-1.5 text-muted-foreground">
+                            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                            <span className="tabular-nums">{client.totalProjects}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <CurrencyAmount value={client.totalValue} size="sm" />
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex justify-end">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuItem onClick={() => openViewClient(client)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Ver detalhes
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditClient(client)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => copyClientLink(client)}>
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Copiar link
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <a
+                                    href={generateClientLink(client)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink className="mr-2 h-4 w-4" />
+                                    Abrir portal
+                                  </a>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => handleDeleteClient(client.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-        {!loading && clients.length === 0 && (
-          <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum cliente encontrado</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {searchTerm
-                ? 'Tente ajustar os filtros de busca.'
-                : 'Comece adicionando um novo cliente.'
-              }
-            </p>
-          </div>
-        )}
+            {totalClients > 0 && (
+              <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">
+                  {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, totalClients)} de {totalClients}
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Badge variant="outline" className="min-w-[4rem] justify-center font-normal">
+                    {page} / {totalPages}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* View Client Modal */}
         <Dialog open={isViewClientOpen} onOpenChange={setIsViewClientOpen}>
@@ -675,9 +676,9 @@ export default function ClientsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-muted-foreground">Status</label>
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                    <Badge variant="secondary" className="mt-1 font-normal">
                       Ativo
-                    </span>
+                    </Badge>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-muted-foreground">Cliente desde</label>
@@ -704,8 +705,9 @@ export default function ClientsPage() {
                       className="flex-1 px-3 py-2 border border-input rounded-md bg-muted text-foreground text-sm"
                     />
                     <button
+                      type="button"
                       onClick={() => copyClientLink(selectedClient)}
-                      className="px-3 py-2 border border-input rounded-md text-sm font-medium text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
+                      className="px-3 py-2"
                     >
                       <Copy className="h-4 w-4" />
                     </button>
@@ -826,91 +828,76 @@ export default function ClientsPage() {
               </div>
             )}
             <DialogFooter>
-              <button
-                onClick={() => setIsViewClientOpen(false)}
-                className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
+              <Button variant="outline" onClick={() => setIsViewClientOpen(false)}>
                 Fechar
-              </button>
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
         
         <Dialog open={isEditClientOpen} onOpenChange={setIsEditClientOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle>Editar Cliente</DialogTitle>
-              <DialogDescription>
-                Atualize as informações do cliente.
-              </DialogDescription>
+          <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[560px]">
+            <DialogHeader className="border-b border-border px-6 py-5">
+              <DialogTitle>Editar cliente</DialogTitle>
+              <DialogDescription>Atualize as informações do cliente.</DialogDescription>
             </DialogHeader>
             {selectedClient && (
-              <form onSubmit={handleEditClient} className="space-y-4">
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
-                      <input
-                        type="text"
+              <form onSubmit={handleEditClient} className="flex flex-col">
+                <div className="space-y-4 px-6 py-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-name">Nome</Label>
+                      <Input
+                        id="edit-name"
                         value={editClient.name}
                         onChange={(e) => setEditClient({ ...editClient, name: e.target.value })}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-                      <input
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-email">Email</Label>
+                      <Input
+                        id="edit-email"
                         type="email"
                         value={editClient.email}
                         onChange={(e) => setEditClient({ ...editClient, email: e.target.value })}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
-                      <input
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-phone">Telefone</Label>
+                      <Input
+                        id="edit-phone"
                         type="tel"
                         value={editClient.phone}
                         onChange={(e) => setEditClient({ ...editClient, phone: e.target.value })}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-foreground mb-1">Empresa</label>
-                      <input
-                        type="text"
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-company">Empresa</Label>
+                      <Input
+                        id="edit-company"
                         value={editClient.company}
                         onChange={(e) => setEditClient({ ...editClient, company: e.target.value })}
-                        className="w-full px-3 py-2 border border-input rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background text-foreground"
                         required
                       />
                     </div>
                   </div>
                 </div>
-                <DialogFooter>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditClientOpen(false)}
-                    className="px-4 py-2 border border-input rounded-md text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  >
+                <DialogFooter className="border-t border-border px-6 py-4">
+                  <Button type="button" variant="outline" onClick={() => setIsEditClientOpen(false)}>
                     Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
-                  >
-                    Salvar Alterações
-                  </button>
+                  </Button>
+                  <Button type="submit">Salvar alterações</Button>
                 </DialogFooter>
               </form>
             )}
           </DialogContent>
         </Dialog>
       </div>
+    </PageLoadingGate>
   )
 }

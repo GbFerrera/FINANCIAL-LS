@@ -9,6 +9,7 @@ const createSchema = z.object({
   projectId: z.string().min(1),
   content: z.string().optional(),
   diagram: z.any().optional(),
+  visibility: z.enum(["PRIVATE", "PUBLIC"]).optional(),
   accessUserIds: z.array(z.string()).optional(),
 })
 
@@ -33,10 +34,16 @@ export async function GET(req: NextRequest) {
     }
 
     if (session.user.role !== "ADMIN") {
-      // Apenas criador ou explicitamente concedido
+      const memberships = await prisma.projectTeam.findMany({
+        where: { userId: session.user.id, ...(projectId ? { projectId } : {}) },
+        select: { projectId: true },
+      })
+      const teamProjectIds = new Set(memberships.map((m) => m.projectId))
+
       where.OR = [
         { createdById: session.user.id },
-        { access: { some: { userId: session.user.id } } }
+        { visibility: "PUBLIC", projectId: { in: [...teamProjectIds] } },
+        { access: { some: { userId: session.user.id } } },
       ]
     }
 
@@ -80,6 +87,8 @@ export async function POST(req: NextRequest) {
       new Set([session.user.id, ...(body.accessUserIds || []).filter((id) => teamSet.has(id))])
     )
 
+    const visibility = body.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE"
+
     const base = await prisma.note.create({
       data: {
         title: body.title,
@@ -87,6 +96,7 @@ export async function POST(req: NextRequest) {
         diagram: body.diagram ?? undefined,
         projectId: body.projectId,
         createdById: session.user.id,
+        visibility,
       },
     })
 

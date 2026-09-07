@@ -2,30 +2,29 @@
 
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
+import { useRouter, useSearchParams } from "next/navigation"
+import { MODULES_LABEL, MODULES_LABEL_LOWER, MODULE_LABEL_LOWER } from '@/lib/module-labels'
 import {
   Plus,
   Search,
-  Calendar,
-  Users,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  XCircle,
-  Eye,
-  Edit,
-  Trash2,
   FolderOpen,
-  Target,
   Presentation,
-  Telescope,
   LayoutGrid,
   List,
-  GitBranch
 } from "lucide-react"
 import { StatsCard } from "@/components/ui/stats-card"
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ProjectCatalogItem } from "@/components/projects/ProjectCatalogItem"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { ClientMultiPicker, ClientPicker } from "@/components/clients/client-picker"
 import {
   Dialog,
@@ -36,6 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import toast from "react-hot-toast"
+import { PageLoadingGate } from "@/components/ui/loading-animation"
 
 interface Project {
   id: string
@@ -78,6 +78,7 @@ interface NewProject {
 export default function ProjectsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [projects, setProjects] = useState<Project[]>([])
   const [stats, setStats] = useState<ProjectStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -252,6 +253,16 @@ export default function ProjectsPage() {
     }).catch(() => {})
   }
 
+  useEffect(() => {
+    const editId = searchParams.get('edit')
+    if (!editId || loading || projects.length === 0) return
+    const project = projects.find((p) => p.id === editId)
+    if (!project) return
+    handleEditProject(project)
+    router.replace('/projects')
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- abrir modal uma vez via query ?edit=
+  }, [searchParams, loading, projects])
+
   const handleDeleteProject = async (projectId: string) => {
     const project = projects.find(p => p.id === projectId)
     if (!project) return
@@ -261,7 +272,7 @@ export default function ProjectsPage() {
 ` +
       `• ${project.tasksCount} tarefa(s)
 ` +
-      `• ${project.milestonesCount} milestone(s)
+      `• ${project.milestonesCount} ${MODULE_LABEL_LOWER}(s)
 ` +
       `• ${project.teamCount} membro(s) da equipe
 ` +
@@ -316,56 +327,25 @@ export default function ProjectsPage() {
   const linkSystemProject = filteredProjects.find(p => p.id === LINK_SYSTEM_PROJECT_ID)
   const otherProjects = filteredProjects.filter(p => p.id !== LINK_SYSTEM_PROJECT_ID)
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'PLANNING':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-      case 'IN_PROGRESS':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-      case 'ON_HOLD':
-        return 'bg-muted text-muted-foreground'
-      case 'COMPLETED':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-      default:
-        return 'bg-muted text-muted-foreground'
-    }
-  }
+  const isAdmin = session?.user.role === 'ADMIN'
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'PLANNING':
-        return Clock
-      case 'IN_PROGRESS':
-        return AlertCircle
-      case 'ON_HOLD':
-        return XCircle
-      case 'COMPLETED':
-        return CheckCircle
-      case 'CANCELLED':
-        return XCircle
-      default:
-        return Clock
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'PLANNING':
-        return 'Planejamento'
-      case 'IN_PROGRESS':
-        return 'Em Andamento'
-      case 'ON_HOLD':
-        return 'Pausado'
-      case 'COMPLETED':
-        return 'Concluído'
-      case 'CANCELLED':
-        return 'Cancelado'
-      default:
-        return status
-    }
-  }
+  const renderProjectItem = (project: Project, pinned = false) => (
+    <ProjectCatalogItem
+      key={project.id}
+      project={project}
+      viewMode={viewMode}
+      pinned={pinned}
+      modulesLabel={MODULES_LABEL}
+      isAdmin={!!isAdmin}
+      isDeleting={deletingProjectId === project.id}
+      onOpen={() => router.push(`/projects/${project.id}`)}
+      onNotes={() => router.push(`/projects/notes?projectId=${project.id}`)}
+      onSprints={() => openOrCreateSprint(project.id)}
+      onCanvas={() => router.push(`/projects/${project.id}/canvas`)}
+      onEdit={isAdmin ? () => handleEditProject(project) : undefined}
+      onDelete={isAdmin ? () => handleDeleteProject(project.id) : undefined}
+    />
+  )
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -376,13 +356,6 @@ export default function ProjectsPage() {
     }).format(value)
   }
 
-  const formatDate = (dateString: string) => {
-    // Extrair apenas a parte da data (YYYY-MM-DD) sem conversão de fuso horário
-    const datePart = dateString.split('T')[0]
-    const [year, month, day] = datePart.split('-')
-    return `${day}/${month}/${year}`
-  }
-  
   const toDateInput = (iso: string | null) => {
     if (!iso) return ''
     const parts = iso.split('T')
@@ -393,49 +366,56 @@ export default function ProjectsPage() {
     <PageLoadingGate loading={status === "loading" || loading}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 md:flex-nowrap">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-bold leading-7 text-foreground sm:text-3xl sm:truncate">
-              Gestão de Projetos
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Gerencie projetos, milestones e tarefas da sua equipe
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Projetos</h1>
+            <p className="mt-1 text-muted-foreground">
+              Gerencie projetos, {MODULES_LABEL_LOWER} e tarefas da sua equipe
             </p>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3 md:mt-0 md:ml-4">
-            <div className="inline-flex items-center bg-card p-1 rounded-lg border border-input shadow-sm">
-              <button
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center rounded-md border border-border/80 bg-muted/30 p-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setViewMode('grid')}
-                className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-md transition-all ${viewMode === 'grid' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
-                title="Visualização em Grade"
+                className={cn(
+                  'h-8 gap-1.5 rounded-sm px-3 text-xs font-medium text-muted-foreground',
+                  viewMode === 'grid' && 'bg-background text-foreground shadow-sm'
+                )}
               >
-                <LayoutGrid className="h-4 w-4" />
-                <span className="text-sm font-medium">Grade</span>
-              </button>
-              <button
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Grade
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setViewMode('list')}
-                className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-md transition-all ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-secondary'}`}
-                title="Visualização em Lista"
+                className={cn(
+                  'h-8 gap-1.5 rounded-sm px-3 text-xs font-medium text-muted-foreground',
+                  viewMode === 'list' && 'bg-background text-foreground shadow-sm'
+                )}
               >
-                <List className="h-4 w-4" />
-                <span className="text-sm font-medium">Linha</span>
-              </button>
+                <List className="h-3.5 w-3.5" />
+                Lista
+              </Button>
             </div>
-            <button
+            <Button
+              variant="outline"
               onClick={() => router.push('/projects/cmfv5cmde001lm701frdbxgo4/canvas')}
-              className="inline-flex items-center px-4 py-2 border border-primary rounded-md shadow-sm text-sm font-medium text-primary bg-card hover:bg-primary/10 transition-colors"
-              title="Ver Canvas da Link System"
             >
-              <Presentation className="-ml-1 mr-2 h-5 w-5" />
+              <Presentation className="mr-2 h-4 w-4" />
               Canvas Link System
-            </button>
-            {session?.user.role === 'ADMIN' && (
+            </Button>
+            {isAdmin && (
               <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
                 <DialogTrigger asChild>
-                  <button className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 transition-colors">
-                    <Plus className="-ml-1 mr-2 h-5 w-5" />
-                    Novo Projeto
-                  </button>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Novo projeto
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
@@ -605,639 +585,116 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatsCard
-              title="Total de Projetos"
-              value={stats.totalProjects.toString()}
-              icon={FolderOpen}
-              color="blue"
-              change={{
-                value: `${stats.activeProjects} ativos`,
-                type: 'neutral'
-              }}
+              title="Total de projetos"
+              value={stats.totalProjects}
+              change={{ value: `${stats.activeProjects} ativos`, type: 'neutral' }}
             />
             <StatsCard
-              title="Em Andamento"
-              value={stats.activeProjects.toString()}
-              icon={AlertCircle}
-              color="yellow"
+              title="Em andamento"
+              value={stats.activeProjects}
               change={{
-                value: `${((stats.activeProjects / stats.totalProjects) * 100).toFixed(0)}% do total`,
-                type: 'neutral'
+                value: `${stats.totalProjects > 0 ? ((stats.activeProjects / stats.totalProjects) * 100).toFixed(0) : 0}% do total`,
+                type: 'neutral',
               }}
             />
             <StatsCard
               title="Concluídos"
-              value={stats.completedProjects.toString()}
-              icon={CheckCircle}
-              color="green"
+              value={stats.completedProjects}
               change={{
-                value: `${((stats.completedProjects / stats.totalProjects) * 100).toFixed(0)}% do total`,
-                type: 'neutral'
+                value: `${stats.totalProjects > 0 ? ((stats.completedProjects / stats.totalProjects) * 100).toFixed(0) : 0}% do total`,
+                type: 'neutral',
               }}
             />
-            {session?.user.role === 'ADMIN' && (
+            {isAdmin && (
               <StatsCard
-                title="Orçamento Total"
+                title="Orçamento total"
                 value={formatCurrency(stats.totalBudget)}
-                icon={Target}
-                color="blue"
-                change={{
-                  value: `${stats.totalProjects} projetos`,
-                  type: 'neutral'
-                }}
+                change={{ value: `${stats.totalProjects} projetos`, type: 'neutral' }}
               />
             )}
-  
           </div>
         )}
 
-        {/* Filters */}
-        <div className="bg-secondary shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Search */}
-              <div className="sm:col-span-2 lg:col-span-1">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Buscar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-input rounded-md leading-5 bg-card placeholder:text-muted-foreground focus:outline-none focus:placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-primary focus:border-primary text-foreground"
-                  />
-                </div>
-              </div>
-              
-              {/* Status Filter */}
-              <div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-input focus:outline-none focus:ring-primary focus:border-primary rounded-md bg-card text-foreground"
-                >
-                  <option value="all">Todos os status</option>
-                  <option value="PLANNING">Planejamento</option>
-                  <option value="IN_PROGRESS">Em Andamento</option>
-                  <option value="ON_HOLD">Pausado</option>
-                  <option value="COMPLETED">Concluído</option>
-                  <option value="CANCELLED">Cancelado</option>
-                </select>
-              </div>
-              
-              {/* Client Filter */}
-              <div>
-                <select
-                  value={clientFilter}
-                  onChange={(e) => setClientFilter(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 text-base border-input focus:outline-none focus:ring-primary focus:border-primary rounded-md bg-card text-foreground"
-                >
-                  <option value="all">Todos os clientes</option>
-                  {Array.from(new Set(projects.map(p => p.clientName))).sort().map((clientName) => (
-                    <option key={clientName} value={clientName}>
-                      {clientName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-
+        <div className="rounded-lg border border-border bg-card p-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar projeto ou cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-9 border-border/80 bg-background pl-9"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-9 w-full min-w-[160px] sm:w-[180px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="PLANNING">Planejamento</SelectItem>
+                  <SelectItem value="IN_PROGRESS">Em andamento</SelectItem>
+                  <SelectItem value="ON_HOLD">Pausado</SelectItem>
+                  <SelectItem value="COMPLETED">Concluído</SelectItem>
+                  <SelectItem value="CANCELLED">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={clientFilter} onValueChange={setClientFilter}>
+                <SelectTrigger className="h-9 w-full min-w-[160px] sm:w-[200px]">
+                  <SelectValue placeholder="Cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os clientes</SelectItem>
+                  {Array.from(new Set(projects.map((p) => p.clientName)))
+                    .sort()
+                    .map((clientName) => (
+                      <SelectItem key={clientName} value={clientName}>
+                        {clientName}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
 
-        {/* Projects Grid */}
-        <div className="bg-card shadow rounded-lg overflow-hidden">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-foreground mb-6">
-              Projetos ({filteredProjects.length})
-            </h3>
-            
+        <TooltipProvider delayDuration={200}>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-sm font-medium text-foreground">
+                {filteredProjects.length} projeto{filteredProjects.length !== 1 ? 's' : ''}
+              </h2>
+            </div>
+
             {filteredProjects.length === 0 ? (
-              <div className="text-center py-12">
-                <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-2 text-sm font-medium text-foreground">Nenhum projeto encontrado</h3>
+              <div className="rounded-lg border border-dashed border-border bg-card px-6 py-16 text-center shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <FolderOpen className="mx-auto h-10 w-10 text-muted-foreground" />
+                <h3 className="mt-3 text-sm font-medium text-foreground">Nenhum projeto encontrado</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {searchTerm || statusFilter !== 'all' || clientFilter !== 'all' ? 'Tente ajustar os filtros' : 'Comece criando um novo projeto'}
+                  {searchTerm || statusFilter !== 'all' || clientFilter !== 'all'
+                    ? 'Tente ajustar os filtros'
+                    : 'Comece criando um novo projeto'}
                 </p>
+                {isAdmin && !searchTerm && statusFilter === 'all' && clientFilter === 'all' && (
+                  <Button className="mt-4" onClick={() => setShowAddModal(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Novo projeto
+                  </Button>
+                )}
               </div>
             ) : (
-              <div className={viewMode === 'grid' ? "grid grid-cols-1 gap-6 sm:grid-cols-2" : "flex flex-col gap-4"}>
-                {/* Projeto Link System sempre primeiro */}
-                {linkSystemProject && (() => {
-                  const StatusIcon = getStatusIcon(linkSystemProject.status)
-                  return viewMode === 'grid' ? (
-                    <div key={linkSystemProject.id} className="bg-card border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative">
-                      {/* Badge Fixo */}
-                      <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
-                        FIXO
-                      </div>
-                      <div className="p-6">
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h4 className="text-lg font-medium text-foreground truncate">
-                              {linkSystemProject.name}
-                            </h4>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Cliente: {linkSystemProject.clientName}
-                            </p>
-                            {linkSystemProject.partners && linkSystemProject.partners.length > 0 && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Parceiros: {linkSystemProject.partners.join(', ')}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(linkSystemProject.status)}`}>
-                              <StatusIcon className="w-3 h-3 mr-1" />
-                              {getStatusLabel(linkSystemProject.status)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Description */}
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                          {linkSystemProject.description}
-                        </p>
-
-                        {/* Progress */}
-                        <div className="mb-4">
-                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                            <span>Progresso</span>
-                            <span>{linkSystemProject.progress}%</span>
-                          </div>
-                          <div className="w-full bg-secondary rounded-full h-2">
-                            <div 
-                              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${linkSystemProject.progress}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-foreground">
-                              {linkSystemProject.completedMilestones}/{linkSystemProject.milestonesCount}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Milestones</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-foreground">
-                              {linkSystemProject.completedTasks}/{linkSystemProject.tasksCount}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Tarefas</div>
-                          </div>
-                        </div>
-
-                        {/* Meta info */}
-                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                          <div className="flex items-center">
-                            <Users className="h-4 w-4 mr-1" />
-                            {linkSystemProject.teamCount} membros
-                          </div>
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            {formatDate(linkSystemProject.startDate)}
-                          </div>
-                        </div>
-
-                        {/* Budget (ADMIN only) */}
-                        {session?.user.role === 'ADMIN' && (
-                          <div className="text-sm text-muted-foreground mb-4">
-                            <strong>Orçamento:</strong> {formatCurrency(linkSystemProject.budget)}
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex items-center justify-between pt-4 border-t border-muted">
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => router.push(`/projects/${linkSystemProject.id}`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
-                            >
-                              <Telescope className="h-3 w-3 mr-1" />
-                              Ver Detalhes
-                            </button>
-                            <button 
-                              onClick={() => router.push(`/projects/notes?projectId=${linkSystemProject.id}`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
-                              title="Abrir anotações do projeto"
-                            >
-                              <FolderOpen className="h-3 w-3 mr-1" />
-                              Docs
-                            </button>
-                            <button 
-                              onClick={() => openOrCreateSprint(linkSystemProject.id)}
-                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
-                              title="Abrir Sprints"
-                            >
-        
-                              Sprints
-                            </button>
-                            <button 
-                              onClick={() => router.push(`/projects/${linkSystemProject.id}/canvas`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
-                              title="Abrir Canvas (Excalidraw)"
-                            >
-                              Canvas
-                            </button>
-                          </div>
-                          
-                          {session?.user.role === 'ADMIN' && (
-                            <div className="flex space-x-2">
-                              <button 
-                                onClick={() => handleEditProject(linkSystemProject)}
-                                className="text-muted-foreground hover:text-foreground transition-colors"
-                                title="Editar projeto"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteProject(linkSystemProject.id)}
-                                disabled={deletingProjectId === linkSystemProject.id}
-                                className="text-destructive/70 hover:text-destructive disabled:opacity-50 transition-colors"
-                                title="Excluir projeto"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={linkSystemProject.id} className="bg-card border-2 border-indigo-400 rounded-lg shadow-md hover:shadow-lg transition-shadow relative p-4 flex flex-col md:flex-row items-center gap-4">
-                      {/* Badge Fixo */}
-                      <div className="absolute -top-2 -left-2 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md z-10">
-                        FIXO
-                      </div>
-                      
-                      {/* Info Principal */}
-                      <div className="flex-1 min-w-0 w-full md:w-auto ml-2">
-                        <div className="flex items-center gap-2">
-                            <h4 className="text-lg font-medium text-foreground truncate cursor-pointer hover:underline" onClick={() => router.push(`/projects/${linkSystemProject.id}`)}>
-                              {linkSystemProject.name}
-                            </h4>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground mt-1">
-                            <span className="flex items-center"><Users className="h-3 w-3 mr-1"/> {linkSystemProject.clientName}</span>
-                            <span className="flex items-center"><Calendar className="h-3 w-3 mr-1"/> {formatDate(linkSystemProject.startDate)}</span>
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div className="flex-shrink-0">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(linkSystemProject.status)}`}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {getStatusLabel(linkSystemProject.status)}
-                        </span>
-                      </div>
-
-                      {/* Progresso Compacto */}
-                      <div className="w-full md:w-32 flex-shrink-0 flex flex-col gap-1 hidden sm:flex">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{linkSystemProject.progress}%</span>
-                        </div>
-                        <div className="w-full bg-secondary rounded-full h-1.5">
-                          <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: `${linkSystemProject.progress}%` }} />
-                        </div>
-                      </div>
-
-                      {/* Métricas Compactas */}
-                      <div className="hidden lg:flex items-center gap-4 text-sm text-muted-foreground">
-                         <div title="Milestones" className="flex items-center gap-1">
-                            <Target className="w-4 h-4" />
-                            <span>{linkSystemProject.completedMilestones}/{linkSystemProject.milestonesCount}</span>
-                         </div>
-                         <div title="Tarefas" className="flex items-center gap-1">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>{linkSystemProject.completedTasks}/{linkSystemProject.tasksCount}</span>
-                         </div>
-                      </div>
-
-                      {/* Ações Simplificadas */}
-                      <div className="flex items-center gap-2 ml-auto">
-                        <button 
-                          onClick={() => router.push(`/projects/${linkSystemProject.id}`)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Ver Detalhes"
-                        >
-                          <Telescope className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => openOrCreateSprint(linkSystemProject.id)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Sprints"
-                        >
-                           <GitBranch className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => router.push(`/projects/${linkSystemProject.id}/canvas`)}
-                          className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                          title="Canvas"
-                        >
-                           <Presentation className="h-4 w-4" />
-                        </button>
-                        
-                        {session?.user.role === 'ADMIN' && (
-                            <>
-                              <button 
-                                onClick={() => handleEditProject(linkSystemProject)}
-                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                                title="Editar"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteProject(linkSystemProject.id)}
-                                disabled={deletingProjectId === linkSystemProject.id}
-                                className="p-2 rounded-md hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-colors"
-                                title="Excluir"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })()}
-
-                {/* Demais projetos */}
-                {otherProjects.map((project) => {
-                  const StatusIcon = getStatusIcon(project.status)
-                  return viewMode === 'grid' ? (
-                    <div key={project.id} className="bg-card border border-muted rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                      <div className="p-6">
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex-1">
-                            <h4 className="text-lg font-medium text-foreground truncate">
-                              {project.name}
-                            </h4>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Cliente: {project.clientName}
-                            </p>
-                            {project.partners && project.partners.length > 0 && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Parceiros: {project.partners.join(', ')}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                              <StatusIcon className="w-3 h-3 mr-1" />
-                              {getStatusLabel(project.status)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Description */}
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                          {project.description}
-                        </p>
-
-                        {/* Progress */}
-                        <div className="mb-4">
-                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                            <span>Progresso</span>
-                            <span>{project.progress}%</span>
-                          </div>
-                          <div className="w-full bg-secondary rounded-full h-2">
-                            <div 
-                              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${project.progress}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-foreground">
-                              {project.completedMilestones}/{project.milestonesCount}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Milestones</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-foreground">
-                              {project.completedTasks}/{project.tasksCount}
-                            </div>
-                            <div className="text-xs text-muted-foreground">Tarefas</div>
-                          </div>
-                        </div>
-
-                        {/* Meta info */}
-                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                          <div className="flex items-center">
-                            <Users className="h-4 w-4 mr-1" />
-                            {project.teamCount} membros
-                          </div>
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            {formatDate(project.startDate)}
-                          </div>
-                        </div>
-
-                        {/* Budget (ADMIN only) */}
-                        {session?.user.role === 'ADMIN' && (
-                          <div className="text-sm text-muted-foreground mb-4">
-                            <strong>Orçamento:</strong> {formatCurrency(project.budget)}
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex items-center justify-between pt-4 border-t border-muted">
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => router.push(`/projects/${project.id}`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
-                            >
-                              <Telescope className="h-3 w-3 mr-1" />
-                              Ver Detalhes
-                            </button>
-                            <button 
-                              onClick={() => router.push(`/projects/notes?projectId=${project.id}`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-input shadow-sm text-xs font-medium rounded text-foreground bg-card hover:bg-accent hover:text-accent-foreground transition-colors"
-                              title="Abrir anotações do projeto"
-                            >
-                              <FolderOpen className="h-3 w-3 mr-1" />
-                              Docs
-                            </button>
-                            <button 
-                              onClick={() => openOrCreateSprint(project.id)}
-                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
-                              title="Abrir Sprints"
-                            >
-                              Sprints
-                            </button>
-                            <button 
-                              onClick={() => router.push(`/projects/${project.id}/canvas`)}
-                              className="inline-flex items-center px-3 py-1.5 border border-primary shadow-sm text-xs font-medium rounded text-primary bg-card hover:bg-primary/10 transition-colors"
-                              title="Abrir Canvas (Excalidraw)"
-                            >
-                              Canvas
-                            </button>
-                          </div>
-                          
-                          {session?.user.role === 'ADMIN' && (
-                            <div className="flex space-x-2">
-                              <button 
-                                onClick={() => handleEditProject(project)}
-                                className="text-muted-foreground hover:text-foreground transition-colors"
-                                title="Editar projeto"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteProject(project.id)}
-                                disabled={deletingProjectId === project.id}
-                                className="text-destructive/70 hover:text-destructive disabled:opacity-50 transition-colors"
-                                title="Excluir projeto"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={project.id} className="bg-card border border-muted rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col md:flex-row items-center gap-4">
-                      {/* Info Principal */}
-                      <div className="flex-1 min-w-0 w-full md:w-auto ml-2">
-                        <div className="flex items-center gap-2">
-                            <h4 className="text-lg font-medium text-foreground truncate cursor-pointer hover:underline" onClick={() => router.push(`/projects/${project.id}`)}>
-                              {project.name}
-                            </h4>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground mt-1">
-                            <span className="flex items-center"><Users className="h-3 w-3 mr-1"/> {project.clientName}</span>
-                            <span className="flex items-center"><Calendar className="h-3 w-3 mr-1"/> {formatDate(project.startDate)}</span>
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div className="flex-shrink-0">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {getStatusLabel(project.status)}
-                        </span>
-                      </div>
-
-                      {/* Progresso Compacto */}
-                      <div className="w-full md:w-32 flex-shrink-0 flex flex-col gap-1 hidden sm:flex">
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{project.progress}%</span>
-                        </div>
-                        <div className="w-full bg-secondary rounded-full h-1.5">
-                          <div className="bg-indigo-600 h-1.5 rounded-full" style={{ width: `${project.progress}%` }} />
-                        </div>
-                      </div>
-
-                      {/* Métricas Compactas */}
-                      <div className="hidden lg:flex items-center gap-4 text-sm text-muted-foreground">
-                         <div title="Milestones" className="flex items-center gap-1">
-                            <Target className="w-4 h-4" />
-                            <span>{project.completedMilestones}/{project.milestonesCount}</span>
-                         </div>
-                         <div title="Tarefas" className="flex items-center gap-1">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>{project.completedTasks}/{project.tasksCount}</span>
-                         </div>
-                      </div>
-
-                      {/* Ações Simplificadas */}
-                      <div className="flex items-center gap-2 ml-auto">
-                        <TooltipProvider delayDuration={200}>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                onClick={() => router.push(`/projects/${project.id}`)}
-                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <Telescope className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Ver detalhes</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                onClick={() => router.push(`/projects/notes?projectId=${project.id}`)}
-                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                <FolderOpen className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Notas e docs</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                onClick={() => openOrCreateSprint(project.id)}
-                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                 <GitBranch className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Abrir sprints</TooltipContent>
-                          </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button 
-                                onClick={() => router.push(`/projects/${project.id}/canvas`)}
-                                className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                              >
-                                 <Presentation className="h-4 w-4" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent>Canvas do projeto</TooltipContent>
-                          </Tooltip>
-                          
-                          {session?.user.role === 'ADMIN' && (
-                              <>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button 
-                                      onClick={() => handleEditProject(project)}
-                                      className="p-2 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Editar projeto</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <button 
-                                      onClick={() => handleDeleteProject(project.id)}
-                                      disabled={deletingProjectId === project.id}
-                                      className="p-2 rounded-md hover:bg-destructive/10 text-destructive/70 hover:text-destructive transition-colors"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Excluir projeto</TooltipContent>
-                                </Tooltip>
-                              </>
-                          )}
-                        </TooltipProvider>
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4 xl:grid-cols-2' : 'flex flex-col gap-3'}>
+                {linkSystemProject && renderProjectItem(linkSystemProject, true)}
+                {otherProjects.map((project) => renderProjectItem(project))}
               </div>
             )}
           </div>
-        </div>
+        </TooltipProvider>
+
       </div>
 
 

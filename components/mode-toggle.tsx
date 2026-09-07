@@ -19,11 +19,13 @@ export function ModeToggle() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="relative rounded-md p-2 text-muted-foreground hover:bg-muted"
+          className="rounded-md p-2 text-muted-foreground hover:bg-muted"
           aria-label="Alternar tema"
         >
-          <Sun className="h-4 w-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-          <Moon className="absolute h-4 w-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+          <span className="relative block h-4 w-4">
+            <Sun className="absolute inset-0 h-4 w-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+            <Moon className="absolute inset-0 h-4 w-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+          </span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

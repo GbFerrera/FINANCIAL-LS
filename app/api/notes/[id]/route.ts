@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { canViewNote, canEditNote } from "@/lib/note-access"
 import { z } from "zod"
 
 interface RouteParams {
@@ -12,6 +13,7 @@ const updateSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().optional().nullable(),
   diagram: z.any().optional().nullable(),
+  visibility: z.enum(["PRIVATE", "PUBLIC"]).optional(),
   accessUserIds: z.array(z.string()).optional(),
 })
 
@@ -30,13 +32,16 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
     })
     if (!note) return NextResponse.json({ error: "Nota não encontrada" }, { status: 404 })
 
-    const isAdmin = session.user.role === "ADMIN"
-    const canView =
-      isAdmin ||
-      note.createdById === session.user.id ||
-      note.access.some((a) => a.userId === session.user.id)
+    const teamRows = await prisma.projectTeam.findMany({
+      where: { projectId: note.projectId, userId: session.user.id },
+      select: { projectId: true },
+    })
+    const teamProjectIds = new Set(teamRows.map((t) => t.projectId))
+    if (session.user.role === "ADMIN") teamProjectIds.add(note.projectId)
 
-    if (!canView) return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    if (!canViewNote(note, session.user, teamProjectIds)) {
+      return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    }
 
     return NextResponse.json(note)
   } catch (error) {
@@ -58,9 +63,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     })
     if (!existing) return NextResponse.json({ error: "Nota não encontrada" }, { status: 404 })
 
-    const isAdmin = session.user.role === "ADMIN"
-    const isOwner = existing.createdById === session.user.id
-    if (!isAdmin && !isOwner) {
+    if (!canEditNote(existing, session.user)) {
       return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
     }
 
@@ -96,6 +99,7 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           title: body.title ?? undefined,
           content: body.content ?? undefined,
           diagram: body.diagram ?? undefined,
+          visibility: body.visibility ?? undefined,
         },
         include: {
           project: { select: { id: true, name: true } },
@@ -122,9 +126,7 @@ export async function DELETE(req: NextRequest, { params }: RouteParams) {
 
     const existing = await prisma.note.findUnique({ where: { id: params.id } })
     if (!existing) return NextResponse.json({ error: "Nota não encontrada" }, { status: 404 })
-    const isAdmin = session.user.role === "ADMIN"
-    const isOwner = existing.createdById === session.user.id
-    if (!isAdmin && !isOwner) return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
+    if (!canEditNote(existing, session.user)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 })
 
     await prisma.note.delete({ where: { id: params.id } })
     return NextResponse.json({ ok: true })

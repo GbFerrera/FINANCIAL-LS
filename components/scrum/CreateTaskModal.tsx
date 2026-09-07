@@ -93,7 +93,7 @@ interface Task {
   id: string
   title: string
   description?: string | null
-  status: 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
+  status: 'DRAFT' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
   storyPoints?: number | null
   assigneeId?: string | null
@@ -111,6 +111,7 @@ interface CreateTaskModalProps {
   onClose: () => void
   projectId?: string
   sprintId?: string | null
+  defaultStatus?: 'DRAFT' | 'TODO' | 'IN_PROGRESS' | 'IN_REVIEW' | 'COMPLETED'
   onSuccess: () => void
   onEditingTaskSync?: (patch: Partial<Task>) => void
   editingTask?: Task | null
@@ -141,6 +142,7 @@ export function CreateTaskModal({
   onClose,
   projectId,
   sprintId,
+  defaultStatus = 'TODO',
   onSuccess,
   onEditingTaskSync,
   editingTask,
@@ -723,7 +725,7 @@ export function CreateTaskModal({
         projectId: currentProjectId,
         // Só incluir sprintId se for uma nova tarefa ou se estiver explicitamente definido
         ...(editingTask ? {} : { sprintId }),
-        status: editingTask ? editingTask.status : 'TODO',
+        status: editingTask ? editingTask.status : defaultStatus,
         ...(data.dueDate && { dueDate: data.dueDate + 'T12:00:00.000Z' }),
         ...(data.startDate && { startDate: data.startDate + 'T12:00:00.000Z' }),
         ...(data.startTime && { startTime: data.startTime }),

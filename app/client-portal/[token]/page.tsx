@@ -694,9 +694,9 @@ export default function ClientPortalPage() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Milestones */}
+                        {/* Módulos */}
                         <div>
-                          <h5 className="font-medium text-foreground mb-3">Milestones</h5>
+                          <h5 className="font-medium text-foreground mb-3">Módulos</h5>
                           <div className="space-y-2">
                             {project.milestones.map((milestone) => (
                               <div key={milestone.id} className="flex items-center justify-between p-2 bg-card rounded">

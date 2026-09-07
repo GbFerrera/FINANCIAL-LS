@@ -207,6 +207,14 @@ function ExcalidrawClientInner({ initialData, initialLoadId, onChange }: Props, 
     };
   }, [projectId]);
 
+  useEffect(() => {
+    if (!isReady) return
+    const frame = requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [isReady])
+
   useImperativeHandle(ref, () => ({ getScene, updateScene: updateSceneLocal, save, load }), [projectId]);
 
   return (

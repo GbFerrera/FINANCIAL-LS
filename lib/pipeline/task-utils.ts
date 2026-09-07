@@ -6,6 +6,7 @@ export function getTaskIdentifier(task: PipelineTask) {
 }
 
 export const TASK_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Rascunho',
   TODO: 'A Fazer',
   IN_PROGRESS: 'Em Andamento',
   IN_REVIEW: 'Em Teste',
@@ -14,6 +15,7 @@ export const TASK_STATUS_LABELS: Record<string, string> = {
 }
 
 export const KANBAN_COLUMNS = [
+  { id: 'DRAFT', title: 'Rascunho' },
   { id: 'TODO', title: 'A Fazer' },
   { id: 'IN_PROGRESS', title: 'Em Andamento' },
   { id: 'IN_REVIEW', title: 'Em Teste' },

@@ -46,6 +46,7 @@ const createSchema = z
     subject: z.string().min(1),
     body: z.string().min(1),
     daysBeforeDue: z.number().int().min(0).max(60),
+    daysAfterDue: z.number().int().min(0).max(60).optional(),
     isActive: z.boolean().optional(),
     ...channelFields,
   })
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
         subject: rest.subject,
         body: rest.body,
         daysBeforeDue: rest.daysBeforeDue,
+        daysAfterDue: rest.daysAfterDue ?? 0,
         sendTime: normalizeSendTime(sendTime ?? "09:00"),
         whatsAppPauseSeconds: whatsAppPauseSeconds ?? 10,
         isActive: rest.isActive ?? true,

@@ -4,6 +4,9 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { prisma } from "./prisma"
 import bcrypt from "bcryptjs"
 import { UserRole } from "@prisma/client"
+import { POST_LOGIN_PATH } from "./post-login"
+
+export { POST_LOGIN_PATH, getPostLoginPath } from "./post-login"
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -62,6 +65,17 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt"
   },
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      const office = `${baseUrl}${POST_LOGIN_PATH}`
+      if (url === baseUrl || url === `${baseUrl}/`) return office
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      try {
+        if (new URL(url).origin === baseUrl) return url
+      } catch {
+        return office
+      }
+      return office
+    },
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.role = user.role

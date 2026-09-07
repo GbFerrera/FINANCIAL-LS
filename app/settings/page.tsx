@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { StatsCard } from '@/components/ui/stats-card'
 import { LoadingAnimation, LoadingInline, LoadingScreen, PageLoadingGate } from '@/components/ui/loading-animation'
 import {
@@ -83,6 +84,7 @@ interface SystemInfo {
 export default function SettingsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { setTheme } = useTheme()
   const [settings, setSettings] = useState<UserSettings>({
     profile: {
       name: '',
@@ -151,6 +153,9 @@ export default function SettingsPage() {
       const data = await response.json()
       setSettings(data.settings)
       setSystemInfo(data.systemInfo)
+      if (data.settings?.appearance?.theme) {
+        setTheme(data.settings.appearance.theme)
+      }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error)
       toast.error('Erro ao carregar configurações')
@@ -175,6 +180,7 @@ export default function SettingsPage() {
       }
 
       toast.success('Configurações salvas com sucesso!')
+      setTheme(settings.appearance.theme)
     } catch (error) {
       console.error('Erro ao salvar configurações:', error)
       toast.error('Erro ao salvar configurações')
@@ -585,14 +591,17 @@ export default function SettingsPage() {
                         ].map((theme) => (
                           <button
                             key={theme.value}
-                            onClick={() => setSettings(prev => ({
-                              ...prev,
-                              appearance: { ...prev.appearance, theme: theme.value as any }
-                            }))}
+                            onClick={() => {
+                              setSettings(prev => ({
+                                ...prev,
+                                appearance: { ...prev.appearance, theme: theme.value as 'light' | 'dark' | 'system' }
+                              }))
+                              setTheme(theme.value)
+                            }}
                             className={`p-3 border rounded-lg text-sm font-medium ${
                               settings.appearance.theme === theme.value
-                                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                : 'border-gray-300 text-gray-700 hover:bg-card'
+                                ? 'border-primary bg-primary/10 text-foreground'
+                                : 'border-border text-muted-foreground hover:bg-muted/40'
                             }`}
                           >
                             {theme.label}

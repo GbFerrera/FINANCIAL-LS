@@ -4,6 +4,7 @@ import { PageLoadingGate } from '@/components/ui/loading-animation'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { getPostLoginPath } from '@/lib/post-login'
 
 export default function Home() {
   const { data: session, status } = useSession()
@@ -18,16 +19,8 @@ export default function Home() {
       return
     }
 
-    // Autenticado, redirecionar baseado no papel do usuário
-    if (session.user.role === 'ADMIN') {
-      router.push('/dashboard')
-    } else if (session.user.role === 'TEAM') {
-      router.push('/team')
-    } else if (session.user.role === 'CLIENT') {
-      router.push('/client')
-    } else {
-      router.push('/auth/signin')
-    }
+    // Autenticado — escritório 2D por padrão (clientes → portal)
+    router.push(getPostLoginPath(session.user.role))
   }, [session, status, router])
 
   return (

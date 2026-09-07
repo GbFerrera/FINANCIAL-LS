@@ -192,7 +192,7 @@ export function KanbanBoard({
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto overflow-y-hidden px-1 pb-2 snap-x overscroll-contain">
+        <div className="flex min-h-0 flex-1 basis-0 items-stretch gap-4 overflow-x-auto px-1 pb-2 snap-x">
         {COLUMNS.map((column) => {
           const columnTasks = sortKanbanColumnTasks(
             boardTasks.filter((task) => taskMatchesKanbanColumn(column.id, task.status))
@@ -243,7 +243,7 @@ export function KanbanBoard({
               onToggleCollapse={() => toggle(column.id)}
               droppableId={column.id}
               headerActions={completedMenu}
-              className="h-full snap-center"
+              className="max-h-full self-stretch snap-center"
             >
               {(_, snapshot) => (
                 <>
@@ -286,6 +286,7 @@ export function KanbanBoard({
                             >
                               <TaskCard
                                 task={mapToCardTask(task, index)}
+                                size="compact"
                                 onClick={() => onTaskClick(task.id)}
                                 onEdit={selectionMode ? undefined : onTaskEdit ? () => onTaskEdit(task) : undefined}
                                 onDelete={selectionMode ? undefined : onTaskDelete ? () => onTaskDelete(task.id) : undefined}
