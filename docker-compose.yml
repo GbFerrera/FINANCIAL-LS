@@ -33,6 +33,10 @@ services:
       - SEED_ADMIN_NAME=${SEED_ADMIN_NAME}
       - SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL}
       - SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD}
+      - LIVEKIT_URL=${LIVEKIT_URL:-wss://livekit.linksystem.tech}
+      - NEXT_PUBLIC_LIVEKIT_URL=${NEXT_PUBLIC_LIVEKIT_URL:-wss://livekit.linksystem.tech}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-linksystem}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
     volumes:
       - ./uploads:/app/uploads
     command: >
