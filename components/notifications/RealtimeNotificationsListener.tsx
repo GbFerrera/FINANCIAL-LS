@@ -48,14 +48,14 @@ function showNotificationToast(
 export function RealtimeNotificationsListener() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const { socket, isConnected } = useSocket()
+  const { socket } = useSocket()
 
   useEffect(() => {
     if (status !== 'authenticated') return
 
     const unlock = () => unlockNotificationSound()
-    document.addEventListener('pointerdown', unlock, { once: true })
-    document.addEventListener('keydown', unlock, { once: true })
+    document.addEventListener('pointerdown', unlock, { once: false, passive: true })
+    document.addEventListener('keydown', unlock, { once: false })
 
     return () => {
       document.removeEventListener('pointerdown', unlock)
@@ -69,6 +69,7 @@ export function RealtimeNotificationsListener() {
         return
       }
 
+      unlockNotificationSound()
       playNotificationSound()
 
       const open = () => {
@@ -92,7 +93,7 @@ export function RealtimeNotificationsListener() {
   )
 
   useEffect(() => {
-    if (!socket || !isConnected || !session?.user?.id) return
+    if (!socket || !session?.user?.id) return
 
     const handler = (payload: UserNotificationPayload) => {
       handleNotification(payload)
@@ -103,7 +104,7 @@ export function RealtimeNotificationsListener() {
     return () => {
       socket.off('user_notification', handler)
     }
-  }, [socket, isConnected, session?.user?.id, handleNotification])
+  }, [socket, session?.user?.id, handleNotification])
 
   return null
 }

@@ -5,6 +5,7 @@ import { LiquidToaster } from "@/components/ui/liquid-toaster"
 import { WebSocketProvider } from "@/contexts/WebSocketContext"
 import { SocketIOProvider } from "@/contexts/SocketIOProvider"
 import { RealtimeNotificationsListener } from "@/components/notifications/RealtimeNotificationsListener"
+import { RealtimeSocketSoundUnlock } from "@/components/notifications/RealtimeSocketSoundUnlock"
 import { ThemeProvider } from "next-themes"
 
 interface ProvidersProps {
@@ -18,6 +19,7 @@ export function Providers({ children }: ProvidersProps) {
         <WebSocketProvider>
           <SocketIOProvider>
             <RealtimeNotificationsListener />
+            <RealtimeSocketSoundUnlock />
             {children}
           </SocketIOProvider>
         </WebSocketProvider>

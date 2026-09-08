@@ -1,7 +1,7 @@
 "use client"
 
 import { PageLoadingGate, LoadingAnimation } from '@/components/ui/loading-animation'
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams } from "next/navigation"
 import { parseISO, format } from "date-fns"
@@ -52,6 +52,9 @@ import { ProjectCreateTaskModal } from "@/components/projects/ProjectCreateTaskM
 import { ProjectDetailHeader } from "@/components/projects/ProjectDetailHeader"
 import { ProjectOverviewPanel } from "@/components/projects/ProjectOverviewPanel"
 import { cn } from "@/lib/utils"
+import { useTaskUpdates } from "@/hooks/useTaskUpdates"
+import { applyPipelineTaskEvent } from "@/lib/task-socket-client"
+import type { TaskUpdateEvent } from "@/lib/task-socket-types"
 
 interface ProjectDetails {
   id: string
@@ -195,6 +198,37 @@ export default function ProjectDetailsPage() {
   }, [activeTab, params.id])
 
   const isAdmin = session?.user.role === 'ADMIN'
+
+  const handleRemoteTaskUpdate = useCallback(
+    (event: TaskUpdateEvent) => {
+      if (!params.id || event.projectId !== params.id) return
+
+      setProject((prev) => {
+        if (!prev) return prev
+
+        const pipelineTasks = prev.tasks.map((task) => ({
+          ...task,
+          project: { id: prev.id, name: prev.name },
+        }))
+
+        const nextPipelineTasks = applyPipelineTaskEvent(pipelineTasks, event)
+
+        return {
+          ...prev,
+          tasks: nextPipelineTasks.map(
+            ({ project: _project, ...task }) => task
+          ) as ProjectDetails['tasks'],
+        }
+      })
+    },
+    [params.id]
+  )
+
+  useTaskUpdates({
+    projectId: params.id,
+    enabled: status === 'authenticated' && Boolean(params.id),
+    onTaskUpdate: handleRemoteTaskUpdate,
+  })
 
   const fetchProjectDetails = async (projectId: string) => {
     try {

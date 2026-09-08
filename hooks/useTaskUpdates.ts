@@ -21,7 +21,7 @@ export function useTaskUpdates({
   onTaskUpdate,
 }: UseTaskUpdatesOptions) {
   const { data: session } = useSession()
-  const { socket, isConnected } = useSocket()
+  const { socket } = useSocket()
   const handlerRef = useRef(onTaskUpdate)
 
   useEffect(() => {
@@ -29,24 +29,36 @@ export function useTaskUpdates({
   }, [onTaskUpdate])
 
   useEffect(() => {
-    if (!enabled || !session?.user?.id || !socket || !isConnected) return
+    if (!enabled || !session?.user?.id || !socket) return
 
     const rooms: string[] = []
     if (joinPipeline) rooms.push('pipeline')
     if (projectId) rooms.push(`project:${projectId}`)
     if (sprintId) rooms.push(`sprint:${sprintId}`)
 
-    rooms.forEach((room) => socket.emit('join-task-room', { room }))
+    const joinRooms = () => {
+      if (!socket.connected) return
+      for (const room of rooms) {
+        socket.emit('join-task-room', { room })
+      }
+    }
 
     const handleTaskUpdate = (event: TaskUpdateEvent) => {
       handlerRef.current(event)
     }
 
     socket.on('task_update', handleTaskUpdate)
+    socket.on('connect', joinRooms)
+    joinRooms()
 
     return () => {
       socket.off('task_update', handleTaskUpdate)
-      rooms.forEach((room) => socket.emit('leave-task-room', { room }))
+      socket.off('connect', joinRooms)
+      if (socket.connected) {
+        for (const room of rooms) {
+          socket.emit('leave-task-room', { room })
+        }
+      }
     }
-  }, [enabled, session?.user?.id, socket, isConnected, joinPipeline, projectId, sprintId])
+  }, [enabled, session?.user?.id, socket, joinPipeline, projectId, sprintId])
 }

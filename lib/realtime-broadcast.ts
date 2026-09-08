@@ -1,10 +1,13 @@
 import 'server-only'
 
 import type { Server as ServerIO } from 'socket.io'
-import { getSocketIO } from '@/lib/socket-server'
 
 function getBroadcastOrigin() {
-  return (process.env.NEXTAUTH_URL || 'http://127.0.0.1:3000').replace(/\/$/, '')
+  if (process.env.REALTIME_BROADCAST_URL) {
+    return process.env.REALTIME_BROADCAST_URL.replace(/\/$/, '')
+  }
+  const port = process.env.PORT || '3000'
+  return `http://127.0.0.1:${port}`
 }
 
 function getBroadcastHeaders(): Record<string, string> {
@@ -21,23 +24,15 @@ export async function postRealtimeBroadcast(body: unknown) {
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    console.warn('[realtime-broadcast] HTTP', res.status)
+    const detail = await res.text().catch(() => '')
+    console.warn('[realtime-broadcast] HTTP', res.status, detail.slice(0, 200))
   }
 }
 
+/** Emite via HTTP interno — App Routes nem sempre compartilham global.__socketIO com o handler Pages. */
 export async function emitViaRealtimeBroadcast(
-  emit: (io: ServerIO) => void,
-  fallbackBody: unknown
+  _emit: (io: ServerIO) => void,
+  body: unknown
 ) {
-  const io = getSocketIO()
-  if (io) {
-    emit(io)
-    return
-  }
-
-  try {
-    await postRealtimeBroadcast(fallbackBody)
-  } catch (error) {
-    console.warn('[realtime-broadcast] Falha ao emitir evento:', error)
-  }
+  await postRealtimeBroadcast(body)
 }
