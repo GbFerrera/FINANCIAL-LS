@@ -6,6 +6,7 @@ import { WebSocketProvider } from "@/contexts/WebSocketContext"
 import { SocketIOProvider } from "@/contexts/SocketIOProvider"
 import { RealtimeNotificationsListener } from "@/components/notifications/RealtimeNotificationsListener"
 import { RealtimeSocketSoundUnlock } from "@/components/notifications/RealtimeSocketSoundUnlock"
+import { OfficeSessionProvider } from "@/contexts/OfficeSessionContext"
 import { ThemeProvider } from "next-themes"
 
 interface ProvidersProps {
@@ -17,11 +18,13 @@ export function Providers({ children }: ProvidersProps) {
     <SessionProvider refetchOnWindowFocus={false} refetchInterval={0} refetchWhenOffline={false}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <WebSocketProvider>
-          <SocketIOProvider>
-            <RealtimeNotificationsListener />
-            <RealtimeSocketSoundUnlock />
-            {children}
-          </SocketIOProvider>
+          <OfficeSessionProvider>
+            <SocketIOProvider>
+              <RealtimeNotificationsListener />
+              <RealtimeSocketSoundUnlock />
+              {children}
+            </SocketIOProvider>
+          </OfficeSessionProvider>
         </WebSocketProvider>
         <LiquidToaster />
       </ThemeProvider>

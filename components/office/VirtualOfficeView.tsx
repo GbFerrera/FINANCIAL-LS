@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { LoadingScreen } from '@/components/ui/loading-animation'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, Map, Users, Video, DoorOpen } from 'lucide-react'
@@ -11,10 +11,12 @@ import {
   WORKADVENTURE_PLAY_URL,
   buildWorkAdventureOfficeUrl,
 } from '@/lib/workadventure'
+import { useOfficeSession } from '@/contexts/OfficeSessionContext'
 
 export function VirtualOfficeView() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const { startSession, registerHost } = useOfficeSession()
 
   const configured = Boolean(WORKADVENTURE_PLAY_URL)
 
@@ -28,10 +30,22 @@ export function VirtualOfficeView() {
     [configured, session?.user?.name]
   )
 
+  const hostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      registerHost(node)
+    },
+    [registerHost]
+  )
+
   useEffect(() => {
     if (status === 'loading') return
     if (!session) router.push('/auth/signin')
   }, [session, status, router])
+
+  useEffect(() => {
+    if (!configured || !iframeSrc) return
+    startSession(iframeSrc)
+  }, [configured, iframeSrc, startSession])
 
   if (status === 'loading') return <LoadingScreen />
 
@@ -137,12 +151,10 @@ export function VirtualOfficeView() {
   }
 
   return (
-    <iframe
-      title="Escritório virtual Link System"
-      src={iframeSrc}
-      className="h-full min-h-0 w-full flex-1 border-0 bg-black"
-      allow="camera; microphone; fullscreen; display-capture; autoplay"
-      referrerPolicy="no-referrer-when-downgrade"
+    <div
+      ref={hostRef}
+      className="h-full min-h-0 w-full flex-1 bg-black"
+      aria-label="Escritório virtual Link System"
     />
   )
 }
