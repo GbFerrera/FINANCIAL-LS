@@ -12,6 +12,14 @@ services:
       - "3000"
     labels:
       - traefik.docker.network=coolify
+      # Socket.IO — rota dedicada sem gzip (gzip quebra upgrade WSS em prod)
+      - traefik.http.routers.projects-socket.rule=Host(`${SERVICE_FQDN_APP:-projects.linksystem.tech}`) && PathPrefix(`/api/socket`)
+      - traefik.http.routers.projects-socket.entrypoints=https
+      - traefik.http.routers.projects-socket.tls=true
+      - traefik.http.routers.projects-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.projects-socket.service=projects-socket
+      - traefik.http.routers.projects-socket.priority=1000
+      - traefik.http.services.projects-socket.loadbalancer.server.port=3000
     environment:
       - TZ=America/Sao_Paulo
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${COMPOSE_PROJECT_NAME:-financial}-postgres:5432/${POSTGRES_DB:-financial_ls}?schema=public

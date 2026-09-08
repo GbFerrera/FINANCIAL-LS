@@ -89,7 +89,7 @@ function createSocketInstance(): Socket {
   const instance = io({
     path: '/api/socket',
     addTrailingSlash: false,
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,

@@ -75,6 +75,11 @@ export function SocketIOProvider({ children }: { children: React.ReactNode }) {
           if (user?.id) authenticateTeamSocket(user)
         })
 
+        instance.on('authenticated', () => {
+          const user = sessionUserRef.current
+          if (user?.id) authenticateTeamSocket(user)
+        })
+
         instance.on('timer_event', (event: TimerEvent) => {
           setLastEvent(event)
           setActiveTimers((prev) => {
