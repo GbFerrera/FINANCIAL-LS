@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTaskCoverUrl } from '@/lib/task-attachments-server'
+import { broadcastTaskEvent, resolveTaskUpdateAction, serializeTaskForSocket } from '@/lib/task-socket-server'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -97,11 +98,33 @@ export async function PUT(
           select: {
             id: true,
             name: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+            avatar: true,
+          },
+        },
+        project: { select: { id: true, name: true } },
+        milestone: { select: { id: true, name: true, status: true } },
+      },
     })
+
+    if (Object.keys(updateData).length > 0) {
+      const { action, changes } = resolveTaskUpdateAction(updateData, {
+        title: existingTask.title,
+        priority: existingTask.priority,
+        status: existingTask.status,
+        isArchived: existingTask.isArchived,
+      })
+
+      broadcastTaskEvent({
+        action,
+        taskId: task.id,
+        projectId: task.projectId,
+        userId: session.user.id,
+        userName: session.user.name || undefined,
+        task: serializeTaskForSocket(task as Record<string, unknown>),
+        changes: Object.keys(changes).length > 0 ? changes : undefined,
+      }).catch(console.error)
+    }
 
     return NextResponse.json(task)
   } catch (error) {

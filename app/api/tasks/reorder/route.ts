@@ -3,7 +3,14 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { kanbanColumnStatus } from '@/lib/pipeline/task-utils'
+import { broadcastTaskEvent, serializeTaskForSocket } from '@/lib/task-socket-server'
 import { z } from 'zod'
+
+const taskBroadcastInclude = {
+  assignee: { select: { id: true, name: true, email: true, avatar: true } },
+  project: { select: { id: true, name: true } },
+  milestone: { select: { id: true, name: true, status: true } },
+} as const
 
 const schema = z.object({
   taskId: z.string().min(1),
@@ -121,6 +128,33 @@ export async function POST(request: NextRequest) {
         }
       }
     })
+
+    const fullTask = await prisma.task.findUnique({
+      where: { id: body.taskId },
+      include: taskBroadcastInclude,
+    })
+
+    if (fullTask) {
+      const statusChanged = movedTask.status !== newStatus
+      broadcastTaskEvent({
+        action: statusChanged ? 'status_changed' : 'updated',
+        taskId: fullTask.id,
+        projectId: fullTask.projectId,
+        userId: session.user.id,
+        userName: session.user.name || undefined,
+        task: serializeTaskForSocket(fullTask as Record<string, unknown>),
+        changes: statusChanged
+          ? { status: { from: movedTask.status, to: newStatus } }
+          : undefined,
+        reorder: {
+          columnStatus: body.status,
+          orderedTaskIds: body.orderedTaskIds,
+          ...(body.sourceOrderedTaskIds?.length
+            ? { sourceOrderedTaskIds: body.sourceOrderedTaskIds }
+            : {}),
+        },
+      }).catch(console.error)
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

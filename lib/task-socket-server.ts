@@ -17,6 +17,7 @@ export function serializeTaskForSocket(task: Record<string, unknown>): TaskSocke
     priority: String(task.priority),
     projectId: String(task.projectId || project?.id),
     sprintId: (task.sprintId as string | null | undefined) ?? null,
+    order: (task.order as number | null | undefined) ?? null,
     dueDate: task.dueDate ? new Date(task.dueDate as string | Date).toISOString() : null,
     startDate: task.startDate ? new Date(task.startDate as string | Date).toISOString() : null,
     estimatedMinutes: (task.estimatedMinutes as number | null | undefined) ?? null,

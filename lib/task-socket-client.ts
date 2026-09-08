@@ -14,6 +14,7 @@ export function socketPayloadToPipelineTask(task: TaskSocketPayload): PipelineTa
     startTime: null,
     endTime: null,
     sprintId: task.sprintId ?? null,
+    order: task.order ?? null,
     assignee: task.assignee
       ? {
           id: task.assignee.id,
@@ -33,6 +34,14 @@ export function socketPayloadToPipelineTask(task: TaskSocketPayload): PipelineTa
   }
 }
 
+function applyReorderOrders(tasks: PipelineTask[], orderedIds: string[]) {
+  const orderById = new Map(orderedIds.map((id, index) => [id, index]))
+  return tasks.map((task) => {
+    const order = orderById.get(task.id)
+    return order === undefined ? task : { ...task, order }
+  })
+}
+
 export function applyPipelineTaskEvent(tasks: PipelineTask[], event: TaskUpdateEvent): PipelineTask[] {
   const ids = event.taskIds?.length ? event.taskIds : [event.taskId]
 
@@ -40,17 +49,26 @@ export function applyPipelineTaskEvent(tasks: PipelineTask[], event: TaskUpdateE
     return tasks.filter((t) => !ids.includes(t.id))
   }
 
-  if (!event.task) return tasks
+  let next = tasks
+
+  if (event.reorder) {
+    next = applyReorderOrders(next, event.reorder.orderedTaskIds)
+    if (event.reorder.sourceOrderedTaskIds?.length) {
+      next = applyReorderOrders(next, event.reorder.sourceOrderedTaskIds)
+    }
+  }
+
+  if (!event.task) return next
 
   const mapped = socketPayloadToPipelineTask(event.task)
-  const idx = tasks.findIndex((t) => t.id === event.taskId)
+  const idx = next.findIndex((t) => t.id === event.taskId)
 
   if (idx === -1) {
     if (event.action === 'created' || event.action === 'restored') {
-      return [...tasks, mapped]
+      return [...next, mapped]
     }
-    return tasks
+    return next
   }
 
-  return tasks.map((t) => (t.id === event.taskId ? { ...t, ...mapped } : t))
+  return next.map((t) => (t.id === event.taskId ? { ...t, ...mapped } : t))
 }

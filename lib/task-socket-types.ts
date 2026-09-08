@@ -17,6 +17,7 @@ export type TaskSocketPayload = {
   priority: string
   projectId: string
   sprintId?: string | null
+  order?: number | null
   dueDate?: string | null
   startDate?: string | null
   estimatedMinutes?: number | null
@@ -52,5 +53,11 @@ export type TaskUpdateEvent = {
     title?: { from: string; to: string }
     priority?: { from: string; to: string }
     sprintId?: { from: string | null; to: string | null }
+  }
+  reorder?: {
+    columnStatus: string
+    orderedTaskIds: string[]
+    sourceColumnStatus?: string
+    sourceOrderedTaskIds?: string[]
   }
 }
