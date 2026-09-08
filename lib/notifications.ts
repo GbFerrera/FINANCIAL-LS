@@ -23,7 +23,7 @@ export async function createNotification(data: NotificationData) {
       },
     })
 
-    emitUserNotification(data.userId, {
+    await emitUserNotification(data.userId, {
       id: notification.id,
       type: notification.type,
       title: notification.title,

@@ -69,7 +69,7 @@ export function getTeamSocket(): Socket | null {
 async function bootstrapServer() {
   if (globalStore.__linkTeamSocketBootstrapped) return
   try {
-    await fetch('/api/socket', { method: 'POST' })
+    await fetch('/api/realtime/init', { method: 'POST' })
   } catch {
     // Socket.IO já pode estar ativo — segue conexão do client
   }

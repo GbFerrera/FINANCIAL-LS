@@ -31,6 +31,8 @@ export async function middleware(request: NextRequest) {
     '/api/calls/[^/]+/token', // Token LiveKit (convidados)
     '/api/calls/[^/]+/messages', // Chat da call (leitura pública)
     '/api/socket/?.*', // Socket.IO (polling + websocket upgrade)
+    '/api/realtime/init', // Bootstrap Socket.IO (fora do path do engine)
+    '/api/realtime/broadcast', // Broadcast interno (CRON_SECRET em prod)
   ]
 
   const isPublicPath = publicPaths.some(path => {

@@ -1,8 +1,8 @@
 import 'server-only'
 
 import type { Server as ServerIO } from 'socket.io'
-import { getSocketIO } from '@/lib/socket-server'
 import type { TaskSocketPayload, TaskUpdateEvent } from '@/lib/task-socket-types'
+import { emitViaRealtimeBroadcast } from '@/lib/realtime-broadcast'
 
 export function serializeTaskForSocket(task: Record<string, unknown>): TaskSocketPayload {
   const assignee = task.assignee as TaskSocketPayload['assignee']
@@ -61,22 +61,7 @@ export async function broadcastTaskEvent(event: Omit<TaskUpdateEvent, 'timestamp
     timestamp: new Date().toISOString(),
   }
 
-  const io = getSocketIO()
-  if (io) {
-    emitTaskEventToIO(io, fullEvent)
-    return
-  }
-
-  try {
-    const origin = (process.env.NEXTAUTH_URL || 'http://127.0.0.1:3000').replace(/\/$/, '')
-    await fetch(`${origin}/api/socket/broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fullEvent),
-    })
-  } catch (error) {
-    console.warn('[task-socket] Falha ao emitir evento:', error)
-  }
+  await emitViaRealtimeBroadcast((io) => emitTaskEventToIO(io, fullEvent), fullEvent)
 }
 
 type ExistingTaskSnapshot = {
