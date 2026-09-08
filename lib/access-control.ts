@@ -16,7 +16,7 @@ export const ROUTE_GROUPS: RouteGroup[] = [
   {
     id: "main",
     label: "Principal",
-    keys: ["dashboard", "agent_pm", "pipeline", "excalidraw", "profile", "notifications"],
+    keys: ["dashboard", "agent_pm", "pipeline", "profile", "notifications"],
   },
   {
     id: "projects",
@@ -30,9 +30,14 @@ export const ROUTE_GROUPS: RouteGroup[] = [
     ],
   },
   {
+    id: "comms",
+    label: "Chat e comunicação",
+    keys: ["team_chat", "team_office", "team_call"],
+  },
+  {
     id: "clients",
     label: "Clientes e vendas",
-    keys: ["clients", "subscriptions", "payments"],
+    keys: ["clients", "clients_proposals", "subscriptions", "payments"],
   },
   {
     id: "financial",
@@ -42,12 +47,13 @@ export const ROUTE_GROUPS: RouteGroup[] = [
       "financial_calendar",
       "financial_commissions",
       "financial_reminders",
+      "financial_whatsapp",
     ],
   },
   {
     id: "team",
     label: "Equipe",
-    keys: ["team", "team_agenda", "team_chat", "team_office", "team_performance"],
+    keys: ["team", "team_agenda", "team_performance"],
   },
   {
     id: "workspace",
@@ -63,6 +69,7 @@ export const ROUTE_GROUPS: RouteGroup[] = [
       "reports",
       "settings",
       "supervisor_dashboard",
+      "excalidraw",
       "admin_clients",
       "admin_collaborators",
       "admin_integrations",
@@ -83,13 +90,15 @@ export const ROUTE_REGISTRY: RouteItem[] = [
   { key: "financial_calendar", label: "Financeiro • Cobranças", path: "/financial/calendar" },
   { key: "financial_commissions", label: "Financeiro • Comissões", path: "/financial/commissions" },
   { key: "financial_reminders", label: "Financeiro • Lembretes", path: "/financial/reminders" },
+  { key: "financial_whatsapp", label: "Financeiro • WhatsApp", path: "/financial/whatsapp" },
   { key: "clients", label: "Clientes", path: "/clients" },
+  { key: "clients_proposals", label: "Clientes • Propostas", path: "/clients/proposals" },
   { key: "subscriptions", label: "Assinaturas", path: "/subscriptions" },
-  { key: "team", label: "Equipe", path: "/team" },
+  { key: "team", label: "Equipe • Membros", path: "/team" },
   { key: "team_agenda", label: "Equipe • Agenda", path: "/team/agenda" },
-  { key: "team_chat", label: "Equipe • Chat e calls", path: "/team/chat" },
-  { key: "team_call", label: "Equipe • Calls (legado)", path: "/team/call" },
-  { key: "team_office", label: "Equipe • Escritório 2D", path: "/team/office" },
+  { key: "team_chat", label: "Chat", path: "/team/chat" },
+  { key: "team_call", label: "Calls / salas", path: "/team/call" },
+  { key: "team_office", label: "Escritório 2D", path: "/team/office" },
   { key: "team_performance", label: "Equipe • Performance", path: "/team/performance" },
   { key: "pipeline", label: "Pipeline", path: "/pipeline" },
   { key: "files", label: "Arquivos", path: "/files" },
@@ -110,12 +119,28 @@ export const ROUTE_REGISTRY: RouteItem[] = [
 
 export function routesByGroup(): { group: RouteGroup; routes: RouteItem[] }[] {
   const byKey = new Map(ROUTE_REGISTRY.map((r) => [r.key, r]))
-  return ROUTE_GROUPS.map((group) => ({
+  const groupedKeys = new Set(ROUTE_GROUPS.flatMap((g) => g.keys))
+
+  const groups = ROUTE_GROUPS.map((group) => ({
     group,
     routes: group.keys
       .map((key) => byKey.get(key))
       .filter((r): r is RouteItem => Boolean(r)),
   }))
+
+  const orphans = ROUTE_REGISTRY.filter((r) => !groupedKeys.has(r.key))
+  if (orphans.length > 0) {
+    groups.push({
+      group: {
+        id: "uncategorized",
+        label: "Outras páginas",
+        keys: orphans.map((r) => r.key),
+      },
+      routes: orphans,
+    })
+  }
+
+  return groups
 }
 
 export const ROLE_DEFAULTS: Record<UserRole, string[]> = {
@@ -165,9 +190,19 @@ export function isPathAllowed(pathname: string, allowedPaths: string[]): boolean
     return true
   }
 
-  // Chat unificado: quem tem /team/call também acessa /team/chat
-  if (current === '/team/chat') {
+  // Chat: /team/chat ou /team/call liberam a área de chat
+  if (current === '/team/chat' || current.startsWith('/team/chat/')) {
     return allowedPaths.some((p) => p === '/team/chat' || p === '/team/call')
+  }
+
+  // Escritório virtual
+  if (current === '/team/office' || current.startsWith('/team/office/')) {
+    return allowedPaths.some((p) => p === '/team/office')
+  }
+
+  // Calls / salas
+  if (current === '/team/call' || current.startsWith('/team/call/')) {
+    return allowedPaths.some((p) => p === '/team/call' || p === '/team/chat')
   }
 
   // Demais rotas: match exato ou subpath do prefixo permitido

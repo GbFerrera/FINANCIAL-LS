@@ -18,6 +18,7 @@ import { isSprintArchivable } from '@/lib/sprint-archive'
 import Link from 'next/link'
 import { SprintKanbanColumns } from './SprintKanbanColumns'
 import { PageLoadingGate } from '@/components/ui/loading-animation'
+import { cn } from '@/lib/utils'
 
 import { MODULE_LABEL, MODULES_LABEL, MODULE_LABEL_LOWER, MODULES_LABEL_LOWER } from '@/lib/module-labels'
 interface Task {
@@ -587,8 +588,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-border bg-background shadow-sm">
-                  <CardHeader>
+                <Card key={sprint.id} className="overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <CardHeader className="pb-4">
                     <SprintHeader
                       sprint={sprint}
                       progress={progress}
@@ -791,8 +792,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-dashed border-border bg-background/50 shadow-sm">
-                  <CardHeader>
+                <Card key={sprint.id} className="overflow-hidden rounded-lg border border-dashed border-border bg-muted/20 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <CardHeader className="pb-4">
                     <SprintHeader
                       sprint={sprint}
                       progress={progress}
@@ -812,222 +813,6 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               )
             })}
 
-          {/* Backlog */}
-          <Card className="border-muted">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 flex-wrap">
-                <Target className="w-5 h-5" />
-                Backlog
-                {sprintId && (
-                  <Badge variant="outline" className="ml-2 text-blue-600 border-blue-200">
-                    Filtrado: Tarefas pendentes
-                  </Badge>
-                )}
-                <Badge variant="secondary" className="ml-2">
-                  {filteredBacklog.length} tarefas
-                </Badge>
-              </CardTitle>
-              
-              {/* Filtro por Módulo */}
-              <div className="mt-3 flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Filtrar por {MODULE_LABEL_LOWER}:</span>
-                </div>
-                <Select value={selectedMilestone} onValueChange={setSelectedMilestone}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder={`Todos os ${MODULES_LABEL_LOWER}`} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os {MODULES_LABEL_LOWER}</SelectItem>
-                    <SelectItem value="none">Sem {MODULE_LABEL_LOWER}</SelectItem>
-                    {milestones.map((milestone) => (
-                      <SelectItem key={milestone.id} value={milestone.id}>
-                        {milestone.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Badge variant="outline" className="text-xs">
-                  {filteredBacklog.length} de {backlog.length} tarefas
-                </Badge>
-              </div>
-
-              {/* Controles de Seleção Múltipla */}
-              <div className="mt-3 flex items-center gap-3 flex-wrap">
-                <Button
-                  variant={selectionMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setSelectionMode(!selectionMode)
-                    if (!selectionMode) clearSelection()
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  {selectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                  {selectionMode ? 'Cancelar Seleção' : 'Selecionar Tarefas'}
-                </Button>
-
-                {selectionMode && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={selectAllTasks}
-                      disabled={selectedTasks.length === filteredBacklog.length}
-                    >
-                      Selecionar Todas
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearSelection}
-                      disabled={selectedTasks.length === 0}
-                    >
-                      Limpar Seleção
-                    </Button>
-
-                    {selectedTasks.length > 0 && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="secondary">
-                          {selectedTasks.length} selecionadas
-                        </Badge>
-                        <Select
-                          value={selectedSprintId || undefined}
-                          onValueChange={(val) => setSelectedSprintId(val)}
-                        >
-                          <SelectTrigger className="w-[220px]">
-                            <SelectValue placeholder="Escolher Sprint" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sprints
-                              .filter(s => ['ACTIVE', 'PLANNING'].includes(s.status))
-                              .sort((a, b) => {
-                                const rank = (s: Sprint) => (s.status === 'ACTIVE' ? 0 : s.status === 'PLANNING' ? 1 : 2)
-                                const r = rank(a) - rank(b)
-                                if (r !== 0) return r
-                                const ad = new Date(a.startDate).getTime()
-                                const bd = new Date(b.startDate).getTime()
-                                return ad - bd
-                              })
-                              .map(s => (
-                                <SelectItem key={s.id} value={s.id}>
-                                  {s.name} {s.status === 'ACTIVE' ? '(Ativa)' : '(Planejamento)'}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            if (selectedSprintId) {
-                              moveSelectedTasksToSprint(selectedSprintId)
-                            }
-                          }}
-                          disabled={!selectedSprintId}
-                          className="flex items-center gap-2"
-                        >
-                          <ArrowRight className="w-4 h-4" />
-                          Mover para Sprint
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {sprintId && sprintProjects.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    <strong>Projetos incluídos nesta sprint:</strong>
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {sprintProjects.map((project: any) => (
-                      <Badge key={project.id} variant="outline" className="text-xs">
-                        {project.name} - {project.client.name}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardHeader>
-            <CardContent>
-              <Droppable droppableId="backlog" direction="horizontal">
-                {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className="flex gap-4 min-h-[200px] overflow-x-auto pb-4"
-                  >
-                    {filteredBacklog.length === 0 ? (
-                      <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                        <div className="text-center">
-                          <Target className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">
-                            {selectedMilestone === 'all' 
-                              ? (sprintId ? 'Nenhuma tarefa pendente no backlog' : 'Nenhuma tarefa no backlog')
-                              : `Nenhuma tarefa encontrada para este ${MODULE_LABEL_LOWER}`
-                            }
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {selectedMilestone === 'all'
-                              ? (sprintId 
-                                  ? 'Todas as tarefas estão concluídas ou não há tarefas pendentes' 
-                                  : 'Clique em "Nova Tarefa" para começar'
-                                )
-                              : `Tente selecionar outro ${MODULE_LABEL_LOWER} ou "Todos os ${MODULES_LABEL_LOWER}"`
-                            }
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      filteredBacklog
-                        .sort((a, b) => a.order - b.order)
-                        .map((task, index) => (
-                        <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={selectionMode}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              className={`${
-                                snapshot.isDragging ? 'rotate-3 shadow-lg' : ''
-                              } ${selectionMode ? 'cursor-pointer' : ''}`}
-                              onClick={selectionMode ? () => toggleTaskSelection(task.id) : undefined}
-                            >
-                              <div className="relative">
-                                {selectionMode && (
-                                  <div className="absolute top-2 left-2 z-10">
-                                    {selectedTasks.includes(task.id) ? (
-                                      <CheckSquare className="w-5 h-5 text-blue-600 bg-card rounded border-2 border-blue-600" />
-                                    ) : (
-                                      <Square className="w-5 h-5 text-gray-400 bg-card rounded border-2 border-gray-300" />
-                                    )}
-                                  </div>
-                                )}
-                                <div className={`${selectionMode && selectedTasks.includes(task.id) ? 'ring-2 ring-blue-500 ring-offset-2' : ''} rounded-lg w-80 shrink-0`}>
-                                  <TaskCard 
-                                    task={task} 
-                                    onEdit={handleEditTask}
-                                    onDelete={handleDeleteTask}
-                                    onClick={!selectionMode ? () => handleEditTask(task) : undefined}
-                                    size="compact"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
-                      ))
-                    )}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </CardContent>
-          </Card>
-
           {/* Sprints Concluídas */}
           {(sprints || [])
             .filter(sprint => sprint.status === 'COMPLETED')
@@ -1037,8 +822,8 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
               const storyPoints = getSprintStoryPoints(sprint)
               
               return (
-                <Card key={sprint.id} className="border-muted bg-card opacity-75 text-gray-400">
-                  <CardHeader>
+                <Card key={sprint.id} className="overflow-hidden rounded-lg border border-border bg-muted/30 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                  <CardHeader className="pb-4">
                     <SprintHeader
                       sprint={sprint}
                       progress={progress}
@@ -1052,6 +837,255 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
                 </Card>
               )
             })}
+
+          {/* Backlog */}
+          <Card className="overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <CardHeader className="space-y-4 border-b border-border/80 pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="font-heading text-base font-semibold tracking-tight">
+                      Backlog
+                    </CardTitle>
+                    {sprintId && (
+                      <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
+                        Pendentes
+                      </Badge>
+                    )}
+                    <Badge variant="secondary" className="text-[11px] tabular-nums">
+                      {filteredBacklog.length} tarefa{filteredBacklog.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Arraste para a sprint ou selecione várias tarefas para mover de uma vez
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">{MODULE_LABEL}:</span>
+                    <Select value={selectedMilestone} onValueChange={setSelectedMilestone}>
+                      <SelectTrigger className="h-8 w-full min-w-[160px] sm:w-44">
+                        <SelectValue placeholder={`Todos os ${MODULES_LABEL_LOWER}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os {MODULES_LABEL_LOWER}</SelectItem>
+                        <SelectItem value="none">Sem {MODULE_LABEL_LOWER}</SelectItem>
+                        {milestones.map((milestone) => (
+                          <SelectItem key={milestone.id} value={milestone.id}>
+                            {milestone.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {filteredBacklog.length} de {backlog.length}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 lg:border-t-0 lg:border-l lg:pl-3 lg:pt-0">
+                    <Button
+                      variant={selectionMode ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        setSelectionMode(!selectionMode)
+                        if (!selectionMode) clearSelection()
+                      }}
+                      className="h-8 gap-1.5"
+                    >
+                      {selectionMode ? (
+                        <CheckSquare className="h-3.5 w-3.5" />
+                      ) : (
+                        <Square className="h-3.5 w-3.5" />
+                      )}
+                      {selectionMode ? 'Cancelar' : 'Selecionar'}
+                    </Button>
+
+                    {selectionMode && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={selectAllTasks}
+                          disabled={selectedTasks.length === filteredBacklog.length}
+                        >
+                          Todas
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8"
+                          onClick={clearSelection}
+                          disabled={selectedTasks.length === 0}
+                        >
+                          Limpar
+                        </Button>
+                        {selectedTasks.length > 0 && (
+                          <>
+                            <Badge variant="secondary" className="text-[11px] tabular-nums">
+                              {selectedTasks.length} sel.
+                            </Badge>
+                            <Select
+                              value={selectedSprintId || undefined}
+                              onValueChange={(val) => setSelectedSprintId(val)}
+                            >
+                              <SelectTrigger className="h-8 w-[200px]">
+                                <SelectValue placeholder="Sprint destino" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {sprints
+                                  .filter((s) => ['ACTIVE', 'PLANNING'].includes(s.status))
+                                  .sort((a, b) => {
+                                    const rank = (s: Sprint) =>
+                                      s.status === 'ACTIVE' ? 0 : s.status === 'PLANNING' ? 1 : 2
+                                    const r = rank(a) - rank(b)
+                                    if (r !== 0) return r
+                                    return (
+                                      new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+                                    )
+                                  })
+                                  .map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                      {s.name}{' '}
+                                      {s.status === 'ACTIVE' ? '(Ativa)' : '(Planejamento)'}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              className="h-8 gap-1.5"
+                              onClick={() => {
+                                if (selectedSprintId) {
+                                  moveSelectedTasksToSprint(selectedSprintId)
+                                }
+                              }}
+                              disabled={!selectedSprintId}
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" />
+                              Mover
+                            </Button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {sprintId && sprintProjects.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">Projetos:</span>
+                  {sprintProjects.map((project: { id: string; name: string; client: { name: string } }) => (
+                    <Badge
+                      key={project.id}
+                      variant="outline"
+                      className="text-[11px] font-normal"
+                    >
+                      {project.name}
+                      <span className="mx-1 text-muted-foreground">·</span>
+                      {project.client.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="pt-4">
+              <Droppable droppableId="backlog" direction="horizontal">
+                {(provided) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="flex min-h-[180px] gap-3 overflow-x-auto pb-2"
+                  >
+                    {filteredBacklog.length === 0 ? (
+                      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border bg-muted/10 px-6 py-10">
+                        <div className="text-center">
+                          <Target className="mx-auto mb-2 h-9 w-9 text-muted-foreground/40" />
+                          <p className="text-sm font-medium text-foreground">
+                            {selectedMilestone === 'all'
+                              ? sprintId
+                                ? 'Nenhuma tarefa pendente'
+                                : 'Backlog vazio'
+                              : `Nenhuma tarefa neste ${MODULE_LABEL_LOWER}`}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {selectedMilestone === 'all'
+                              ? sprintId
+                                ? 'Todas as tarefas estão concluídas ou já foram alocadas'
+                                : 'Crie uma tarefa para começar'
+                              : `Altere o filtro de ${MODULE_LABEL_LOWER}`}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      filteredBacklog
+                        .sort((a, b) => a.order - b.order)
+                        .map((task, index) => (
+                          <Draggable
+                            key={task.id}
+                            draggableId={task.id}
+                            index={index}
+                            isDragDisabled={selectionMode}
+                          >
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className={cn(
+                                  'shrink-0',
+                                  snapshot.isDragging && 'rotate-1 shadow-lg',
+                                  selectionMode && 'cursor-pointer'
+                                )}
+                                onClick={
+                                  selectionMode ? () => toggleTaskSelection(task.id) : undefined
+                                }
+                              >
+                                <div className="relative">
+                                  {selectionMode && (
+                                    <div className="absolute left-2 top-2 z-10">
+                                      {selectedTasks.includes(task.id) ? (
+                                        <CheckSquare className="h-4 w-4 rounded border-2 border-primary bg-card text-primary" />
+                                      ) : (
+                                        <Square className="h-4 w-4 rounded border-2 border-border bg-card text-muted-foreground" />
+                                      )}
+                                    </div>
+                                  )}
+                                  <div
+                                    className={cn(
+                                      'w-72 shrink-0 rounded-lg sm:w-80',
+                                      selectionMode &&
+                                        selectedTasks.includes(task.id) &&
+                                        'ring-2 ring-primary/30 ring-offset-2'
+                                    )}
+                                  >
+                                    <TaskCard
+                                      task={task}
+                                      onEdit={handleEditTask}
+                                      onDelete={handleDeleteTask}
+                                      onClick={
+                                        !selectionMode ? () => handleEditTask(task) : undefined
+                                      }
+                                      size="compact"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))
+                    )}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </CardContent>
+          </Card>
         </div>
       </DragDropContext>
 

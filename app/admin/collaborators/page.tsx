@@ -23,7 +23,7 @@ import {
   EyeOff
 } from 'lucide-react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
-import { ROUTE_REGISTRY } from '@/lib/access-control'
+import { routesByGroup } from '@/lib/access-control'
 import toast from 'react-hot-toast'
 
 interface User {
@@ -453,21 +453,32 @@ export default function CollaboratorsPage() {
                               Salvar
                             </Button>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {ROUTE_REGISTRY.map((route) => {
-                              const checked = (userPermissions[collab.user.id] || []).includes(route.path)
-                              return (
-                                <label key={route.key} className="flex items-center gap-2 text-sm">
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => onTogglePath(collab.user.id, route.path, e.target.checked)}
-                                  />
-                                  <span className="text-foreground">{route.label}</span>
-                                  <span className="text-muted-foreground text-xs">({route.path})</span>
-                                </label>
-                              )
-                            })}
+                          <div className="space-y-4">
+                            {routesByGroup().map(({ group, routes }) => (
+                              <div key={group.id} className="rounded-lg border border-border p-3">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  {group.label}
+                                </p>
+                                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                  {routes.map((route) => {
+                                    const checked = (userPermissions[collab.user.id] || []).includes(route.path)
+                                    return (
+                                      <label key={route.key} className="flex items-center gap-2 text-sm">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={(e) =>
+                                            onTogglePath(collab.user.id, route.path, e.target.checked)
+                                          }
+                                        />
+                                        <span className="text-foreground">{route.label}</span>
+                                        <span className="text-xs text-muted-foreground">({route.path})</span>
+                                      </label>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                           <p className="text-xs text-muted-foreground">
                             Dica: marcar "Projetos" libera também páginas internas de projetos.

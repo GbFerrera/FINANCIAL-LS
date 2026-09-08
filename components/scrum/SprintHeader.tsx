@@ -3,20 +3,26 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { 
-  Calendar, 
-  Target, 
-  TrendingUp, 
-  Edit, 
-  Play, 
-  Pause, 
-  CheckCircle2,
-  Clock,
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Archive,
+  Calendar,
+  Edit,
+  MoreHorizontal,
+  Target,
   Trash2,
-  Archive
+  TrendingUp,
 } from 'lucide-react'
-import { format, differenceInDays, isAfter, isBefore } from 'date-fns'
+import { format, differenceInDays, isAfter, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { isSprintArchivable } from '@/lib/sprint-archive'
+import { cn } from '@/lib/utils'
 
 interface Sprint {
   id: string
@@ -43,213 +49,202 @@ interface SprintHeaderProps {
   archiveLoading?: boolean
 }
 
-export function SprintHeader({ 
-  sprint, 
-  progress, 
-  storyPoints, 
-  onEdit, 
+const SPRINT_STATUS: Record<string, { label: string; className: string }> = {
+  PLANNING: {
+    label: 'Planejamento',
+    className:
+      'border-amber-200/80 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300',
+  },
+  ACTIVE: {
+    label: 'Ativa',
+    className:
+      'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300',
+  },
+  COMPLETED: {
+    label: 'Concluída',
+    className: 'border-border bg-muted/60 text-foreground',
+  },
+  CANCELLED: {
+    label: 'Cancelada',
+    className:
+      'border-rose-200/80 bg-rose-50 text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300',
+  },
+}
+
+function getTimeInfo(sprint: Sprint) {
+  const today = startOfDay(new Date())
+  const endDate = startOfDay(new Date(sprint.endDate))
+  const startDate = startOfDay(new Date(sprint.startDate))
+
+  if (sprint.status === 'COMPLETED' || sprint.status === 'CANCELLED') {
+    return null
+  }
+
+  if (isBefore(today, startDate)) {
+    const days = differenceInDays(startDate, today)
+    return { text: `Inicia em ${days} dia${days !== 1 ? 's' : ''}`, delayed: false, active: false }
+  }
+
+  if (isAfter(today, endDate)) {
+    const days = differenceInDays(today, endDate)
+    return { text: `${days} dia${days !== 1 ? 's' : ''} de atraso`, delayed: true, active: false }
+  }
+
+  const days = differenceInDays(endDate, today)
+  return {
+    text: `${days} dia${days !== 1 ? 's' : ''} restante${days !== 1 ? 's' : ''}`,
+    delayed: false,
+    active: true,
+  }
+}
+
+export function SprintHeader({
+  sprint,
+  progress,
+  storyPoints,
+  onEdit,
   onDelete,
   onArchive,
   isCompleted = false,
-  archiveLoading = false
+  archiveLoading = false,
 }: SprintHeaderProps) {
-  const getStatusColor = () => {
-    switch (sprint.status) {
-      case 'PLANNING':
-        return 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-      case 'ACTIVE':
-        return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800'
-      case 'COMPLETED':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-      case 'CANCELLED':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800'
-      default:
-        return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-    }
+  const statusMeta = SPRINT_STATUS[sprint.status] ?? {
+    label: sprint.status,
+    className: 'border-border bg-muted text-muted-foreground',
   }
+  const timeInfo = getTimeInfo(sprint)
+  const canArchive = isCompleted && onArchive && isSprintArchivable(sprint)
+  const showMenu = !isCompleted || canArchive
 
-  const getStatusIcon = () => {
-    switch (sprint.status) {
-      case 'PLANNING':
-        return <Clock className="w-4 h-4" />
-      case 'ACTIVE':
-        return <Play className="w-4 h-4" />
-      case 'COMPLETED':
-        return <CheckCircle2 className="w-4 h-4" />
-      case 'CANCELLED':
-        return <Pause className="w-4 h-4" />
-      default:
-        return <Clock className="w-4 h-4" />
-    }
-  }
-
-  const getStatusLabel = () => {
-    switch (sprint.status) {
-      case 'PLANNING':
-        return 'Planejamento'
-      case 'ACTIVE':
-        return 'Ativa'
-      case 'COMPLETED':
-        return 'Concluída'
-      case 'CANCELLED':
-        return 'Cancelada'
-      default:
-        return 'Planejamento'
-    }
-  }
-
-  const getDaysRemaining = () => {
-    const today = new Date()
-    const endDate = new Date(sprint.endDate)
-    const startDate = new Date(sprint.startDate)
-    
-    if (sprint.status === 'COMPLETED' || sprint.status === 'CANCELLED') {
-      return null
-    }
-    
-    if (isBefore(today, startDate)) {
-      const daysToStart = differenceInDays(startDate, today)
-      return `Inicia em ${daysToStart} dia${daysToStart !== 1 ? 's' : ''}`
-    }
-    
-    if (isAfter(today, endDate)) {
-      const daysOverdue = differenceInDays(today, endDate)
-      return `Atrasada ${daysOverdue} dia${daysOverdue !== 1 ? 's' : ''}`
-    }
-    
-    const daysRemaining = differenceInDays(endDate, today)
-    return `${daysRemaining} dia${daysRemaining !== 1 ? 's' : ''} restante${daysRemaining !== 1 ? 's' : ''}`
-  }
-
-  const getProgressColor = () => {
-    if (progress >= 80) return 'bg-green-500'
-    if (progress >= 50) return 'bg-yellow-500'
-    return 'bg-blue-500'
-  }
+  const meta = [
+    {
+      icon: Calendar,
+      label: 'Período',
+      value: `${format(new Date(sprint.startDate), 'dd/MM', { locale: ptBR })} – ${format(new Date(sprint.endDate), 'dd/MM/yyyy', { locale: ptBR })}`,
+      hint: timeInfo?.text,
+      hintClassName: cn(
+        timeInfo?.delayed && 'text-destructive',
+        timeInfo?.active && 'text-primary font-medium'
+      ),
+    },
+    {
+      icon: TrendingUp,
+      label: 'Story points',
+      value: `${storyPoints.completed}/${storyPoints.total} SP`,
+      hint: storyPoints.total > 0 ? `${progress}% concluído` : 'Sem estimativa',
+    },
+    ...(sprint.capacity
+      ? [
+          {
+            icon: Target,
+            label: 'Capacidade',
+            value: `${sprint.capacity} SP`,
+            hint: 'Planejado',
+          },
+        ]
+      : []),
+  ]
 
   return (
     <div className="space-y-4">
-      {/* Linha superior */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h2 className="text-xl font-semibold text-foreground">
-              {sprint.name}
-            </h2>
-            <Badge className={`${getStatusColor()} flex items-center gap-1`}>
-              {getStatusIcon()}
-              {getStatusLabel()}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={cn('border text-[11px] font-medium', statusMeta.className)}
+            >
+              {statusMeta.label}
             </Badge>
+            {timeInfo?.active && (
+              <span className="text-[11px] font-medium text-primary">Em andamento</span>
+            )}
           </div>
-          
+
+          <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+            {sprint.name}
+          </h2>
+
           {sprint.description && (
-            <p className="text-muted-foreground text-sm mb-2">
-              {sprint.description}
+            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{sprint.description}</p>
+          )}
+
+          {sprint.goal && (
+            <p className="mt-2 line-clamp-2 text-sm text-muted-foreground" title={sprint.goal}>
+              <span className="font-medium text-foreground">Objetivo · </span>
+              {sprint.goal}
             </p>
           )}
-          
-          {sprint.goal && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Target className="w-4 h-4" />
-              <span className="font-medium">Objetivo:</span>
-              <span>{sprint.goal}</span>
-            </div>
-          )}
         </div>
-        
-        {!isCompleted && (
-          <div className="flex gap-2">
-            {sprint.status === 'CANCELLED' && onDelete && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={onDelete}
-                className="ml-4"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Excluir
+
+        {showMenu && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="icon-sm" aria-label="Ações da sprint">
+                <MoreHorizontal className="h-4 w-4" />
               </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onEdit}
-              className={sprint.status !== 'CANCELLED' ? "ml-4" : ""}
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              Editar
-            </Button>
-          </div>
-        )}
-        {isCompleted && onArchive && isSprintArchivable(sprint) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onArchive}
-            disabled={archiveLoading}
-          >
-            <Archive className="w-4 h-4 mr-2" />
-            Arquivar
-          </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {!isCompleted && (
+                <>
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Edit className="h-4 w-4" />
+                    Editar sprint
+                  </DropdownMenuItem>
+                  {sprint.status === 'CANCELLED' && onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={onDelete}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </>
+              )}
+              {canArchive && (
+                <DropdownMenuItem disabled={archiveLoading} onClick={onArchive}>
+                  <Archive className="h-4 w-4" />
+                  {archiveLoading ? 'Arquivando…' : 'Arquivar'}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
-      {/* Linha de métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Datas */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Calendar className="w-4 h-4" />
-          <div>
-            <div className="font-medium">
-              {format(new Date(sprint.startDate), 'dd/MM', { locale: ptBR })} - {format(new Date(sprint.endDate), 'dd/MM/yyyy', { locale: ptBR })}
-            </div>
-            {getDaysRemaining() && (
-              <div className="text-xs text-muted-foreground">
-                {getDaysRemaining()}
+      <div className="flex flex-wrap gap-2">
+        {meta.map((item) => {
+          const Icon = item.icon
+          return (
+            <div
+              key={item.label}
+              className="inline-flex min-w-[140px] flex-1 flex-col gap-0.5 rounded-lg border border-border/80 bg-muted/20 px-3 py-2 sm:max-w-[220px] sm:flex-none"
+            >
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {item.label}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Progresso */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Progresso</span>
-            <span className="font-medium">{progress}%</span>
-          </div>
-          <Progress 
-            value={progress} 
-            className="h-2"
-          />
-        </div>
-
-        {/* Story Points */}
-        <div className="flex items-center gap-2 text-sm">
-          <TrendingUp className="w-4 h-4 text-blue-500" />
-          <div>
-            <div className="font-medium">
-              {storyPoints.completed}/{storyPoints.total} SP
+              <p className="text-sm font-semibold tabular-nums text-foreground">{item.value}</p>
+              {item.hint && (
+                <p className={cn('text-[11px] text-muted-foreground', item.hintClassName)}>
+                  {item.hint}
+                </p>
+              )}
             </div>
-            <div className="text-xs text-muted-foreground">
-              Story Points
-            </div>
-          </div>
-        </div>
+          )
+        })}
+      </div>
 
-        {/* Capacidade */}
-        {sprint.capacity && (
-          <div className="flex items-center gap-2 text-sm">
-            <Target className="w-4 h-4 text-purple-500" />
-            <div>
-              <div className="font-medium">
-                {sprint.capacity} SP
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Capacidade
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="rounded-lg border border-border/80 bg-card px-3 py-2.5">
+        <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Progresso da sprint</span>
+          <span className="font-semibold tabular-nums text-foreground">{progress}%</span>
+        </div>
+        <Progress value={progress} className="h-1.5" />
       </div>
     </div>
   )

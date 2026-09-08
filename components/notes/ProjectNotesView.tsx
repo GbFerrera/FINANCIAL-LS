@@ -47,6 +47,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 
+function isNoteDiagramSurface(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  return Boolean(
+    target.closest('[data-note-diagram-panel]') ||
+    target.closest('.excalidraw') ||
+    target.closest('.excalidraw-modal') ||
+    target.closest('.excalidraw-app') ||
+    target.closest('.Island')
+  )
+}
+
 type ProjectOption = { id: string; name: string }
 type TeamMember = { user: { id: string; name: string; email: string; avatar?: string | null } }
 type NoteVisibility = 'PRIVATE' | 'PUBLIC'
@@ -184,19 +195,42 @@ export function ProjectNotesView({
       .catch(() => setTeam([]))
   }, [editing, newNote.projectId])
 
+  const handleDiagramDialogDismiss = useCallback(
+    (event: Event) => {
+      if (isNoteDiagramSurface(event.target)) {
+        event.preventDefault()
+        return
+      }
+      if (diagramFullscreen) {
+        event.preventDefault()
+        setDiagramFullscreen(false)
+      }
+    },
+    [diagramFullscreen]
+  )
+
+  const handleDiagramEscape = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (diagramFullscreen) {
+        event.preventDefault()
+        event.stopPropagation()
+        setDiagramFullscreen(false)
+      }
+    },
+    [diagramFullscreen]
+  )
+
   useEffect(() => {
     if (!diagramFullscreen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setDiagramFullscreen(false)
-    }
+    window.addEventListener('keydown', handleDiagramEscape, true)
     const prevOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prevOverflow
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', handleDiagramEscape, true)
     }
-  }, [diagramFullscreen])
+  }, [diagramFullscreen, handleDiagramEscape])
 
   useEffect(() => {
     setDiagramSceneCache(null)
@@ -212,11 +246,15 @@ export function ProjectNotesView({
       return
     }
     setDiagramMounted(true)
+  }, [activeTab, editing?.id, isCreating])
+
+  useEffect(() => {
+    if (!diagramMounted || activeTab !== 'diagrams') return
     const t = window.setTimeout(() => {
       window.dispatchEvent(new Event('resize'))
-    }, 50)
+    }, diagramFullscreen ? 120 : 50)
     return () => window.clearTimeout(t)
-  }, [activeTab, diagramFullscreen, editing?.id, isCreating])
+  }, [diagramMounted, activeTab, diagramFullscreen])
 
   const diagramInitialData = useMemo(
     () => diagramSceneCache ?? editing?.diagram ?? null,
@@ -230,7 +268,13 @@ export function ProjectNotesView({
 
   const toggleDiagramFullscreen = useCallback(() => {
     cacheDiagramScene()
-    setDiagramFullscreen((v) => !v)
+    setDiagramFullscreen((v) => {
+      const next = !v
+      if (next) {
+        window.setTimeout(() => window.dispatchEvent(new Event('resize')), 150)
+      }
+      return next
+    })
   }, [cacheDiagramScene])
 
   const fetchNotes = useCallback(async () => {
@@ -695,53 +739,75 @@ export function ProjectNotesView({
 
               const diagramPanel = (
                 <div
+                  data-note-diagram-panel
                   className={cn(
-                    'relative flex flex-col overflow-hidden bg-background',
+                    'flex min-h-0 flex-col overflow-hidden bg-background',
                     diagramFullscreen
-                      ? 'fixed inset-0 z-[200] h-dvh w-dvw'
-                      : 'h-[min(56vh,520px)] min-h-[320px] rounded-lg border border-border'
+                      ? 'fixed inset-0 z-[9999] h-dvh w-screen'
+                      : 'relative h-[min(56vh,520px)] min-h-[320px] rounded-lg border border-border'
                   )}
                 >
-                  <div className="absolute right-2 top-2 z-10 flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      disabled={diagramSaving}
-                      onClick={async () => {
-                        if (!excaliRef.current) return
-                        setDiagramSaving(true)
-                        try {
-                          if (isCreating) {
-                            await saveNewNote()
-                          } else if (editing) {
-                            const scene = excaliRef.current.getScene()
-                            const res = await fetch(`/api/notes/${editing.id}`, {
-                              method: 'PUT',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ diagram: scene }),
-                            })
-                            if (res.ok) {
-                              setEditing(await res.json())
-                              setDiagramUnsaved(false)
-                              toast.success('Diagrama salvo')
+                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2">
+                    <p className="text-xs font-medium text-muted-foreground">Diagrama</p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={diagramSaving}
+                        onClick={async () => {
+                          if (!excaliRef.current) return
+                          setDiagramSaving(true)
+                          try {
+                            if (isCreating) {
+                              await saveNewNote()
+                            } else if (editing) {
+                              const scene = excaliRef.current.getScene()
+                              const res = await fetch(`/api/notes/${editing.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ diagram: scene }),
+                              })
+                              if (res.ok) {
+                                setEditing(await res.json())
+                                setDiagramUnsaved(false)
+                                toast.success('Diagrama salvo')
+                              }
                             }
+                          } finally {
+                            setDiagramSaving(false)
                           }
-                        } finally {
-                          setDiagramSaving(false)
-                        }
-                      }}
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      Salvar diagrama
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={toggleDiagramFullscreen}>
-                      {diagramFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                    </Button>
+                        }}
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        Salvar
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="bg-background shadow-sm"
+                        onClick={toggleDiagramFullscreen}
+                        aria-label={diagramFullscreen ? 'Sair da tela cheia' : 'Abrir em tela cheia'}
+                        title={diagramFullscreen ? 'Sair da tela cheia' : 'Tela cheia'}
+                      >
+                        {diagramFullscreen ? (
+                          <>
+                            <Minimize2 className="mr-2 h-4 w-4" />
+                            Sair
+                          </>
+                        ) : (
+                          <>
+                            <Maximize2 className="mr-2 h-4 w-4" />
+                            Tela cheia
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="relative min-h-0 flex-1">
+                  <div className="relative min-h-0 flex-1 pointer-events-auto">
                     <ExcalidrawClient
-                      key={`${editing?.id ?? 'new'}-${diagramFullscreen ? 'fullscreen' : 'embedded'}`}
+                      key={editing?.id ?? 'new'}
                       ref={excaliRef}
                       initialData={diagramInitialData}
                       onChange={() => setDiagramUnsaved(true)}
@@ -756,13 +822,20 @@ export function ProjectNotesView({
               )
 
               if (diagramFullscreen && typeof document !== 'undefined') {
-                return createPortal(diagramPanel, document.body)
+                return (
+                  <>
+                    <div className="flex h-[min(40vh,320px)] min-h-[200px] items-center justify-center rounded-lg border border-dashed border-border bg-muted/10">
+                      <p className="text-sm text-muted-foreground">Diagrama aberto em tela cheia</p>
+                    </div>
+                    {createPortal(diagramPanel, document.body)}
+                  </>
+                )
               }
 
               return (
                 <>
                   {diagramPanel}
-                  {diagramUnsaved && !diagramFullscreen ? (
+                  {diagramUnsaved ? (
                     <p className="mt-2 text-xs text-amber-600">Alterações no diagrama não salvas</p>
                   ) : null}
                 </>
@@ -1107,13 +1180,32 @@ export function ProjectNotesView({
 
       <Dialog
         open={dialogOpen}
+        modal={!diagramFullscreen}
         onOpenChange={(open) => {
+          if (!open && diagramFullscreen) {
+            setDiagramFullscreen(false)
+            return
+          }
           if (!open) cancelEdit()
         }}
       >
         <DialogContent
           className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
-          showCloseButton
+          showCloseButton={!diagramFullscreen}
+          onInteractOutside={handleDiagramDialogDismiss}
+          onPointerDownOutside={handleDiagramDialogDismiss}
+          onFocusOutside={handleDiagramDialogDismiss}
+          onEscapeKeyDown={(event) => {
+            if (diagramFullscreen) {
+              event.preventDefault()
+              setDiagramFullscreen(false)
+              return
+            }
+            if (activeTab === 'diagrams') {
+              event.preventDefault()
+              setActiveTab('content')
+            }
+          }}
         >
           <DialogTitle className="sr-only">
             {isCreating ? 'Nova nota' : editing?.title || 'Detalhes da nota'}

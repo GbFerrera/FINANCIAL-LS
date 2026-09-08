@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { MODULES_LABEL } from '@/lib/module-labels'
 import {
   AtSign,

@@ -1,39 +1,44 @@
 'use client'
 
-import { Suspense } from 'react'
+import { use, useCallback } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SprintBoard } from '@/components/scrum/SprintBoard'
-import { ScrumDashboard } from '@/components/scrum/ScrumDashboard'
-import { BurndownChart } from '@/components/scrum/BurndownChart'
-import { 
-  LayoutDashboard, 
-  Kanban, 
-  BarChart3
-} from 'lucide-react'
+import { ScrumReports } from '@/components/scrum/ScrumReports'
+import { Kanban, BarChart3 } from 'lucide-react'
 
 interface ProjectScrumPageProps {
-  params: { id: string }
-  searchParams: { tab?: string; sprint?: string }
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string; sprint?: string }>
 }
 
 export default function ProjectScrumPage({ params, searchParams }: ProjectScrumPageProps) {
-  const projectId = params.id
-  const activeTab = searchParams.tab || 'board'
-  const sprintId = searchParams.sprint
+  const { id: projectId } = use(params)
+  const { tab, sprint: sprintId } = use(searchParams)
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const activeTab = tab === 'reports' || tab === 'dashboard' ? 'reports' : 'board'
+
+  const onTabChange = useCallback(
+    (next: string) => {
+      const q = new URLSearchParams()
+      q.set('tab', next)
+      if (sprintId) q.set('sprint', sprintId)
+      router.replace(`${pathname}?${q.toString()}`, { scroll: false })
+    },
+    [pathname, router, sprintId]
+  )
 
   return (
-      <Tabs value={activeTab} className="w-full">
-      <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:grid-cols-3 mb-6">
+    <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+      <TabsList className="mb-6 grid w-full grid-cols-2 lg:w-auto lg:grid-cols-2">
         <TabsTrigger value="board" className="flex items-center gap-2">
-          <Kanban className="w-4 h-4" />
+          <Kanban className="h-4 w-4" />
           Quadro Scrum
         </TabsTrigger>
-        <TabsTrigger value="dashboard" className="flex items-center gap-2">
-          <LayoutDashboard className="w-4 h-4" />
-          Dashboard
-        </TabsTrigger>
         <TabsTrigger value="reports" className="flex items-center gap-2">
-          <BarChart3 className="w-4 h-4" />
+          <BarChart3 className="h-4 w-4" />
           Relatórios
         </TabsTrigger>
       </TabsList>
@@ -42,13 +47,9 @@ export default function ProjectScrumPage({ params, searchParams }: ProjectScrumP
         <SprintBoard projectId={projectId} sprintId={sprintId} />
       </TabsContent>
 
-      <TabsContent value="dashboard" className="space-y-6">
-        <ScrumDashboard projectId={projectId} />
-      </TabsContent>
-
       <TabsContent value="reports" className="space-y-6">
-        <ScrumDashboard projectId={projectId} />
+        <ScrumReports projectId={projectId} />
       </TabsContent>
-      </Tabs>
+    </Tabs>
   )
 }
