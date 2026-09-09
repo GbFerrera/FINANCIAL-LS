@@ -61,6 +61,7 @@ type CommsRoom = {
   id: string
   name: string
   initial: string
+  kind?: 'company' | 'sector' | 'custom'
 }
 
 type TextChannel = {
@@ -133,6 +134,7 @@ function TeamCommsContent() {
   const router = useRouter()
 
   const [rooms, setRooms] = useState<CommsRoom[]>([DEFAULT_ROOM])
+  const [sectorRoomIds, setSectorRoomIds] = useState<Set<string>>(() => new Set())
   const [activeRoomId, setActiveRoomId] = useState(DEFAULT_ROOM.id)
   const [textChannels, setTextChannels] = useState<TextChannel[]>(() =>
     mergeTextChannels([], DEFAULT_COMMS_ROOM_ID)
@@ -168,7 +170,10 @@ function TeamCommsContent() {
   const [savingChannel, setSavingChannel] = useState(false)
 
   const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? DEFAULT_ROOM
-  const isCustomRoom = activeRoomId !== DEFAULT_ROOM.id
+  const isCustomRoom =
+    activeRoomId !== DEFAULT_ROOM.id &&
+    !sectorRoomIds.has(activeRoomId) &&
+    activeRoom.kind !== 'sector'
 
   const loadCalls = useCallback((commsRoomId: string) => {
     const requestId = ++callsRequestRef.current
@@ -237,7 +242,43 @@ function TeamCommsContent() {
   }, [])
 
   useEffect(() => {
-    setRooms([DEFAULT_ROOM, ...loadCustomRooms()])
+    let cancelled = false
+
+    async function loadRooms() {
+      const custom = loadCustomRooms().map((room) => ({ ...room, kind: 'custom' as const }))
+      try {
+        const res = await fetch('/api/team/comms-rooms')
+        if (!res.ok) throw new Error('Falha ao carregar salas')
+        const data = (await res.json()) as {
+          rooms?: Array<{ id: string; name: string; initial: string; kind?: CommsRoom['kind'] }>
+        }
+        if (cancelled) return
+        const serverRooms = (data.rooms ?? [DEFAULT_ROOM]).map((room) => ({
+          id: room.id,
+          name: room.name,
+          initial: room.initial,
+          kind: room.kind,
+        }))
+        const serverIds = new Set(serverRooms.map((room) => room.id))
+        setSectorRoomIds(
+          new Set(serverRooms.filter((room) => room.kind === 'sector').map((room) => room.id))
+        )
+        setRooms([
+          ...serverRooms,
+          ...custom.filter((room) => !serverIds.has(room.id)),
+        ])
+      } catch {
+        if (!cancelled) {
+          setRooms([DEFAULT_ROOM, ...custom])
+          setSectorRoomIds(new Set())
+        }
+      }
+    }
+
+    void loadRooms()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {

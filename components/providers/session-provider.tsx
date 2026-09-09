@@ -7,26 +7,31 @@ import { SocketIOProvider } from "@/contexts/SocketIOProvider"
 import { RealtimeNotificationsListener } from "@/components/notifications/RealtimeNotificationsListener"
 import { RealtimeSocketSoundUnlock } from "@/components/notifications/RealtimeSocketSoundUnlock"
 import { OfficeSessionProvider } from "@/contexts/OfficeSessionContext"
+import { AppBrandProvider } from "@/contexts/AppBrandContext"
 import { ThemeProvider } from "next-themes"
 
 interface ProvidersProps {
   children: React.ReactNode
+  appName?: string
+  appTagline?: string
 }
 
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children, appName, appTagline }: ProvidersProps) {
   return (
     <SessionProvider refetchOnWindowFocus={false} refetchInterval={0} refetchWhenOffline={false}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <WebSocketProvider>
-          <OfficeSessionProvider>
-            <SocketIOProvider>
-              <RealtimeNotificationsListener />
-              <RealtimeSocketSoundUnlock />
-              {children}
-            </SocketIOProvider>
-          </OfficeSessionProvider>
-        </WebSocketProvider>
-        <LiquidToaster />
+        <AppBrandProvider name={appName} tagline={appTagline}>
+          <WebSocketProvider>
+            <OfficeSessionProvider>
+              <SocketIOProvider>
+                <RealtimeNotificationsListener />
+                <RealtimeSocketSoundUnlock />
+                {children}
+              </SocketIOProvider>
+            </OfficeSessionProvider>
+          </WebSocketProvider>
+          <LiquidToaster />
+        </AppBrandProvider>
       </ThemeProvider>
     </SessionProvider>
   )

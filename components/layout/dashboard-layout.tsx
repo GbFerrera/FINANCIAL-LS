@@ -43,6 +43,7 @@ import { PresenceTracker } from "@/components/presence/PresenceTracker"
 import { OfficeSessionShell } from "@/components/office/OfficeSessionShell"
 import { NavIcon, SidebarNavIcon } from "@/components/layout/SidebarNavIcon"
 import type { SidebarLottieKey } from "@/lib/sidebar-lottie-icons"
+import { useAppBrand } from "@/contexts/AppBrandContext"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -461,6 +462,7 @@ function SidebarContent({
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const { name: appName, tagline: appTagline } = useAppBrand()
   const [currentPath, setCurrentPath] = useState(pathname || '')
   const [expandedMenus, setExpandedMenus] = useState<string[]>([])
 
@@ -530,8 +532,8 @@ function SidebarContent({
                 </div>
                 {!collapsed && (
                   <div className="min-w-0 text-left">
-                    <span className="block truncate text-[13px] font-semibold text-foreground">Link System</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">Software House</span>
+                    <span className="block truncate text-[13px] font-semibold text-foreground">{appName}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{appTagline}</span>
                   </div>
                 )}
               </button>
@@ -549,8 +551,8 @@ function SidebarContent({
                 </div>
                 {!collapsed && (
                   <div className="min-w-0">
-                    <span className="block truncate text-[13px] font-semibold text-foreground">Link System</span>
-                    <span className="block truncate text-[11px] text-muted-foreground">Software House</span>
+                    <span className="block truncate text-[13px] font-semibold text-foreground">{appName}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{appTagline}</span>
                   </div>
                 )}
               </NextLink>

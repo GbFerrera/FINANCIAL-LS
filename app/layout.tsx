@@ -3,6 +3,7 @@ import { Geist_Mono, Sora, Source_Sans_3 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider"
 import { Providers } from "@/components/providers/session-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { resolveAppBrand } from "@/lib/app-branding";
 import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
 
@@ -59,6 +60,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const brand = resolveAppBrand()
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
@@ -71,7 +73,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-          <Providers>
+          <Providers appName={brand.name} appTagline={brand.tagline}>
             <AppShell>
               {children}
             </AppShell>
