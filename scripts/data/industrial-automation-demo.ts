@@ -345,6 +345,7 @@ export const DEMO_SUBSCRIPTION_GROUPS = [
       { name: 'Manutenção CLP — Mensal', price: 4500, cycle: 'MONTHLY' as const },
       { name: 'Suporte SCADA 24×7', price: 8200, cycle: 'MONTHLY' as const },
       { name: 'Hospedagem servidor OT', price: 1800, cycle: 'MONTHLY' as const },
+      { name: 'Monitoramento remoto OT', price: 3200, cycle: 'MONTHLY' as const },
     ],
   },
 ]
@@ -354,9 +355,252 @@ export const DEMO_SUBSCRIPTIONS_BY_CLIENT: Record<string, string[]> = {
   bomcorte: ['Suporte SCADA 24×7', 'Hospedagem servidor OT'],
   norchem: ['Manutenção CLP — Mensal'],
   graosplus: ['Manutenção CLP — Mensal'],
-  flexpack: [],
-  energiaverde: ['Suporte SCADA 24×7'],
+  flexpack: ['Monitoramento remoto OT'],
+  energiaverde: ['Suporte SCADA 24×7', 'Hospedagem servidor OT'],
 }
+
+export type DemoClientSubscription = {
+  clientKey: string
+  planName: string
+  dueDay: number
+  startedAtDaysAgo: number
+  /** Último mês quitado (dias atrás). Omitir = nunca pago → aparece atrasado. */
+  lastPaidForDaysAgo?: number
+}
+
+export const DEMO_CLIENT_SUBSCRIPTIONS: DemoClientSubscription[] = [
+  { clientKey: 'acoforte', planName: 'Manutenção CLP — Mensal', dueDay: 10, startedAtDaysAgo: 420, lastPaidForDaysAgo: 2 },
+  { clientKey: 'bomcorte', planName: 'Suporte SCADA 24×7', dueDay: 5, startedAtDaysAgo: 380, lastPaidForDaysAgo: 5 },
+  { clientKey: 'bomcorte', planName: 'Hospedagem servidor OT', dueDay: 5, startedAtDaysAgo: 380, lastPaidForDaysAgo: 5 },
+  { clientKey: 'norchem', planName: 'Manutenção CLP — Mensal', dueDay: 10, startedAtDaysAgo: 300, lastPaidForDaysAgo: 65 },
+  { clientKey: 'graosplus', planName: 'Manutenção CLP — Mensal', dueDay: 10, startedAtDaysAgo: 365, lastPaidForDaysAgo: 3 },
+  { clientKey: 'flexpack', planName: 'Monitoramento remoto OT', dueDay: 15, startedAtDaysAgo: 120, lastPaidForDaysAgo: 50 },
+  { clientKey: 'energiaverde', planName: 'Suporte SCADA 24×7', dueDay: 8, startedAtDaysAgo: 200, lastPaidForDaysAgo: 4 },
+  { clientKey: 'energiaverde', planName: 'Hospedagem servidor OT', dueDay: 8, startedAtDaysAgo: 200, lastPaidForDaysAgo: 4 },
+]
+
+export type DemoFinancialEntrySeed = {
+  type: 'INCOME' | 'EXPENSE'
+  category: string
+  description: string
+  amount: number
+  daysAgo: number
+  projectKey?: string
+}
+
+export const DEMO_FINANCIAL_ENTRIES: DemoFinancialEntrySeed[] = [
+  // Receitas — projetos
+  { type: 'INCOME', category: 'Projeto', description: 'Medição 1 — Retrofit laminação AçoForte', amount: 85500, projectKey: 'retrofit-laminacao', daysAgo: 95 },
+  { type: 'INCOME', category: 'Projeto', description: 'Medição 2 — Retrofit laminação AçoForte', amount: 95000, projectKey: 'retrofit-laminacao', daysAgo: 12 },
+  { type: 'INCOME', category: 'Projeto', description: 'Entrada SCADA BomCorte (40%)', amount: 59400, projectKey: 'scada-frigorifico', daysAgo: 75 },
+  { type: 'INCOME', category: 'Projeto', description: 'Medição SCADA BomCorte — telas operação', amount: 49500, projectKey: 'scada-frigorifico', daysAgo: 28 },
+  { type: 'INCOME', category: 'Projeto', description: 'Adiantamento SAT NorChem', amount: 96000, projectKey: 'comissionamento-reatores', daysAgo: 45 },
+  { type: 'INCOME', category: 'Projeto', description: 'Medição SCADA Usina Solar — coleta campo', amount: 123000, projectKey: 'supervisorio-solar', daysAgo: 33 },
+  { type: 'INCOME', category: 'Projeto', description: 'Workshop IHM + MES FlexPack', amount: 28400, projectKey: 'ihm-mes-flexpack', daysAgo: 20 },
+  { type: 'INCOME', category: 'Projeto', description: 'Referência — SAT GrãosPlus (retenção final)', amount: 35000, projectKey: 'esteira-graos', daysAgo: 180 },
+  // Receitas — manutenção avulsa
+  { type: 'INCOME', category: 'Manutenção', description: 'Visita emergencial — BomCorte compressores', amount: 6800, projectKey: 'mp-bomcorte', daysAgo: 14 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Horas extras — NorChem intertravamentos', amount: 4200, projectKey: 'mp-norchem', daysAgo: 22 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Calibração balanças GrãosPlus', amount: 3600, projectKey: 'mp-graosplus', daysAgo: 9 },
+  // Receitas — setembro (mês atual)
+  { type: 'INCOME', category: 'Projeto', description: 'Medição 3 — Retrofit laminação (eng. detalhada)', amount: 78000, projectKey: 'retrofit-laminacao', daysAgo: 4 },
+  { type: 'INCOME', category: 'Projeto', description: 'Dashboard O&M — Usina Solar (entrega parcial)', amount: 41000, projectKey: 'supervisorio-solar', daysAgo: 1 },
+  { type: 'INCOME', category: 'Projeto', description: 'Loop check NorChem — medição parcial SAT', amount: 64000, projectKey: 'comissionamento-reatores', daysAgo: 6 },
+  { type: 'INCOME', category: 'Projeto', description: 'Protótipo IHM envase — FlexPack linha 3', amount: 18500, projectKey: 'ihm-mes-flexpack', daysAgo: 2 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Contrato MP CLP — AçoForte (setembro)', amount: 4500, projectKey: 'mp-acoforte', daysAgo: 2 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Contrato MP silos — GrãosPlus (setembro)', amount: 4500, projectKey: 'mp-graosplus', daysAgo: 3 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Plantão SCADA — BomCorte (setembro)', amount: 8200, projectKey: 'mp-bomcorte', daysAgo: 5 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Hospedagem servidor OT — BomCorte (setembro)', amount: 1800, projectKey: 'mp-bomcorte', daysAgo: 5 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Suporte SCADA — Energia Verde (setembro)', amount: 8200, projectKey: 'supervisorio-solar', daysAgo: 4 },
+  { type: 'INCOME', category: 'Manutenção', description: 'Visita preventiva — Laminação AçoForte', amount: 5200, projectKey: 'mp-acoforte', daysAgo: 7 },
+  { type: 'INCOME', category: 'Projeto', description: 'Integração MQTT — sensores BomCorte', amount: 22800, projectKey: 'scada-frigorifico', daysAgo: 0 },
+  // Despesas
+  { type: 'EXPENSE', category: 'Material', description: 'CLP Siemens S7-1500 + módulos I/O', amount: 28400, projectKey: 'retrofit-laminacao', daysAgo: 88 },
+  { type: 'EXPENSE', category: 'Material', description: 'Inversores Profinet — linha laminador', amount: 18750, projectKey: 'retrofit-laminacao', daysAgo: 42 },
+  { type: 'EXPENSE', category: 'Licença', description: 'Ignition SCADA — licença anual BomCorte', amount: 12000, projectKey: 'scada-frigorifico', daysAgo: 60 },
+  { type: 'EXPENSE', category: 'Material', description: 'Sensores wireless HACCP + gateways', amount: 9400, projectKey: 'scada-frigorifico', daysAgo: 35 },
+  { type: 'EXPENSE', category: 'Deslocamento', description: 'Visita campo — GrãosPlus silos', amount: 3200, projectKey: 'mp-graosplus', daysAgo: 5 },
+  { type: 'EXPENSE', category: 'Deslocamento', description: 'Comissionamento NorChem — hotel + passagens', amount: 4800, projectKey: 'comissionamento-reatores', daysAgo: 18 },
+  { type: 'EXPENSE', category: 'Subcontratação', description: 'Montagem painel MCC — parceiro elétrico', amount: 15600, projectKey: 'retrofit-laminacao', daysAgo: 55 },
+  { type: 'EXPENSE', category: 'Material', description: 'Registradores Modbus inversores Huawei', amount: 6200, projectKey: 'supervisorio-solar', daysAgo: 40 },
+  { type: 'EXPENSE', category: 'Ferramentas', description: 'Licença TIA Portal — assento engenharia', amount: 8900, daysAgo: 120 },
+  { type: 'EXPENSE', category: 'Infra', description: 'Servidor OT cloud — BomCorte + Energia Verde', amount: 3600, daysAgo: 30 },
+]
+
+export type DemoPaymentSeed = {
+  clientKey: string
+  amount: number
+  description: string
+  method: 'PIX' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'OTHER'
+  status: 'COMPLETED' | 'PENDING' | 'PROCESSING'
+  daysAgo: number
+  projectAllocations?: { projectKey: string; amount: number }[]
+}
+
+export const DEMO_CLIENT_PAYMENTS: DemoPaymentSeed[] = [
+  {
+    clientKey: 'acoforte',
+    amount: 95000,
+    description: 'Medição 2 — Retrofit laminação',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 10,
+    projectAllocations: [{ projectKey: 'retrofit-laminacao', amount: 95000 }],
+  },
+  {
+    clientKey: 'acoforte',
+    amount: 85500,
+    description: 'Medição 1 — Retrofit laminação',
+    method: 'BANK_TRANSFER',
+    status: 'COMPLETED',
+    daysAgo: 92,
+    projectAllocations: [{ projectKey: 'retrofit-laminacao', amount: 85500 }],
+  },
+  {
+    clientKey: 'bomcorte',
+    amount: 59400,
+    description: 'Entrada SCADA — expansão câmaras',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 72,
+    projectAllocations: [{ projectKey: 'scada-frigorifico', amount: 59400 }],
+  },
+  {
+    clientKey: 'bomcorte',
+    amount: 49500,
+    description: 'Medição SCADA — sinótico e alarmes',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 26,
+    projectAllocations: [{ projectKey: 'scada-frigorifico', amount: 49500 }],
+  },
+  {
+    clientKey: 'norchem',
+    amount: 96000,
+    description: 'Adiantamento SAT reatores batch',
+    method: 'BANK_TRANSFER',
+    status: 'COMPLETED',
+    daysAgo: 43,
+    projectAllocations: [{ projectKey: 'comissionamento-reatores', amount: 96000 }],
+  },
+  {
+    clientKey: 'energiaverde',
+    amount: 123000,
+    description: 'Medição SCADA usina 50 MW',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 31,
+    projectAllocations: [{ projectKey: 'supervisorio-solar', amount: 123000 }],
+  },
+  {
+    clientKey: 'flexpack',
+    amount: 28400,
+    description: 'Workshop IHM + MES enchedora',
+    method: 'OTHER',
+    status: 'COMPLETED',
+    daysAgo: 18,
+    projectAllocations: [{ projectKey: 'ihm-mes-flexpack', amount: 28400 }],
+  },
+  {
+    clientKey: 'graosplus',
+    amount: 35000,
+    description: 'Retenção final SAT esteira e silos',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 175,
+    projectAllocations: [{ projectKey: 'esteira-graos', amount: 35000 }],
+  },
+  {
+    clientKey: 'flexpack',
+    amount: 42600,
+    description: 'Proposta IHM linha 3 — aguardando PO',
+    method: 'OTHER',
+    status: 'PENDING',
+    daysAgo: 3,
+    projectAllocations: [{ projectKey: 'ihm-mes-flexpack', amount: 42600 }],
+  },
+  {
+    clientKey: 'norchem',
+    amount: 64000,
+    description: 'Medição loop check + SAT parcial',
+    method: 'BANK_TRANSFER',
+    status: 'PROCESSING',
+    daysAgo: 2,
+    projectAllocations: [{ projectKey: 'comissionamento-reatores', amount: 64000 }],
+  },
+  {
+    clientKey: 'acoforte',
+    amount: 4500,
+    description: 'Contrato MP CLP — referência março',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 38,
+    projectAllocations: [{ projectKey: 'mp-acoforte', amount: 4500 }],
+  },
+  {
+    clientKey: 'graosplus',
+    amount: 4500,
+    description: 'Contrato MP silos — referência mês anterior',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 25,
+    projectAllocations: [{ projectKey: 'mp-graosplus', amount: 4500 }],
+  },
+  {
+    clientKey: 'acoforte',
+    amount: 78000,
+    description: 'Medição 3 — Retrofit laminação',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 4,
+    projectAllocations: [{ projectKey: 'retrofit-laminacao', amount: 78000 }],
+  },
+  {
+    clientKey: 'energiaverde',
+    amount: 41000,
+    description: 'Dashboard O&M usina solar',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 1,
+    projectAllocations: [{ projectKey: 'supervisorio-solar', amount: 41000 }],
+  },
+  {
+    clientKey: 'bomcorte',
+    amount: 22800,
+    description: 'Integração MQTT sensores HACCP',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 0,
+    projectAllocations: [{ projectKey: 'scada-frigorifico', amount: 22800 }],
+  },
+  {
+    clientKey: 'flexpack',
+    amount: 18500,
+    description: 'Protótipo IHM envase linha 3',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 2,
+    projectAllocations: [{ projectKey: 'ihm-mes-flexpack', amount: 18500 }],
+  },
+  {
+    clientKey: 'graosplus',
+    amount: 4500,
+    description: 'Contrato MP silos — setembro',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 3,
+    projectAllocations: [{ projectKey: 'mp-graosplus', amount: 4500 }],
+  },
+  {
+    clientKey: 'acoforte',
+    amount: 4500,
+    description: 'Contrato MP CLP — setembro',
+    method: 'PIX',
+    status: 'COMPLETED',
+    daysAgo: 2,
+    projectAllocations: [{ projectKey: 'mp-acoforte', amount: 4500 }],
+  },
+]
 
 export type DemoTeamChatChannel = {
   slug: string

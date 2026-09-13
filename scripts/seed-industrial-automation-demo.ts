@@ -2,27 +2,18 @@
  * Popula demo OTIMIZE AUTOMAÇÃO INDUSTRIAL (clientes, projetos, espaços, finanças).
  * Uso: npx tsx scripts/seed-industrial-automation-demo.ts
  */
-import {
-  PrismaClient,
-  UserRole,
-  FinancialType,
-  SubscriptionBillingCycle,
-  SubscriptionStatus,
-  PaymentMethod,
-  PaymentStatus,
-} from '@prisma/client'
+import { PrismaClient, UserRole } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import {
   DEMO_CLIENTS,
   DEMO_COMPANY,
   DEMO_PROJECTS,
-  DEMO_SUBSCRIPTION_GROUPS,
-  DEMO_SUBSCRIPTIONS_BY_CLIENT,
   DEMO_TEAM,
   DEMO_WORKSPACES,
 } from './data/industrial-automation-demo'
 import { seedIndustrialWorkspaceDrafts } from './lib/seed-industrial-drafts'
 import { seedIndustrialTeamChat } from './lib/seed-industrial-team-chat'
+import { seedIndustrialFinancial } from './lib/seed-industrial-financial'
 
 const prisma = new PrismaClient()
 
@@ -241,141 +232,6 @@ async function seedWorkspaces(projects: Record<string, string>) {
   }
 }
 
-async function seedSubscriptions(clients: Record<string, string>) {
-  console.log('💳 Assinaturas / contratos...')
-  const planIds: Record<string, string> = {}
-
-  for (const group of DEMO_SUBSCRIPTION_GROUPS) {
-    const g = await prisma.subscriptionGroup.create({
-      data: { name: group.name, description: group.description },
-    })
-    for (const plan of group.plans) {
-      const sub = await prisma.subscription.create({
-        data: {
-          groupId: g.id,
-          name: plan.name,
-          price: plan.price,
-          billingCycle: plan.cycle as SubscriptionBillingCycle,
-        },
-      })
-      planIds[plan.name] = sub.id
-    }
-  }
-
-  for (const [clientKey, plans] of Object.entries(DEMO_SUBSCRIPTIONS_BY_CLIENT)) {
-    const clientId = clients[clientKey]
-    if (!clientId) continue
-    for (const planName of plans) {
-      const subscriptionId = planIds[planName]
-      if (!subscriptionId) continue
-      await prisma.clientSubscription.create({
-        data: {
-          clientId,
-          subscriptionId,
-          status: SubscriptionStatus.ACTIVE,
-          dueDay: 10,
-          startedAt: daysAgo(120),
-          lastPaidFor: daysAgo(30),
-        },
-      })
-    }
-  }
-}
-
-async function seedFinancial(
-  clients: Record<string, string>,
-  projects: Record<string, string>
-) {
-  console.log('💰 Lançamentos financeiros...')
-  const entries = [
-    {
-      type: FinancialType.INCOME,
-      category: 'Projeto',
-      description: 'Medição 2 — Retrofit laminação AçoForte',
-      amount: 95000,
-      projectKey: 'retrofit-laminacao',
-      days: 12,
-    },
-    {
-      type: FinancialType.INCOME,
-      category: 'Projeto',
-      description: 'Entrada SCADA BomCorte',
-      amount: 59400,
-      projectKey: 'scada-frigorifico',
-      days: 25,
-    },
-    {
-      type: FinancialType.INCOME,
-      category: 'Manutenção',
-      description: 'Contrato MP — NorChem (março)',
-      amount: 4500,
-      projectKey: 'mp-norchem',
-      days: 8,
-    },
-    {
-      type: FinancialType.EXPENSE,
-      category: 'Material',
-      description: 'CLP Siemens S7-1500 + módulos I/O',
-      amount: 28400,
-      projectKey: 'retrofit-laminacao',
-      days: 18,
-    },
-    {
-      type: FinancialType.EXPENSE,
-      category: 'Licença',
-      description: 'Ignition SCADA — licença anual',
-      amount: 12000,
-      projectKey: 'scada-frigorifico',
-      days: 40,
-    },
-    {
-      type: FinancialType.EXPENSE,
-      category: 'Deslocamento',
-      description: 'Visita campo — GrãosPlus silos',
-      amount: 3200,
-      projectKey: 'mp-graosplus',
-      days: 5,
-    },
-  ]
-
-  for (const e of entries) {
-    await prisma.financialEntry.create({
-      data: {
-        type: e.type,
-        category: e.category,
-        description: e.description,
-        amount: e.amount,
-        date: daysAgo(e.days),
-        projectId: projects[e.projectKey] ?? null,
-      },
-    })
-  }
-
-  const acoforteId = clients.acoforte
-  if (acoforteId) {
-    await prisma.payment.create({
-      data: {
-        clientId: acoforteId,
-        amount: 95000,
-        description: 'Medição retrofit laminação',
-        paymentDate: daysAgo(10),
-        method: PaymentMethod.PIX,
-        status: PaymentStatus.COMPLETED,
-        paymentProjects: projects['retrofit-laminacao']
-          ? {
-              create: [
-                {
-                  projectId: projects['retrofit-laminacao'],
-                  amount: 95000,
-                },
-              ],
-            }
-          : undefined,
-      },
-    })
-  }
-}
-
 async function main() {
   console.log(`\n🏭 Seed demo — ${DEMO_COMPANY.name}\n`)
 
@@ -393,8 +249,7 @@ async function main() {
   await seedWorkspaces(projects)
   await seedIndustrialWorkspaceDrafts(prisma)
   await seedIndustrialTeamChat(prisma)
-  await seedSubscriptions(clients)
-  await seedFinancial(clients, projects)
+  await seedIndustrialFinancial(prisma)
 
   console.log('\n✅ Demo OTIMIZE pronta!')
   console.log(`   Empresa: ${DEMO_COMPANY.name}`)

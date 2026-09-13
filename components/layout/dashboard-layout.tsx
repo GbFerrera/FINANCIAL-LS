@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils"
 import { WorkspaceSidebarNav } from "@/components/workspace/WorkspaceSidebarNav"
 import { PresenceTracker } from "@/components/presence/PresenceTracker"
 import { OfficeSessionShell } from "@/components/office/OfficeSessionShell"
+import { CallSessionShell } from "@/components/call/CallSessionShell"
 import { NavIcon, SidebarNavIcon } from "@/components/layout/SidebarNavIcon"
 import type { SidebarLottieKey } from "@/lib/sidebar-lottie-icons"
 import { useAppBrand } from "@/contexts/AppBrandContext"
@@ -266,6 +267,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <TooltipProvider>
       <PresenceTracker />
       <OfficeSessionShell />
+      <CallSessionShell />
       <div className="flex h-screen overflow-hidden bg-card">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 z-40 flex md:hidden ${sidebarOpen ? '' : 'hidden'}`}>

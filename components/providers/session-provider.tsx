@@ -7,6 +7,7 @@ import { SocketIOProvider } from "@/contexts/SocketIOProvider"
 import { RealtimeNotificationsListener } from "@/components/notifications/RealtimeNotificationsListener"
 import { RealtimeSocketSoundUnlock } from "@/components/notifications/RealtimeSocketSoundUnlock"
 import { OfficeSessionProvider } from "@/contexts/OfficeSessionContext"
+import { CallSessionProvider } from "@/contexts/CallSessionContext"
 import { AppBrandProvider } from "@/contexts/AppBrandContext"
 import { ThemeProvider } from "next-themes"
 
@@ -23,11 +24,13 @@ export function Providers({ children, appName, appTagline }: ProvidersProps) {
         <AppBrandProvider name={appName} tagline={appTagline}>
           <WebSocketProvider>
             <OfficeSessionProvider>
-              <SocketIOProvider>
-                <RealtimeNotificationsListener />
-                <RealtimeSocketSoundUnlock />
-                {children}
-              </SocketIOProvider>
+              <CallSessionProvider>
+                <SocketIOProvider>
+                  <RealtimeNotificationsListener />
+                  <RealtimeSocketSoundUnlock />
+                  {children}
+                </SocketIOProvider>
+              </CallSessionProvider>
             </OfficeSessionProvider>
           </WebSocketProvider>
           <LiquidToaster />

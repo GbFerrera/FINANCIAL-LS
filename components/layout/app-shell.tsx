@@ -16,7 +16,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { allowedPaths, loading: permissionsLoading } = useAllowedPaths(session?.user?.id)
 
   const excludedPrefixes = ['/auth', '/collaborator-portal', '/client-portal', '/task-portal', '/proposta']
-  const isGuestCallRoom = /^\/team\/call\/[^/]+$/.test(pathname)
+  const isCallRoomPath = /^\/team\/call\/[^/]+$/.test(pathname)
+  const isGuestCallRoom = isCallRoomPath && status !== 'loading' && !session
   const isExcluded =
     excludedPrefixes.some((prefix) => pathname.startsWith(prefix)) || isGuestCallRoom
   useEffect(() => {

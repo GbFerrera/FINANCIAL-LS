@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallSessionOptional } from '@/contexts/CallSessionContext'
+import { navigateToCall, roomIdFromCallPath } from '@/lib/join-call-session'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Video, Phone, Users, DoorOpen, Sparkles, Radio, Loader2 } from 'lucide-react'
@@ -16,17 +19,13 @@ type ActiveRoom = {
   createdBy: { id: string; name: string; avatar?: string | null }
 }
 
-function goToCall(path: string) {
-  if (typeof window !== 'undefined') {
-    window.location.assign(path)
-  }
-}
-
 type CallHubPanelProps = {
   embedded?: boolean
 }
 
 export function CallHubPanel({ embedded = false }: CallHubPanelProps) {
+  const router = useRouter()
+  const callCtx = useCallSessionOptional()
   const [title, setTitle] = useState('')
   const [creating, setCreating] = useState(false)
   const [joiningSalinha, setJoiningSalinha] = useState(false)
@@ -68,14 +67,21 @@ export function CallHubPanel({ embedded = false }: CallHubPanelProps) {
     return data.joinPath as string
   }
 
+  const enterCall = (path: string, callTitle: string, callType: 'audio' | 'video') => {
+    const roomId = roomIdFromCallPath(path)
+    if (!roomId) {
+      router.push(path)
+      return
+    }
+    navigateToCall(router, callCtx, path, { roomId, roomTitle: callTitle, callType })
+  }
+
   const startCall = async (type: 'audio' | 'video') => {
     setCreating(true)
     try {
-      const path = await createAndJoin({
-        title: title.trim() || (type === 'audio' ? 'Chamada de voz' : 'Reunião Link Call'),
-        type,
-      })
-      if (path) goToCall(path)
+      const callTitle = title.trim() || (type === 'audio' ? 'Chamada de voz' : 'Reunião Link Call')
+      const path = await createAndJoin({ title: callTitle, type })
+      if (path) enterCall(path, callTitle, type)
     } catch {
       toast.error('Erro de rede')
     } finally {
@@ -97,7 +103,7 @@ export function CallHubPanel({ embedded = false }: CallHubPanelProps) {
         return
       }
       if (data.joinPath) {
-        goToCall(data.joinPath)
+        enterCall(data.joinPath, 'Salinha', 'video')
         return
       }
       setSalinhaError('Resposta inválida do servidor')
@@ -224,7 +230,16 @@ export function CallHubPanel({ embedded = false }: CallHubPanelProps) {
                       por {room.createdBy.name} · {room.type === 'audio' ? 'áudio' : 'vídeo'}
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => goToCall(`/team/call/${room.id}`)}>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      enterCall(
+                        `/team/call/${room.id}`,
+                        room.title ?? 'Call',
+                        room.type === 'audio' ? 'audio' : 'video'
+                      )
+                    }
+                  >
                     Entrar
                   </Button>
                 </li>

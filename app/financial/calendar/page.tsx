@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
 import { Calendar as RBCalendar, dateFnsLocalizer, View, Views } from "react-big-calendar"
-import { format, parse, startOfWeek, getDay } from "date-fns"
+import { addMonths, format, parse, startOfWeek, getDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import { Badge } from "@/components/ui/badge"
@@ -72,7 +72,7 @@ type Subscription = {
 }
 
 type ChargeSource = "SUBSCRIPTION" | "PAYMENT" | "EXPENSE"
-type ChargeStatus = "PAID" | "PENDING" | "RECEIVED"
+type ChargeStatus = "PAID" | "PENDING" | "RECEIVED" | "PARTIAL"
 
 type FinancialEntryRow = {
   id: string
@@ -111,6 +111,7 @@ type FinancialChargeEvent = {
   paidAt?: Date | null
   manualDescription?: string | null
   projectName?: string | null
+  receivedAmount?: number
 }
 
 type CalendarDayTotalEvent = {
@@ -224,6 +225,9 @@ export default function FinancialCalendarPage() {
     description?: string | null
     paymentDate: string
     status: string
+    receivedAmount?: number
+    installmentNumber?: number | null
+    installmentTotal?: number | null
     method?: string | null
     reminderSendEmail?: boolean
     reminderSendWhatsApp?: boolean
@@ -258,6 +262,13 @@ export default function FinancialCalendarPage() {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false)
   const [sendingDailyEmail, setSendingDailyEmail] = useState(false)
   const [markingReceivedId, setMarkingReceivedId] = useState<string | null>(null)
+  const [partialReceiptOpen, setPartialReceiptOpen] = useState(false)
+  const [partialReceiptPaymentId, setPartialReceiptPaymentId] = useState<string | null>(null)
+  const [partialReceiptAmount, setPartialReceiptAmount] = useState("")
+  const [partialReceiptDate, setPartialReceiptDate] = useState(format(new Date(), "yyyy-MM-dd"))
+  const [partialReceiptNextDueDate, setPartialReceiptNextDueDate] = useState("")
+  const [partialReceiptLabel, setPartialReceiptLabel] = useState("")
+  const [receiptMode, setReceiptMode] = useState<"full" | "partial">("full")
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null)
   const [markingExpensePaidId, setMarkingExpensePaidId] = useState<string | null>(null)
   const [creatingExpense, setCreatingExpense] = useState(false)
@@ -563,19 +574,65 @@ export default function FinancialCalendarPage() {
     }
   }
 
-  const markPaymentAsReceived = async (paymentId: string) => {
+  const openPartialReceiptDialog = (paymentId: string) => {
+    const payment = payments.find((p) => p.id === paymentId)
+    if (!payment) return
+    const received = payment.receivedAmount ?? 0
+    const remaining = Math.max(0, payment.amount - received)
+    setPartialReceiptPaymentId(paymentId)
+    setReceiptMode("full")
+    setPartialReceiptAmount(formatCurrencyBRFromNumber(remaining))
+    setPartialReceiptDate(format(new Date(), "yyyy-MM-dd"))
+    setPartialReceiptNextDueDate(format(addMonths(new Date(), 1), "yyyy-MM-dd"))
+    setPartialReceiptLabel(
+      payment.installmentNumber && payment.installmentTotal && payment.installmentTotal > 1
+        ? `Parcela ${payment.installmentNumber}/${payment.installmentTotal}`
+        : received > 0
+          ? "Complemento"
+          : ""
+    )
+    setPartialReceiptOpen(true)
+  }
+
+  const markPaymentAsReceived = async (
+    paymentId: string,
+    receivedAmount?: number,
+    receivedDate?: string,
+    nextDueDate?: string,
+    receiptLabel?: string
+  ) => {
     try {
       setMarkingReceivedId(paymentId)
       const res = await fetch("/api/payments", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentId, markAsReceived: true }),
+        body: JSON.stringify({
+          paymentId,
+          markAsReceived: true,
+          ...(receivedAmount != null ? { receivedAmount } : {}),
+          ...(receivedDate ? { receivedDate } : {}),
+          ...(nextDueDate ? { nextDueDate } : {}),
+          ...(receiptLabel ? { receiptLabel } : {}),
+        }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({} as { error?: string }))
         throw new Error(err.error || "Falha ao marcar como recebido")
       }
-      toast.success("Cobrança marcada como recebida")
+      const data = await res.json()
+      const total = typeof data.receivedAmount === "number" ? data.receivedAmount : null
+      const payment = payments.find((p) => p.id === paymentId)
+      const isFull =
+        payment && total != null ? total >= payment.amount - 0.009 : receivedAmount == null
+      toast.success(
+        isFull
+          ? "Cobrança recebida por completo"
+          : nextDueDate
+            ? "Parcela registrada — saldo reprogramado no calendário"
+            : "Recebimento parcial registrado"
+      )
+      setPartialReceiptOpen(false)
+      setPartialReceiptPaymentId(null)
       fetchPayments()
       fetchFinancialEntries()
     } catch (e) {
@@ -583,6 +640,52 @@ export default function FinancialCalendarPage() {
     } finally {
       setMarkingReceivedId(null)
     }
+  }
+
+  const confirmPartialReceipt = async () => {
+    if (!partialReceiptPaymentId) return
+    const payment = payments.find((p) => p.id === partialReceiptPaymentId)
+    if (!payment) return
+    const received = payment.receivedAmount ?? 0
+    const remaining = Math.max(0, payment.amount - received)
+
+    if (receiptMode === "full") {
+      await markPaymentAsReceived(
+        partialReceiptPaymentId,
+        remaining,
+        partialReceiptDate,
+        undefined,
+        partialReceiptLabel.trim() || undefined
+      )
+      return
+    }
+
+    const amount = parseCurrencyBRToNumber(partialReceiptAmount)
+    if (amount == null || amount <= 0) {
+      toast.error("Informe um valor válido")
+      return
+    }
+    if (amount >= remaining - 0.009) {
+      await markPaymentAsReceived(
+        partialReceiptPaymentId,
+        amount,
+        partialReceiptDate,
+        undefined,
+        partialReceiptLabel.trim() || undefined
+      )
+      return
+    }
+    if (!partialReceiptNextDueDate) {
+      toast.error("Informe a data prevista para receber o restante")
+      return
+    }
+    await markPaymentAsReceived(
+      partialReceiptPaymentId,
+      amount,
+      partialReceiptDate,
+      partialReceiptNextDueDate,
+      partialReceiptLabel.trim() || undefined
+    )
   }
 
   const deletePayment = async (paymentId: string) => {
@@ -739,17 +842,32 @@ export default function FinancialCalendarPage() {
 
     for (const p of payments) {
       const d = new Date(p.paymentDate)
+      const rawStatus = (p.status || "").toUpperCase()
+      const receivedAmount = p.receivedAmount ?? 0
       const status =
-        (p.status || "").toUpperCase() === "COMPLETED"
+        rawStatus === "COMPLETED"
           ? ("RECEIVED" as const)
-          : (p.status || "").toUpperCase() === "CANCELLED" || (p.status || "").toUpperCase() === "FAILED"
-            ? null
-            : ("PENDING" as const)
+          : rawStatus === "PROCESSING" || (receivedAmount > 0 && receivedAmount < p.amount - 0.009)
+            ? ("PARTIAL" as const)
+            : rawStatus === "CANCELLED" || rawStatus === "FAILED"
+              ? null
+              : ("PENDING" as const)
       if (!status) continue
 
       const clientName = p.client?.company || p.client?.name || "Cliente"
       const projectNames = (p.paymentProjects || []).map(pp => pp.project?.name).filter(Boolean)
       const projectsLabel = projectNames.length ? projectNames.join(", ") : null
+      const installmentLabel =
+        p.installmentNumber && p.installmentTotal && p.installmentTotal > 1
+          ? `Parcela ${p.installmentNumber}/${p.installmentTotal}`
+          : null
+      const detailParts = [
+        p.description || null,
+        installmentLabel,
+        receivedAmount > 0 && receivedAmount < p.amount - 0.009
+          ? `Recebido ${formatBRL2(receivedAmount)} · Faltam ${formatBRL2(Math.max(0, p.amount - receivedAmount))}`
+          : null,
+      ].filter(Boolean)
 
       out.push({
         id: `payment:${p.id}`,
@@ -771,8 +889,9 @@ export default function FinancialCalendarPage() {
         subscriptionName: "Cobrança avulsa",
         groupName: projectsLabel,
         paidAt: null,
-        manualDescription: p.description || null,
+        manualDescription: detailParts.length ? detailParts.join(" · ") : null,
         projectName: projectsLabel,
+        receivedAmount,
       })
     }
 
@@ -1086,7 +1205,16 @@ export default function FinancialCalendarPage() {
     }
 
     const isReceived = c.status === "PAID" || c.status === "RECEIVED"
+    const isPartial = c.status === "PARTIAL"
     const overdue = c.status === "PENDING" && dateKey(c.dueDate) < todayKey
+    if (isPartial) {
+      const received = c.receivedAmount ?? 0
+      const remaining = Math.max(0, c.amount - received)
+      return {
+        label: `Parcial · faltam ${formatBRL2(remaining)}`,
+        className: "border-sky-500/30 bg-sky-500/10 text-sky-800 dark:text-sky-300",
+      }
+    }
     if (isReceived) {
       return {
         label: c.source === "PAYMENT" ? "Recebido" : "Pago",
@@ -1486,7 +1614,17 @@ export default function FinancialCalendarPage() {
                               {isExpense
                                 ? c.subscriptionName
                                 : c.source === "PAYMENT"
-                                  ? "Cobrança avulsa"
+                                  ? (() => {
+                                      const p = payments.find((row) => row.id === c.paymentId)
+                                      if (
+                                        p?.installmentNumber &&
+                                        p?.installmentTotal &&
+                                        p.installmentTotal > 1
+                                      ) {
+                                        return `Cobrança parcelada · ${p.installmentNumber}/${p.installmentTotal}`
+                                      }
+                                      return "Cobrança avulsa"
+                                    })()
                                   : c.subscriptionName}
                             </p>
                             {(c.manualDescription || c.groupName || c.projectName || (isExpense && c.isRecurring)) && (
@@ -1508,13 +1646,24 @@ export default function FinancialCalendarPage() {
                             ) : null}
                           </div>
                           <div className="shrink-0 text-right">
-                            <span className={cn(isExpense && "text-red-600 dark:text-red-400")}>
-                              <CurrencyAmount
-                                value={isExpense ? -c.amount : c.amount}
-                                size="sm"
-                                className={isExpense ? "text-red-600 dark:text-red-400" : undefined}
-                              />
-                            </span>
+                            {c.status === "PARTIAL" && !isExpense ? (
+                              <div className="space-y-0.5">
+                                <p className="text-[10px] text-muted-foreground">
+                                  de {formatBRL2(c.amount)}
+                                </p>
+                                <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">
+                                  Faltam {formatBRL2(Math.max(0, c.amount - (c.receivedAmount ?? 0)))}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className={cn(isExpense && "text-red-600 dark:text-red-400")}>
+                                <CurrencyAmount
+                                  value={isExpense ? -c.amount : c.amount}
+                                  size="sm"
+                                  className={isExpense ? "text-red-600 dark:text-red-400" : undefined}
+                                />
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1525,15 +1674,19 @@ export default function FinancialCalendarPage() {
 
                           {c.source === "PAYMENT" && c.paymentId ? (
                             <>
-                              {c.status === "PENDING" && (
+                              {(c.status === "PENDING" || c.status === "PARTIAL") && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-xs"
                                   disabled={markingReceivedId === c.paymentId}
-                                  onClick={() => markPaymentAsReceived(c.paymentId!)}
+                                  onClick={() => openPartialReceiptDialog(c.paymentId!)}
                                 >
-                                  {markingReceivedId === c.paymentId ? "Marcando..." : "Marcar recebido"}
+                                  {markingReceivedId === c.paymentId
+                                    ? "Registrando..."
+                                    : c.status === "PARTIAL"
+                                      ? "Registrar recebimento"
+                                      : "Marcar recebido"}
                                 </Button>
                               )}
                               <DropdownMenu>
@@ -1811,6 +1964,134 @@ export default function FinancialCalendarPage() {
             </Button>
             <Button onClick={createExpenseBill} disabled={creatingExpense}>
               {creatingExpense ? "Salvando..." : expenseToEdit ? "Salvar alterações" : "Salvar despesa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={partialReceiptOpen}
+        onOpenChange={(open) => {
+          setPartialReceiptOpen(open)
+          if (!open) setPartialReceiptPaymentId(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Registrar recebimento</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const payment = payments.find((p) => p.id === partialReceiptPaymentId)
+                if (!payment) return "Escolha como registrar o recebimento desta cobrança."
+                const received = payment.receivedAmount ?? 0
+                const remaining = Math.max(0, payment.amount - received)
+                return `Saldo em aberto: ${formatBRL2(remaining)} de ${formatBRL2(payment.amount)}`
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setReceiptMode("full")
+                  const payment = payments.find((p) => p.id === partialReceiptPaymentId)
+                  if (payment) {
+                    const remaining = Math.max(0, payment.amount - (payment.receivedAmount ?? 0))
+                    setPartialReceiptAmount(formatCurrencyBRFromNumber(remaining))
+                  }
+                }}
+                className={cn(
+                  "rounded-lg border p-3 text-left transition",
+                  receiptMode === "full"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border hover:bg-muted/40"
+                )}
+              >
+                <p className="text-sm font-medium">Valor integral</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Quita a cobrança em uma única etapa
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReceiptMode("partial")}
+                className={cn(
+                  "rounded-lg border p-3 text-left transition",
+                  receiptMode === "partial"
+                    ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                    : "border-border hover:bg-muted/40"
+                )}
+              >
+                <p className="text-sm font-medium">Parcela / parcial</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Registra parte agora e agenda o restante
+                </p>
+              </button>
+            </div>
+
+            {receiptMode === "partial" && (
+              <div className="space-y-2">
+                <Label htmlFor="partial-receipt-amount">Valor recebido agora</Label>
+                <Input
+                  id="partial-receipt-amount"
+                  value={partialReceiptAmount}
+                  onChange={(e) =>
+                    setPartialReceiptAmount(formatCurrencyBRFromDigits(e.target.value))
+                  }
+                  placeholder="R$ 0,00"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="partial-receipt-label">Etapa / parcela (opcional)</Label>
+              <Input
+                id="partial-receipt-label"
+                value={partialReceiptLabel}
+                onChange={(e) => setPartialReceiptLabel(e.target.value)}
+                placeholder="Ex.: Parcela 1/3, Entrada, Finalização"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="partial-receipt-date">Data do recebimento</Label>
+              <Input
+                id="partial-receipt-date"
+                type="date"
+                value={partialReceiptDate}
+                onChange={(e) => setPartialReceiptDate(e.target.value)}
+              />
+            </div>
+
+            {receiptMode === "partial" && (
+              <div className="space-y-2">
+                <Label htmlFor="partial-receipt-next-due">Previsão para receber o restante *</Label>
+                <Input
+                  id="partial-receipt-next-due"
+                  type="date"
+                  value={partialReceiptNextDueDate}
+                  onChange={(e) => setPartialReceiptNextDueDate(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  A cobrança continuará pendente e aparecerá no calendário nesta data.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setPartialReceiptOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmPartialReceipt}
+              disabled={!partialReceiptPaymentId || markingReceivedId === partialReceiptPaymentId}
+            >
+              {markingReceivedId === partialReceiptPaymentId
+                ? "Salvando..."
+                : receiptMode === "full"
+                  ? "Confirmar recebimento total"
+                  : "Registrar parcela"}
             </Button>
           </DialogFooter>
         </DialogContent>

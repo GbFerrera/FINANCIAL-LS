@@ -29,6 +29,7 @@ type CallRoomShellProps = {
   isGuest?: boolean
   participantHint?: string
   onLeave: () => void
+  onDock?: () => void
   onEndForAll?: () => void
   children: ReactNode
   sidebar: ReactNode
@@ -41,6 +42,7 @@ export function CallRoomShell({
   isGuest,
   participantHint,
   onLeave,
+  onDock,
   onEndForAll,
   children,
   sidebar,
@@ -78,12 +80,14 @@ export function CallRoomShell({
           <Button
             variant="ghost"
             size="sm"
-            onClick={onLeave}
+            onClick={onDock ?? onLeave}
             className="h-9 shrink-0 px-2 sm:px-3"
-            aria-label={isGuest ? 'Sair da reunião' : 'Voltar'}
+            aria-label={onDock ? 'Minimizar reunião' : isGuest ? 'Sair da reunião' : 'Voltar'}
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">{isGuest ? 'Sair' : 'Voltar'}</span>
+            <span className="hidden sm:inline">
+              {onDock ? 'Minimizar' : isGuest ? 'Sair' : 'Voltar'}
+            </span>
           </Button>
 
           <div className="hidden h-6 w-px bg-border sm:block" />

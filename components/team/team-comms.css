@@ -324,6 +324,56 @@
   color: var(--tc-text);
 }
 
+.team-comms__voice-wrap {
+  margin-bottom: 2px;
+}
+
+.team-comms__voice-members {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 8px 6px 28px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--tc-hover) 70%, transparent);
+}
+
+.team-comms__voice-member {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.team-comms__voice-member-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--tc-muted);
+}
+
+.team-comms__voice-member-avatar {
+  border: 2px solid var(--tc-sidebar);
+}
+
+.team-comms__voice-member-more {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tc-muted);
+  padding: 0 4px;
+}
+
+.team-comms__call-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+}
+
 .team-comms__user-bar {
   height: 52px;
   padding: 0 8px;

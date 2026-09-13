@@ -47,7 +47,7 @@ export function OfficeSessionProvider({ children }: { children: React.ReactNode 
   }, [])
 
   const registerHost = useCallback((el: HTMLElement | null) => {
-    setHostEl(el)
+    setHostEl((prev) => (prev === el ? prev : el))
   }, [])
 
   const value = useMemo(

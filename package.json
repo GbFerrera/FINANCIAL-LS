@@ -15,6 +15,7 @@
     "db:seed:industrial-supervisor": "tsx scripts/seed-industrial-supervisor-history.ts",
     "db:seed:industrial-drafts": "tsx scripts/seed-industrial-workspace-drafts.ts",
     "db:seed:industrial-chat": "tsx scripts/seed-industrial-team-chat.ts",
+    "db:seed:industrial-financial": "tsx scripts/seed-industrial-financial.ts",
     "subscriptions:reconcile": "tsx scripts/reconcile-subscription-billing.ts",
     "link-brain:sync": "tsx scripts/sync-link-brain.ts",
     "pm:bootstrap": "tsx scripts/bootstrap-project-via-api.ts",

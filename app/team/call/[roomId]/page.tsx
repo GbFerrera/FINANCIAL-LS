@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import { LoadingScreen } from '@/components/ui/loading-animation'
@@ -8,6 +8,7 @@ import { LinkCallRoom } from '@/components/call/LinkCallRoom'
 import { CallGuestJoin } from '@/components/call/CallGuestJoin'
 import { Button } from '@/components/ui/button'
 import { loadStoredGuestName } from '@/lib/call/guest'
+import { useCallSessionOptional } from '@/contexts/CallSessionContext'
 
 type CallRoomData = {
   id: string
@@ -21,6 +22,7 @@ export default function TeamCallRoomPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const params = useParams()
+  const callCtx = useCallSessionOptional()
   const roomId = params?.roomId as string
   const [room, setRoom] = useState<CallRoomData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -29,6 +31,15 @@ export default function TeamCallRoomPage() {
   const [leftCall, setLeftCall] = useState(false)
 
   const isAuthenticated = status === 'authenticated' && Boolean(session)
+  const registerHost = callCtx?.registerHost
+  const startSession = callCtx?.startSession
+
+  const hostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      registerHost?.(node)
+    },
+    [registerHost]
+  )
 
   useEffect(() => {
     if (!roomId) return
@@ -48,8 +59,18 @@ export default function TeamCallRoomPage() {
     }
   }, [isAuthenticated])
 
+  useEffect(() => {
+    if (!room || !isAuthenticated || !startSession) return
+    startSession({
+      roomId: room.id,
+      roomTitle: room.title ?? 'Reunião Link Call',
+      callType: room.type === 'audio' ? 'audio' : 'video',
+    })
+  }, [room, isAuthenticated, startSession])
+
   const leave = () => {
     if (isAuthenticated) {
+      callCtx?.endSession()
       router.push('/team/chat')
       return
     }
@@ -62,6 +83,7 @@ export default function TeamCallRoomPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'end' }),
     }).catch(() => {})
+    callCtx?.endSession()
     router.push('/team/chat')
   }
 
@@ -132,6 +154,10 @@ export default function TeamCallRoomPage() {
         }}
       />
     )
+  }
+
+  if (isAuthenticated && callCtx) {
+    return <div ref={hostRef} className="flex h-full min-h-0 flex-col bg-background" />
   }
 
   return (

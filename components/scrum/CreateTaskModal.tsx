@@ -47,6 +47,9 @@ import {
   stripAttachmentSectionFromDescription,
 } from '@/lib/task-attachments'
 import { TaskSharePanel } from '@/components/scrum/TaskSharePanel'
+import { TaskStatusTimeline } from '@/components/scrum/TaskStatusTimeline'
+import { ProjectMultiPicker } from '@/components/projects/project-picker'
+import type { StatusHistoryRow } from '@/lib/task-status-history'
 import {
   Paperclip,
   ExternalLink,
@@ -174,10 +177,15 @@ export function CreateTaskModal({
   const [isSheetFullscreen, setIsSheetFullscreen] = useState(false)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [linkedProjectIds, setLinkedProjectIds] = useState<string[]>([])
+  const [statusHistory, setStatusHistory] = useState<StatusHistoryRow[]>([])
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false)
+  const [savingLinks, setSavingLinks] = useState(false)
   const fileUploadRef = useRef<{ handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> } | null>(null)
   const skipAutoSaveRef = useRef(true)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedPayloadRef = useRef('')
+  const uploadingAttachmentsRef = useRef(false)
 
   useEffect(() => {
     if (isOpen && editingTask?.id) {
@@ -220,6 +228,13 @@ export function CreateTaskModal({
         if (!res.ok) return
         const data = await res.json()
         setTaskArchived(!!data.isArchived)
+        const links = Array.isArray(data.linkedProjects)
+          ? data.linkedProjects
+              .filter((row: { isPrimary?: boolean; project?: { id: string } }) => !row.isPrimary && row.project?.id)
+              .map((row: { project: { id: string } }) => row.project.id)
+          : []
+        setLinkedProjectIds(links)
+        setStatusHistory(Array.isArray(data.statusHistory) ? data.statusHistory : [])
       })
       .catch(() => {})
   }, [editingTask?.id, editingTask?.isArchived, isOpen])
@@ -369,7 +384,7 @@ export function CreateTaskModal({
   )
 
   const buildEditPayload = useCallback(
-    (data: TaskFormData) => ({
+    (data: TaskFormData, links = linkedProjectIds) => ({
       title: data.title,
       description: buildDescriptionForSave(data.description || ''),
       priority: data.priority,
@@ -381,9 +396,32 @@ export function CreateTaskModal({
       startTime: data.startTime || null,
       estimatedMinutes: data.estimatedMinutes ?? null,
       hasBonus: !!data.hasBonus,
+      linkedProjectIds: links,
     }),
-    [buildDescriptionForSave]
+    [buildDescriptionForSave, linkedProjectIds]
   )
+
+  const saveLinkedProjects = async (nextIds: string[]) => {
+    if (!editingTask) return
+    setSavingLinks(true)
+    try {
+      const payload = buildEditPayload(getValues(), nextIds)
+      const res = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedProjectIds: nextIds }),
+      })
+      if (!res.ok) throw new Error('Falha ao salvar projetos vinculados')
+      setLinkedProjectIds(nextIds)
+      lastSavedPayloadRef.current = JSON.stringify(payload)
+      toast.success('Projetos vinculados atualizados')
+      onSuccess()
+    } catch {
+      toast.error('Erro ao salvar projetos vinculados')
+    } finally {
+      setSavingLinks(false)
+    }
+  }
 
   const persistTaskEdits = useCallback(
     async (override?: Partial<TaskFormData>) => {
@@ -424,6 +462,68 @@ export function CreateTaskModal({
       }
     },
     [editingTask, buildEditPayload, onSuccess, onEditingTaskSync, getValues]
+  )
+
+  const uploadPendingAttachments = useCallback(async (sourceFiles?: UploadFileInfo[]): Promise<boolean> => {
+    const pendingSource = sourceFiles ?? attachments
+    if (!editingTask || uploadingAttachmentsRef.current) return true
+    if (!pendingSource.some((f) => !!f.file)) return true
+
+    uploadingAttachmentsRef.current = true
+    setAutoSaveStatus('saving')
+    try {
+      const allFiles =
+        (await fileUploadRef.current?.handleUpload(editingTask.id)) || []
+      const persisted = allFiles.filter(
+        (f) => f.filePath && !f.filePath.startsWith('blob:') && !f.file
+      )
+      if (persisted.length === 0) return true
+
+      const description = mergeAttachmentDescription(
+        getValues('description') || '',
+        persisted.map((f) => ({
+          originalName: f.originalName,
+          fileType: f.fileType,
+          filePath: f.filePath,
+        }))
+      )
+
+      const res = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description }),
+      })
+      if (!res.ok) throw new Error('Falha ao salvar anexos')
+
+      setAttachments(persisted)
+      setFullDescription(description)
+      lastSavedPayloadRef.current = JSON.stringify({
+        ...buildEditPayload(getValues()),
+        description,
+      })
+      setAutoSaveStatus('saved')
+      window.setTimeout(() => {
+        setAutoSaveStatus((current) => (current === 'saved' ? 'idle' : current))
+      }, 2000)
+      onSuccess()
+      return true
+    } catch {
+      setAutoSaveStatus('error')
+      toast.error('Erro ao enviar anexos')
+      return false
+    } finally {
+      uploadingAttachmentsRef.current = false
+    }
+  }, [attachments, buildEditPayload, editingTask, getValues, onSuccess])
+
+  const handleAttachmentsChange = useCallback(
+    (files: UploadFileInfo[]) => {
+      setAttachments(files)
+      if (editingTask && files.some((f) => !!f.file)) {
+        void uploadPendingAttachments(files)
+      }
+    },
+    [editingTask, uploadPendingAttachments]
   )
 
   const commitDates = useCallback(
@@ -810,8 +910,9 @@ export function CreateTaskModal({
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current)
         saveTimerRef.current = null
-        await persistTaskEdits(getValues())
       }
+      await persistTaskEdits(getValues())
+      await uploadPendingAttachments()
     }
     reset()
     setIsSheetFullscreen(false)
@@ -1094,7 +1195,7 @@ export function CreateTaskModal({
             }}
             taskId={editingTask?.id}
             existingFiles={attachments}
-            onFilesChange={(files) => setAttachments(files as UploadFileInfo[])}
+            onFilesChange={(files) => handleAttachmentsChange(files as UploadFileInfo[])}
             maxFiles={5}
             disabled={loading}
           />
@@ -1109,7 +1210,13 @@ export function CreateTaskModal({
         <ListTree className="mr-1.5 h-3.5 w-3.5" />
         Adicionar sub-item
       </Button>
-      <Button type="button" variant="outline" size="sm" className="h-8 text-xs font-normal">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 text-xs font-normal"
+        onClick={() => setLinkDialogOpen(true)}
+      >
         <GitBranch className="mr-1.5 h-3.5 w-3.5" />
         Adicionar relação
       </Button>
@@ -1137,6 +1244,13 @@ export function CreateTaskModal({
     <section className="space-y-3 border-t border-border/60 pt-5">
       <h3 className="text-sm font-semibold text-foreground">Propriedades</h3>
       {sidebarProperties}
+    </section>
+  )
+
+  const sheetStatusTimeline = editingTask && (
+    <section className="space-y-3 border-t border-border/60 pt-5">
+      <h3 className="text-sm font-semibold text-foreground">Tempo na esteira</h3>
+      <TaskStatusTimeline history={statusHistory} />
     </section>
   )
 
@@ -1380,6 +1494,7 @@ export function CreateTaskModal({
                     {mainFields}
                     {sheetActionChips}
                     {sheetChecklist}
+                    {!isSidePanelOpen && sheetStatusTimeline}
                     {!isSidePanelOpen && sheetProperties}
                     {!isSidePanelOpen && sheetActivity}
                   </div>
@@ -1387,6 +1502,7 @@ export function CreateTaskModal({
                 {isSidePanelOpen && (
                   <aside className="flex w-[420px] shrink-0 flex-col overflow-y-auto border-l bg-muted/5">
                     <div className="space-y-5 p-5">
+                      {sheetStatusTimeline}
                       {sheetProperties}
                       {sheetActivity}
                     </div>
@@ -1424,6 +1540,26 @@ export function CreateTaskModal({
         </DialogContent>
       </Dialog>
       ) : null}
+
+      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Projetos relacionados</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Vincule esta tarefa a outros projetos além do projeto principal.
+          </p>
+          <ProjectMultiPicker
+            values={linkedProjectIds}
+            excludeIds={[selectedProjectId || projectId || ''].filter(Boolean)}
+            disabled={savingLinks}
+            onChange={(ids) => {
+              setLinkedProjectIds(ids)
+              void saveLinkedProjects(ids)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

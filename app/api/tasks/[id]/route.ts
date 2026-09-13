@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { notifyTaskStatusChange, notifyTaskAssignment } from '@/lib/notifications';
 import { broadcastTaskEvent, resolveTaskUpdateAction, serializeTaskForSocket, shouldBroadcastTaskPatch } from '@/lib/task-socket-server';
+import { syncTaskLinkedProjects } from '@/lib/task-projects';
 
 export async function PATCH(
   request: NextRequest,
@@ -113,63 +114,113 @@ export async function PATCH(
           ? null
           : undefined
 
-    // Atualizar a tarefa
-    let updatedTask;
+    const linkedProjectIds = Array.isArray(updates.linkedProjectIds)
+      ? (updates.linkedProjectIds as string[]).filter(Boolean)
+      : undefined
+
+    const taskUpdateData = {
+      ...(updates.title !== undefined && { title: updates.title }),
+      ...(updates.description !== undefined && { description: updates.description }),
+      ...(updates.status && { status: updates.status }),
+      ...(updates.priority !== undefined && { priority: updates.priority }),
+      ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
+      ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
+      ...(updates.dueDate !== undefined && {
+        dueDate: updates.dueDate ? new Date(updates.dueDate) : null,
+      }),
+      ...(updates.startDate !== undefined && {
+        startDate: updates.startDate ? new Date(updates.startDate) : null,
+      }),
+      ...(updates.startTime !== undefined && { startTime: updates.startTime }),
+      ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
+      ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
+      ...(updates.hasBonus !== undefined ? ({ hasBonus: !!updates.hasBonus } as any) : {}),
+      ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
+      ...(setArchivedAt !== undefined ? { archivedAt: setArchivedAt as Date | null } : {}),
+      ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
+      ...(updates.order !== undefined && { order: updates.order }),
+      updatedAt: new Date(),
+    }
+
+    const extendedInclude = {
+      ...taskUpdateInclude,
+      linkedProjects: {
+        include: {
+          project: { select: { id: true, name: true } },
+        },
+      },
+    } as const
+
+    let updatedTask
     try {
-      updatedTask = await prisma.task.update({
-        where: { id: taskId },
-        data: {
-          ...(updates.title !== undefined && { title: updates.title }),
-          ...(updates.description !== undefined && { description: updates.description }),
-          ...(updates.status && { status: updates.status }),
-          ...(updates.priority !== undefined && { priority: updates.priority }),
-          ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
-          ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
-          ...(updates.dueDate !== undefined && {
-            dueDate: updates.dueDate ? new Date(updates.dueDate) : null,
-          }),
-          ...(updates.startDate !== undefined && {
-            startDate: updates.startDate ? new Date(updates.startDate) : null,
-          }),
-          ...(updates.startTime !== undefined && { startTime: updates.startTime }),
-          ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
-          ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
-          ...(updates.hasBonus !== undefined ? ({ hasBonus: !!updates.hasBonus } as any) : {}),
-          ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
-          ...(setArchivedAt !== undefined ? { archivedAt: setArchivedAt as Date | null } : {}),
-          ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
-          ...(updates.order !== undefined && { order: updates.order }),
-          updatedAt: new Date()
-        },
-        include: taskUpdateInclude
-      });
+      updatedTask = await prisma.$transaction(async (tx) => {
+        const task = await tx.task.update({
+          where: { id: taskId },
+          data: taskUpdateData,
+          include: extendedInclude,
+        })
+
+        if (linkedProjectIds !== undefined) {
+          try {
+            await syncTaskLinkedProjects(
+              tx,
+              taskId,
+              existingTask.projectId,
+              linkedProjectIds
+            )
+          } catch (e) {
+            if (e instanceof Error && e.message === 'INVALID_PROJECTS') {
+              throw new Error('INVALID_PROJECTS')
+            }
+            throw e
+          }
+        }
+
+        if (updates.status && updates.status !== oldStatus) {
+          await tx.taskStatusHistory.create({
+            data: {
+              taskId,
+              fromStatus: oldStatus,
+              toStatus: updates.status,
+              changedById: session.user.id,
+            },
+          })
+        }
+
+        if (linkedProjectIds !== undefined) {
+          return tx.task.findUnique({
+            where: { id: taskId },
+            include: extendedInclude,
+          })
+        }
+
+        return task
+      })
     } catch (e) {
+      if (e instanceof Error && e.message === 'INVALID_PROJECTS') {
+        return NextResponse.json({ error: 'Projetos vinculados inválidos' }, { status: 400 })
+      }
+
       updatedTask = await prisma.task.update({
         where: { id: taskId },
-        data: {
-          ...(updates.title !== undefined && { title: updates.title }),
-          ...(updates.description !== undefined && { description: updates.description }),
-          ...(updates.status && { status: updates.status }),
-          ...(updates.priority !== undefined && { priority: updates.priority }),
-          ...(updates.isArchived !== undefined && { isArchived: !!updates.isArchived }),
-          ...(updates.assigneeId !== undefined && { assigneeId: updates.assigneeId }),
-          ...(updates.dueDate !== undefined && {
-            dueDate: updates.dueDate ? new Date(updates.dueDate) : null,
-          }),
-          ...(updates.startDate !== undefined && {
-            startDate: updates.startDate ? new Date(updates.startDate) : null,
-          }),
-          ...(updates.startTime !== undefined && { startTime: updates.startTime }),
-          ...(updates.estimatedMinutes !== undefined && { estimatedMinutes: updates.estimatedMinutes }),
-          ...(updates.storyPoints !== undefined && { storyPoints: updates.storyPoints }),
-          ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
-          ...(setArchivedAt !== undefined ? { archivedAt: setArchivedAt as Date | null } : {}),
-          ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
-          ...(updates.order !== undefined && { order: updates.order }),
-          updatedAt: new Date()
-        },
-        include: taskUpdateInclude
-      });
+        data: taskUpdateData,
+        include: taskUpdateInclude,
+      })
+
+      if (updates.status && updates.status !== oldStatus) {
+        await prisma.taskStatusHistory.create({
+          data: {
+            taskId,
+            fromStatus: oldStatus,
+            toStatus: updates.status,
+            changedById: session.user.id,
+          },
+        }).catch(console.error)
+      }
+    }
+
+    if (!updatedTask) {
+      return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 })
     }
 
     // Enviar notificações assíncronas
@@ -314,7 +365,18 @@ export async function GET(
             name: true,
             status: true
           }
-        }
+        },
+        linkedProjects: {
+          include: {
+            project: { select: { id: true, name: true } },
+          },
+        },
+        statusHistory: {
+          orderBy: { changedAt: 'asc' },
+          include: {
+            changedBy: { select: { id: true, name: true } },
+          },
+        },
       }
     });
 

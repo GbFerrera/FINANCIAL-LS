@@ -16,8 +16,11 @@ import {
   Users,
   Video,
   Volume2,
+  Maximize2,
+  PhoneOff,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useCallSessionOptional, type CallParticipant } from '@/contexts/CallSessionContext'
 import { LoadingAnimation } from '@/components/ui/loading-animation'
 import { TeamChatPanel } from '@/components/team/TeamChatPanel'
 import { TeamChatNotificationListener } from '@/components/team/TeamChatNotificationListener'
@@ -125,13 +128,14 @@ function saveCustomRooms(rooms: CommsRoom[]) {
   localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms))
 }
 
-function goToCall(path: string) {
-  if (typeof window !== 'undefined') window.location.assign(path)
-}
-
 function TeamCommsContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const callCtx = useCallSessionOptional()
+  const registerHost = callCtx?.registerHost
+  const startCallSession = callCtx?.startSession
+  const endCallSession = callCtx?.endSession
+  const connectedRoomId = callCtx?.active ? callCtx.session?.roomId : null
 
   const [rooms, setRooms] = useState<CommsRoom[]>([DEFAULT_ROOM])
   const [sectorRoomIds, setSectorRoomIds] = useState<Set<string>>(() => new Set())
@@ -512,20 +516,31 @@ function TeamCommsContent() {
       toast.error(data.error ?? 'Erro ao criar call')
       return null
     }
-    return data.joinPath as string
+    return (data.room?.id as string | undefined) ?? null
+  }
+
+  const joinInlineCall = (roomId: string, title: string, callType: 'audio' | 'video') => {
+    startCallSession?.({ roomId, roomTitle: title, callType })
+    setMainPane('voice')
   }
 
   const joinVoice = async () => {
     if (!selectedVoiceChannel || joiningVoice) return
     setJoiningVoice(true)
     try {
-      if (selectedVoiceChannel.roomId) {
-        goToCall(`/team/call/${selectedVoiceChannel.roomId}`)
-        return
+      const callType = selectedVoiceChannel.callType ?? 'video'
+      let roomId = selectedVoiceChannel.roomId
+      if (!roomId) {
+        roomId = (await createCall(callType, selectedVoiceChannel.name)) ?? undefined
+        if (!roomId) return
+        setSelectedVoiceChannel((prev) =>
+          prev && prev.id === selectedVoiceChannel.id
+            ? { ...prev, roomId, kind: 'room', live: true, callType }
+            : prev
+        )
+        loadCalls(activeRoomId)
       }
-
-      const path = await createCall(selectedVoiceChannel.callType ?? 'video', selectedVoiceChannel.name)
-      if (path) goToCall(path)
+      joinInlineCall(roomId, selectedVoiceChannel.name, callType)
     } catch {
       toast.error('Erro de rede')
     } finally {
@@ -536,15 +551,80 @@ function TeamCommsContent() {
   const startNewVoice = async (type: 'audio' | 'video') => {
     setJoiningVoice(true)
     try {
-      const path = await createCall(type, newVoiceTitle)
-      if (path) {
-        setShowCreateVoice(false)
-        setNewVoiceTitle('')
-        goToCall(path)
+      const title = newVoiceTitle.trim() || (type === 'audio' ? 'Chamada de voz' : 'Reunião')
+      const roomId = await createCall(type, title)
+      if (!roomId) return
+      setShowCreateVoice(false)
+      setNewVoiceTitle('')
+      loadCalls(activeRoomId)
+      const channel: VoiceChannel = {
+        id: `voice-${roomId}`,
+        name: title,
+        kind: 'room',
+        roomId,
+        callType: type,
+        live: true,
       }
+      setSelectedVoiceChannel(channel)
+      joinInlineCall(roomId, title, type)
     } finally {
       setJoiningVoice(false)
     }
+  }
+
+  const isConnectedToSelected =
+    Boolean(connectedRoomId) &&
+    Boolean(selectedVoiceChannel?.roomId) &&
+    connectedRoomId === selectedVoiceChannel?.roomId
+
+  const callHostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (mainPane === 'voice' && isConnectedToSelected) {
+        registerHost?.(node)
+      } else {
+        registerHost?.(null)
+      }
+    },
+    [registerHost, mainPane, isConnectedToSelected]
+  )
+
+  useEffect(() => {
+    return () => registerHost?.(null)
+  }, [registerHost])
+
+  const getVoiceChannelMembers = useCallback(
+    (channel: VoiceChannel): CallParticipant[] => {
+      if (!connectedRoomId || channel.roomId !== connectedRoomId) return []
+      const raw = callCtx?.participants ?? []
+      if (raw.length > 0) {
+        return raw.map((member) =>
+          member.id === session?.user?.id
+            ? { ...member, avatar: session.user.image ?? member.avatar }
+            : member
+        )
+      }
+      if (session?.user) {
+        return [
+          {
+            id: session.user.id,
+            name: session.user.name ?? 'Você',
+            avatar: session.user.image ?? null,
+          },
+        ]
+      }
+      return []
+    },
+    [callCtx?.participants, connectedRoomId, session?.user]
+  )
+
+  const expandCall = () => {
+    if (!connectedRoomId) return
+    router.push(`/team/call/${connectedRoomId}`)
+  }
+
+  const leaveCall = () => {
+    if (!window.confirm('Sair da chamada?')) return
+    endCallSession?.()
   }
 
   if (status === 'loading') {
@@ -818,24 +898,56 @@ function TeamCommsContent() {
             </div>
           ) : null}
 
-          {voiceChannels.map((channel) => (
-            <button
-              key={channel.id}
-              type="button"
-              onClick={() => selectVoiceChannel(channel)}
-              className={cn(
-                'team-comms__channel team-comms__channel--voice',
-                channel.live && 'team-comms__channel--live',
-                mainPane === 'voice' &&
-                  selectedVoiceChannel?.id === channel.id &&
-                  'team-comms__channel--active'
-              )}
-            >
-              <Volume2 className="h-5 w-5 shrink-0 opacity-70" />
-              <span className="truncate">{channel.name}</span>
-              {channel.live ? <span className="team-comms__live-dot ml-auto" /> : null}
-            </button>
-          ))}
+          {voiceChannels.map((channel) => {
+            const members = getVoiceChannelMembers(channel)
+            const isConnectedHere = connectedRoomId === channel.roomId
+            return (
+              <div key={channel.id} className="team-comms__voice-wrap">
+                <button
+                  type="button"
+                  onClick={() => selectVoiceChannel(channel)}
+                  className={cn(
+                    'team-comms__channel team-comms__channel--voice',
+                    (channel.live || isConnectedHere) && 'team-comms__channel--live',
+                    (mainPane === 'voice' && selectedVoiceChannel?.id === channel.id) ||
+                      isConnectedHere
+                      ? 'team-comms__channel--active'
+                      : null
+                  )}
+                >
+                  <Volume2 className="h-5 w-5 shrink-0 opacity-70" />
+                  <span className="truncate">{channel.name}</span>
+                  {channel.live || isConnectedHere ? (
+                    <span className="team-comms__live-dot ml-auto" />
+                  ) : null}
+                </button>
+                {members.length > 0 ? (
+                  <div className="team-comms__voice-members" aria-label="Na call">
+                    {members.slice(0, 5).map((member) => {
+                      const isSelf = member.id === session?.user?.id
+                      const displayName = isSelf
+                        ? (session?.user?.name ?? member.name)
+                        : member.name
+                      return (
+                        <div key={member.id} className="team-comms__voice-member">
+                          <Avatar className="team-comms__voice-member-avatar h-6 w-6 shrink-0 ring-2 ring-card">
+                            <AvatarImage src={member.avatar ?? undefined} />
+                            <AvatarFallback className="bg-primary text-[10px] text-primary-foreground">
+                              {displayName.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="team-comms__voice-member-name truncate">{displayName}</span>
+                        </div>
+                      )
+                    })}
+                    {members.length > 5 ? (
+                      <span className="team-comms__voice-member-more">+{members.length - 5}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
         </div>
 
         <div className="team-comms__user-bar">
@@ -877,56 +989,81 @@ function TeamCommsContent() {
                 {selectedVoiceChannel.name}
               </h2>
               <div className="flex items-center gap-2">
-                {selectedVoiceChannel.live ? (
+                {isConnectedToSelected || selectedVoiceChannel.live ? (
                   <span className="team-comms__live-label">
                     <span className="team-comms__live-dot" />
                     Ao vivo
                   </span>
                 ) : null}
-                <button type="button" className="team-comms__icon-btn">
-                  <Users className="h-4 w-4" />
-                </button>
+                {isConnectedToSelected ? (
+                  <>
+                    <button
+                      type="button"
+                      className="team-comms__icon-btn"
+                      title="Tela cheia"
+                      onClick={expandCall}
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="team-comms__icon-btn text-destructive"
+                      title="Sair da call"
+                      onClick={leaveCall}
+                    >
+                      <PhoneOff className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="team-comms__icon-btn">
+                    <Users className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </header>
 
-            <div className="team-comms__voice-lobby">
-              <Volume2 className="team-comms__voice-icon" />
-              <h3>{selectedVoiceChannel.name}</h3>
-              <p>
-                {selectedVoiceChannel.live
-                  ? selectedVoiceChannel.hostName
-                    ? `${selectedVoiceChannel.hostName} está na call`
-                    : 'Alguém está na call agora'
-                  : 'Ninguém está em voz'}
-              </p>
-              {livekitConfigured === false ? (
-                <p className="max-w-md text-xs text-amber-400">
-                  LiveKit não detectado. Rode <code>npm run call:up</code> e reinicie o dev server.
+            {isConnectedToSelected ? (
+              <div ref={callHostRef} className="team-comms__call-stage min-h-0 flex-1 bg-black" />
+            ) : (
+              <div className="team-comms__voice-lobby">
+                <Volume2 className="team-comms__voice-icon" />
+                <h3>{selectedVoiceChannel.name}</h3>
+                <p>
+                  {selectedVoiceChannel.live
+                    ? selectedVoiceChannel.hostName
+                      ? `${selectedVoiceChannel.hostName} está na call`
+                      : 'Alguém está na call agora'
+                    : 'Ninguém está em voz'}
                 </p>
-              ) : null}
-              <button
-                type="button"
-                disabled={joiningVoice}
-                onClick={joinVoice}
-                className="team-comms__join-btn"
-              >
-                {joiningVoice ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Entrando…
-                  </>
-                ) : (
-                  <>
-                    {selectedVoiceChannel.callType === 'audio' ? (
-                      <Mic className="h-4 w-4" />
-                    ) : (
-                      <Video className="h-4 w-4" />
-                    )}
-                    Entrar na chamada de voz
-                  </>
-                )}
-              </button>
-            </div>
+                {livekitConfigured === false ? (
+                  <p className="max-w-md text-xs text-amber-400">
+                    LiveKit não detectado. Rode <code>npm run call:up</code> e reinicie o dev server.
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={joiningVoice}
+                  onClick={joinVoice}
+                  className="team-comms__join-btn"
+                >
+                  {joiningVoice ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Entrando…
+                    </>
+                  ) : (
+                    <>
+                      {selectedVoiceChannel.callType === 'audio' ? (
+                        <Mic className="h-4 w-4" />
+                      ) : (
+                        <Video className="h-4 w-4" />
+                      )}
+                      Entrar na chamada de voz
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <div className="team-comms__empty">Selecione um canal</div>

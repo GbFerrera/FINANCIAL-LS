@@ -13,15 +13,18 @@ import { CallChatPanel } from './CallChatPanel'
 import { CallRoomShell } from './CallRoomShell'
 import { LinkVideoConference } from './LinkVideoConference'
 import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat'
+import { CallParticipantsSync } from './CallParticipantsSync'
 
 type LinkCallRoomProps = {
   roomId: string
   roomTitle: string
   callType: 'audio' | 'video'
+  layout?: 'full' | 'pip'
   isHost?: boolean
   isGuest?: boolean
   guestName?: string
   onLeave: () => void
+  onDock?: () => void
   onEndForAll?: () => void
 }
 
@@ -31,16 +34,31 @@ function participantLabel(count: number): string {
   return `${count} participantes`
 }
 
+function PipCallContent() {
+  return (
+    <div className="link-call-room link-call-room--pip flex h-full min-h-0 flex-col bg-black">
+      <LinkVideoConference className="min-h-0 flex-1" />
+      <RoomAudioRenderer />
+    </div>
+  )
+}
+
 function CallRoomContent({
   roomId,
   roomTitle,
+  layout = 'full',
   isHost,
   isGuest,
   guestIdentity,
   onLeave,
+  onDock,
   onEndForAll,
 }: Omit<LinkCallRoomProps, 'callType' | 'guestName'> & { guestIdentity?: string }) {
   const count = useParticipants().length
+
+  if (layout === 'pip') {
+    return <PipCallContent />
+  }
 
   return (
     <CallRoomShell
@@ -50,6 +68,7 @@ function CallRoomContent({
       isGuest={isGuest}
       participantHint={participantLabel(count)}
       onLeave={onLeave}
+      onDock={onDock}
       onEndForAll={onEndForAll}
       sidebar={
         <CallChatPanel
@@ -152,13 +171,16 @@ export function LinkCallRoom(props: LinkCallRoomProps) {
       className="link-call-room h-full"
       style={{ height: '100%' }}
     >
+      <CallParticipantsSync />
       <CallRoomContent
         roomId={props.roomId}
         roomTitle={props.roomTitle}
+        layout={props.layout}
         isHost={props.isHost}
         isGuest={props.isGuest}
         guestIdentity={guestIdentity ?? undefined}
         onLeave={props.onLeave}
+        onDock={props.onDock}
         onEndForAll={props.onEndForAll}
       />
     </LiveKitRoom>

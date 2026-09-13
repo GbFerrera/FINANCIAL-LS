@@ -9,12 +9,14 @@ import { Button } from '@/components/ui/button'
 
 const OFFICE_PATH = '/team/office'
 
-const OFFSCREEN_STYLE: React.CSSProperties = {
+/** Mantém iframe minimizado visível para o browser não pausar câmera/microfone. */
+const MINIMIZED_STYLE: React.CSSProperties = {
   bottom: 0,
   right: 0,
-  width: 640,
-  height: 480,
-  transform: 'translateX(calc(100% + 640px))',
+  width: 4,
+  height: 4,
+  opacity: 0.02,
+  pointerEvents: 'none',
 }
 
 type FrameBounds = {
@@ -120,9 +122,9 @@ export function OfficeSessionShell() {
                   height: `min(280px, calc(100dvh - 6rem))`,
                 }
               : pipMinimized && !onOfficePage
-                ? OFFSCREEN_STYLE
+                ? MINIMIZED_STYLE
                 : onOfficePage
-                  ? OFFSCREEN_STYLE
+                  ? { display: 'none' }
                   : { display: 'none' }
         }
         aria-hidden={pipMinimized && !onOfficePage}

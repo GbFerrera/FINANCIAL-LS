@@ -60,12 +60,25 @@ export const FileUpload = forwardRef<
   disabled = false,
   className
 }, ref) => {
-  const [files, setFiles] = useState<FileInfo[]>(existingFiles)
   const filesRef = useRef<FileInfo[]>(existingFiles)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  const [files, setFiles] = useState<FileInfo[]>(existingFiles)
+
+  React.useEffect(() => {
+    const pending = filesRef.current.filter((f) => f.file)
+    const persisted = existingFiles.filter((f) => !f.file)
+    const next = [...persisted, ...pending]
+    const same =
+      next.length === filesRef.current.length &&
+      next.every((file, index) => file.id === filesRef.current[index]?.id)
+    if (same) return
+    setFiles(next)
+    filesRef.current = next
+  }, [existingFiles])
 
   // Função para processar arquivos (seleção ou colagem)
   const processFiles = (fileList: File[], source: 'select' | 'paste' = 'select') => {

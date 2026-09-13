@@ -121,7 +121,12 @@ export async function GET(request: NextRequest) {
     const isAdmin = user?.role === "ADMIN"
 
     const where: any = {}
-    if (projectIds.length > 0) where.projectId = { in: projectIds }
+    if (projectIds.length > 0) {
+      where.OR = [
+        { projectId: { in: projectIds } },
+        { linkedProjects: { some: { projectId: { in: projectIds } } } },
+      ]
+    }
     if (mergedStatuses.length > 0) where.status = { in: mergedStatuses }
     if (priorities.length > 0) where.priority = { in: priorities }
     if (milestoneIds.length > 0) where.milestoneId = { in: milestoneIds }

@@ -23,6 +23,9 @@ import {
 } from '@/components/ui/select'
 import { ClientPicker } from "@/components/clients/client-picker"
 import toast from "react-hot-toast"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { buildInstallmentPlan } from "@/lib/payment-installments"
 
 interface AddPaymentDialogProps {
   open: boolean
@@ -81,6 +84,9 @@ export function AddPaymentDialog({
     pixCity: 'Niquelandia',
     pixDescription: '',
     pixTxid: '5012271800000675390941ASA',
+    installmentEnabled: false,
+    installmentCount: '3',
+    installmentIntervalMonths: '1',
   })
 
   const formatCurrencyBRFromDigits = (digits: string) => {
@@ -140,6 +146,9 @@ export function AddPaymentDialog({
           pixCity: paymentToEdit.pixCity || 'Niquelandia',
           pixDescription: paymentToEdit.pixDescription || '',
           pixTxid: paymentToEdit.pixTxid || '5012271800000675390941ASA',
+          installmentEnabled: false,
+          installmentCount: '3',
+          installmentIntervalMonths: '1',
         })
       } else {
         setFormData({
@@ -161,6 +170,9 @@ export function AddPaymentDialog({
           pixCity: 'Niquelandia',
           pixDescription: '',
           pixTxid: '5012271800000675390941ASA',
+          installmentEnabled: false,
+          installmentCount: '3',
+          installmentIntervalMonths: '1',
         })
       }
     }
@@ -207,6 +219,17 @@ export function AddPaymentDialog({
     const amountNumber = parseCurrencyBRToNumber(formData.amount)
     if (!formData.clientId || !amountNumber || !formData.paymentDate) {
       toast.error('Preencha todos os campos obrigatórios')
+      return
+    }
+
+    const installmentCount = parseInt(formData.installmentCount, 10)
+    if (
+      mode === 'CHARGE' &&
+      !paymentToEdit &&
+      formData.installmentEnabled &&
+      (!Number.isFinite(installmentCount) || installmentCount < 2 || installmentCount > 48)
+    ) {
+      toast.error('Informe entre 2 e 48 parcelas')
       return
     }
 
@@ -265,18 +288,32 @@ export function AddPaymentDialog({
               method: formData.method,
               status: mode === 'CHARGE' ? 'PENDING' : 'COMPLETED',
               ...reminderPayload,
+              ...(mode === 'CHARGE' &&
+              !paymentToEdit &&
+              formData.installmentEnabled &&
+              installmentCount >= 2
+                ? {
+                    installments: {
+                      count: installmentCount,
+                      intervalMonths: parseInt(formData.installmentIntervalMonths, 10) || 1,
+                    },
+                  }
+                : {}),
             }),
           })
 
       if (response.ok) {
+        const data = await response.json().catch(() => ({}))
         toast.success(
           paymentToEdit
             ? mode === 'CHARGE'
               ? 'Cobrança atualizada com sucesso!'
               : 'Pagamento atualizado com sucesso!'
-            : mode === 'CHARGE'
-              ? 'Cobrança criada com sucesso!'
-              : 'Pagamento adicionado com sucesso!'
+            : mode === 'CHARGE' && typeof data.count === 'number' && data.count > 1
+              ? `${data.count} cobranças parceladas criadas!`
+              : mode === 'CHARGE'
+                ? 'Cobrança criada com sucesso!'
+                : 'Pagamento adicionado com sucesso!'
         )
         onPaymentAdded()
         onOpenChange(false)
@@ -315,6 +352,23 @@ export function AddPaymentDialog({
       [field]: value
     }))
   }
+
+  const installmentPreview = (() => {
+    if (mode !== 'CHARGE' || paymentToEdit || !formData.installmentEnabled) return null
+    const amountNumber = parseCurrencyBRToNumber(formData.amount)
+    const count = parseInt(formData.installmentCount, 10)
+    const intervalMonths = parseInt(formData.installmentIntervalMonths, 10) || 1
+    if (!amountNumber || !Number.isFinite(count) || count < 2) return null
+    const firstDue = new Date(formData.paymentDate + 'T12:00:00.000Z')
+    if (!Number.isFinite(firstDue.getTime())) return null
+    const plan = buildInstallmentPlan({
+      totalAmount: amountNumber,
+      count,
+      firstDueDate: firstDue,
+      intervalMonths,
+    })
+    return plan
+  })()
 
   const paymentMethods = [
     { value: 'CASH', label: 'Dinheiro' },
@@ -416,6 +470,77 @@ export function AddPaymentDialog({
               rows={3}
             />
           </div>
+
+          {mode === 'CHARGE' && !paymentToEdit && (
+            <div className="space-y-3 rounded-md border border-dashed p-3 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="charge-installments"
+                  checked={formData.installmentEnabled}
+                  onCheckedChange={(v) =>
+                    setFormData((prev) => ({ ...prev, installmentEnabled: v === true }))
+                  }
+                />
+                <Label htmlFor="charge-installments" className="font-medium cursor-pointer">
+                  Cobrança parcelada
+                </Label>
+              </div>
+              {formData.installmentEnabled && (
+                <div className="space-y-3 pl-1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Número de parcelas</Label>
+                      <Input
+                        type="number"
+                        min={2}
+                        max={48}
+                        value={formData.installmentCount}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, installmentCount: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Intervalo (meses)</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={formData.installmentIntervalMonths}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            installmentIntervalMonths: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  {installmentPreview && installmentPreview.length > 0 && (
+                    <div className="rounded-md border bg-background/80 p-3 text-xs text-muted-foreground">
+                      <p className="mb-2 font-medium text-foreground">Prévia das parcelas</p>
+                      <ul className="max-h-32 space-y-1 overflow-y-auto">
+                        {installmentPreview.map((slice) => (
+                          <li key={slice.installmentNumber} className="flex justify-between gap-2">
+                            <span>
+                              {slice.installmentNumber}/{slice.installmentTotal} ·{' '}
+                              {format(slice.paymentDate, 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                            <span className="font-medium text-foreground">
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(slice.amount)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {mode === 'CHARGE' && (
             <div className="space-y-3 rounded-md border border-dashed p-3 bg-muted/20">

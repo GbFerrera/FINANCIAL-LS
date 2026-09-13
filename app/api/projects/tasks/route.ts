@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { broadcastTaskEvent, serializeTaskForSocket } from '@/lib/task-socket-server'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
+import { syncTaskLinkedProjects } from '@/lib/task-projects'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +29,7 @@ export async function POST(request: NextRequest) {
       estimatedMinutes,
       hasBonus,
       status: requestedStatus,
+      linkedProjectIds,
     } = body
 
     if (!title || !projectId) {
@@ -59,70 +59,77 @@ export async function POST(request: NextRequest) {
     const nextOrder = (lastTask?.order || 0) + 1
     console.log('Criando tarefa com order:', nextOrder, 'para projeto:', projectId)
 
+    const initialStatus = ['DRAFT', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'].includes(requestedStatus)
+      ? requestedStatus
+      : 'TODO'
+
+    const extraLinks = Array.isArray(linkedProjectIds)
+      ? linkedProjectIds.filter((id: string) => id && id !== projectId)
+      : []
+
     let task
     try {
-      task = await prisma.task.create({
-        data: {
-          title,
-          description,
-          projectId,
-          sprintId: sprintId || null,
-          priority: priority || 'MEDIUM',
-          storyPoints,
-          assigneeId: assigneeId || null,
-          milestoneId: milestoneId || null,
-          dueDate: dueDate ? new Date(dueDate) : null,
-          startDate: startDate ? new Date(startDate) : null,
-          startTime: startTime || null,
-          estimatedMinutes: estimatedMinutes || null,
-          ...(hasBonus !== undefined ? ({ hasBonus: !!hasBonus } as any) : {}),
-          order: nextOrder,
-          status: ['DRAFT', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED'].includes(requestedStatus)
-            ? requestedStatus
-            : 'TODO',
-        },
-        include: {
-          assignee: {
-            select: { id: true, name: true, email: true, avatar: true }
+      task = await prisma.$transaction(async (tx) => {
+        const created = await tx.task.create({
+          data: {
+            title,
+            description,
+            projectId,
+            sprintId: sprintId || null,
+            priority: priority || 'MEDIUM',
+            storyPoints,
+            assigneeId: assigneeId || null,
+            milestoneId: milestoneId || null,
+            dueDate: dueDate ? new Date(dueDate) : null,
+            startDate: startDate ? new Date(startDate) : null,
+            startTime: startTime || null,
+            estimatedMinutes: estimatedMinutes || null,
+            ...(hasBonus !== undefined ? ({ hasBonus: !!hasBonus } as any) : {}),
+            order: nextOrder,
+            status: initialStatus,
           },
-          project: {
-            select: { id: true, name: true }
+        })
+
+        await syncTaskLinkedProjects(tx, created.id, projectId, extraLinks)
+
+        await tx.taskStatusHistory.create({
+          data: {
+            taskId: created.id,
+            fromStatus: null,
+            toStatus: initialStatus,
+            changedById: (session.user as { id?: string }).id || null,
           },
-          sprint: {
-            select: { id: true, name: true, status: true }
-          }
-        }
+        })
+
+        return tx.task.findUnique({
+          where: { id: created.id },
+          include: {
+            assignee: {
+              select: { id: true, name: true, email: true, avatar: true },
+            },
+            project: {
+              select: { id: true, name: true },
+            },
+            sprint: {
+              select: { id: true, name: true, status: true },
+            },
+            linkedProjects: {
+              include: {
+                project: { select: { id: true, name: true } },
+              },
+            },
+          },
+        })
       })
     } catch (e) {
-      task = await prisma.task.create({
-        data: {
-          title,
-          description,
-          projectId,
-          sprintId: sprintId || null,
-          priority: priority || 'MEDIUM',
-          storyPoints,
-          assigneeId: assigneeId || null,
-          milestoneId: milestoneId || null,
-          dueDate: dueDate ? new Date(dueDate) : null,
-          startDate: startDate ? new Date(startDate) : null,
-          startTime: startTime || null,
-          estimatedMinutes: estimatedMinutes || null,
-          order: nextOrder,
-          status: 'TODO'
-        },
-        include: {
-          assignee: {
-            select: { id: true, name: true, email: true, avatar: true }
-          },
-          project: {
-            select: { id: true, name: true }
-          },
-          sprint: {
-            select: { id: true, name: true, status: true }
-          }
-        }
-      })
+      if (e instanceof Error && e.message === 'INVALID_PROJECTS') {
+        return NextResponse.json({ error: 'Projetos vinculados inválidos' }, { status: 400 })
+      }
+      throw e
+    }
+
+    if (!task) {
+      return NextResponse.json({ error: 'Erro ao criar tarefa' }, { status: 500 })
     }
 
     console.log('Tarefa criada com sucesso:', task.id, task.title)

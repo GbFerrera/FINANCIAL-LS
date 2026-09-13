@@ -4,6 +4,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { endOfDay, startOfDay } from 'date-fns'
 import { PaymentMethod, PaymentStatus } from '@prisma/client'
+import { resolvePaymentStatusAfterReceipt, sumPaymentReceived } from '@/lib/payment-receipt'
+import { buildInstallmentPlan } from '@/lib/payment-installments'
+import { randomUUID } from 'crypto'
 
 // GET - Listar pagamentos
 export async function GET(request: NextRequest) {
@@ -68,8 +71,26 @@ export async function GET(request: NextRequest) {
       where: whereClause
     })
 
+    const paymentIds = payments.map((p) => p.id)
+    const receivedByPayment =
+      paymentIds.length > 0
+        ? await prisma.financialEntry.groupBy({
+            by: ['paymentId'],
+            where: { paymentId: { in: paymentIds }, type: 'INCOME' },
+            _sum: { amount: true },
+          })
+        : []
+    const receivedMap = new Map(
+      receivedByPayment.map((row) => [row.paymentId, row._sum.amount ?? 0])
+    )
+
+    const enriched = payments.map((p) => ({
+      ...p,
+      receivedAmount: receivedMap.get(p.id) ?? 0,
+    }))
+
     return NextResponse.json({
-      payments,
+      payments: enriched,
       pagination: {
         page,
         limit,
@@ -146,53 +167,84 @@ export async function POST(request: NextRequest) {
     const wantsReminder = Boolean(reminderSendEmail || reminderSendWhatsApp)
     const daysBefore = Number.parseInt(String(reminderDaysBefore ?? 1), 10)
     const includePix = Boolean(reminderIncludePix && pixKey?.trim())
+    const amountNumber = parseFloat(amount)
+    const installmentsRaw = body?.installments as { count?: number; intervalMonths?: number } | undefined
+    const installmentCount = Math.floor(Number(installmentsRaw?.count ?? 0))
+    const intervalMonths = Math.max(1, Math.floor(Number(installmentsRaw?.intervalMonths ?? 1)))
+
+    const paymentInclude = {
+      client: { select: { id: true, name: true, email: true } },
+      paymentProjects: {
+        include: { project: { select: { id: true, name: true } } },
+      },
+    } as const
+
+    const basePaymentData = {
+      clientId,
+      method: (method || 'BANK_TRANSFER') as PaymentMethod,
+      status: desiredStatus,
+      reminderSendEmail: wantsReminder && Boolean(reminderSendEmail),
+      reminderSendWhatsApp: wantsReminder && Boolean(reminderSendWhatsApp),
+      reminderDaysBefore: Number.isFinite(daysBefore) && daysBefore >= 0 ? daysBefore : 1,
+      reminderSendTime:
+        typeof reminderSendTime === 'string' && reminderSendTime.trim()
+          ? reminderSendTime.trim()
+          : '09:00',
+      reminderSubject: reminderSubject?.trim() || null,
+      reminderBody: reminderBody?.trim() || null,
+      whatsAppInstanceId: whatsAppInstanceId?.trim() || null,
+      reminderIncludePix: wantsReminder && includePix,
+      pixKey: wantsReminder && includePix ? String(pixKey).trim() : null,
+      pixKeyType: wantsReminder && includePix ? (pixKeyType?.trim() || 'random') : null,
+      pixReceiverName: wantsReminder && includePix ? pixReceiverName?.trim() || null : null,
+      pixCity: wantsReminder && includePix ? pixCity?.trim() || null : null,
+      pixDescription: wantsReminder && includePix ? pixDescription?.trim() || null : null,
+      pixTxid: wantsReminder && includePix ? pixTxid?.trim() || null : null,
+    }
 
     const result = await prisma.$transaction(async (tx) => {
+      if (installmentCount > 1 && desiredStatus === PaymentStatus.PENDING) {
+        const plan = buildInstallmentPlan({
+          totalAmount: amountNumber,
+          count: installmentCount,
+          firstDueDate: new Date(paymentDate),
+          intervalMonths,
+        })
+        const groupId = randomUUID()
+        const baseDescription = description?.trim() || null
+        const createdPayments = []
+
+        for (const slice of plan) {
+          const sliceDescription = baseDescription
+            ? `${baseDescription} (${slice.installmentNumber}/${slice.installmentTotal})`
+            : `Parcela ${slice.installmentNumber}/${slice.installmentTotal}`
+
+          const created = await tx.payment.create({
+            data: {
+              ...basePaymentData,
+              amount: slice.amount,
+              description: sliceDescription,
+              paymentDate: slice.paymentDate,
+              installmentGroupId: groupId,
+              installmentNumber: slice.installmentNumber,
+              installmentTotal: slice.installmentTotal,
+            },
+            include: paymentInclude,
+          })
+          createdPayments.push(created)
+        }
+
+        return { batch: true as const, payments: createdPayments, installmentGroupId: groupId }
+      }
+
       const created = await tx.payment.create({
         data: {
-          clientId,
-          amount: parseFloat(amount),
+          ...basePaymentData,
+          amount: amountNumber,
           description,
           paymentDate: new Date(paymentDate),
-          method: method || 'BANK_TRANSFER',
-          status: desiredStatus,
-          reminderSendEmail: wantsReminder && Boolean(reminderSendEmail),
-          reminderSendWhatsApp: wantsReminder && Boolean(reminderSendWhatsApp),
-          reminderDaysBefore: Number.isFinite(daysBefore) && daysBefore >= 0 ? daysBefore : 1,
-          reminderSendTime:
-            typeof reminderSendTime === "string" && reminderSendTime.trim()
-              ? reminderSendTime.trim()
-              : "09:00",
-          reminderSubject: reminderSubject?.trim() || null,
-          reminderBody: reminderBody?.trim() || null,
-          whatsAppInstanceId: whatsAppInstanceId?.trim() || null,
-          reminderIncludePix: wantsReminder && includePix,
-          pixKey: wantsReminder && includePix ? String(pixKey).trim() : null,
-          pixKeyType: wantsReminder && includePix ? (pixKeyType?.trim() || "random") : null,
-          pixReceiverName: wantsReminder && includePix ? pixReceiverName?.trim() || null : null,
-          pixCity: wantsReminder && includePix ? pixCity?.trim() || null : null,
-          pixDescription: wantsReminder && includePix ? pixDescription?.trim() || null : null,
-          pixTxid: wantsReminder && includePix ? pixTxid?.trim() || null : null,
         },
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
-          paymentProjects: {
-            include: {
-              project: {
-                select: {
-                  id: true,
-                  name: true
-                }
-              }
-            }
-          }
-        }
+        include: paymentInclude,
       })
 
       if (desiredStatus === PaymentStatus.COMPLETED) {
@@ -201,18 +253,29 @@ export async function POST(request: NextRequest) {
             type: 'INCOME',
             category: 'Pagamento de Cliente',
             description: description || `Pagamento recebido de ${client.name}`,
-            amount: parseFloat(amount),
+            amount: amountNumber,
             date: new Date(paymentDate),
             isRecurring: false,
-            paymentId: created.id
-          }
+            paymentId: created.id,
+          },
         })
       }
 
-      return created
+      return { batch: false as const, payment: created }
     })
 
-    return NextResponse.json(result, { status: 201 })
+    if ('batch' in result && result.batch) {
+      return NextResponse.json(
+        {
+          payments: result.payments,
+          installmentGroupId: result.installmentGroupId,
+          count: result.payments.length,
+        },
+        { status: 201 }
+      )
+    }
+
+    return NextResponse.json(result.payment, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar pagamento:', error)
     return NextResponse.json(
@@ -260,6 +323,18 @@ export async function PATCH(request: NextRequest) {
     if (!paymentId) return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 })
 
     if (markAsReceived) {
+      const rawAmount = body?.receivedAmount
+      const receivedDateRaw = body?.receivedDate as string | undefined
+      const nextDueDateRaw = body?.nextDueDate as string | undefined
+      const receiptLabel =
+        typeof body?.receiptLabel === 'string' ? body.receiptLabel.trim() : ''
+      const partialAmount =
+        rawAmount === undefined || rawAmount === null
+          ? null
+          : typeof rawAmount === 'number'
+            ? rawAmount
+            : parseFloat(String(rawAmount))
+
       const result = await prisma.$transaction(async (tx) => {
         const payment = await tx.payment.findUnique({
           where: { id: paymentId },
@@ -267,32 +342,83 @@ export async function PATCH(request: NextRequest) {
         })
         if (!payment) return null
 
-        const updated = await tx.payment.update({
-          where: { id: paymentId },
-          data: { status: PaymentStatus.COMPLETED }
-        })
+        const alreadyReceived = await sumPaymentReceived(tx, paymentId)
+        const remaining = Math.max(0, payment.amount - alreadyReceived)
 
-        const existing = await tx.financialEntry.findFirst({
-          where: { paymentId }
-        })
-        if (!existing) {
-          await tx.financialEntry.create({
-            data: {
-              type: 'INCOME',
-              category: 'Pagamento de Cliente',
-              description: payment.description || `Pagamento recebido de ${payment.client.name}`,
-              amount: payment.amount,
-              date: payment.paymentDate,
-              isRecurring: false,
-              paymentId: payment.id
-            }
+        if (remaining <= 0.009) {
+          const updated = await tx.payment.update({
+            where: { id: paymentId },
+            data: { status: PaymentStatus.COMPLETED },
           })
+          return { ...updated, receivedAmount: alreadyReceived }
         }
 
-        return updated
+        const creditAmount =
+          partialAmount != null && Number.isFinite(partialAmount) && partialAmount > 0
+            ? partialAmount
+            : remaining
+
+        if (creditAmount <= 0 || creditAmount > remaining + 0.009) {
+          return { error: 'INVALID_AMOUNT' as const }
+        }
+
+        const receiptDate =
+          receivedDateRaw && Number.isFinite(new Date(receivedDateRaw).getTime())
+            ? new Date(receivedDateRaw)
+            : new Date()
+
+        const baseDescription =
+          payment.description || `Pagamento de ${payment.client.name}`
+        let entryDescription = baseDescription
+        if (creditAmount < payment.amount - 0.009) {
+          entryDescription = receiptLabel
+            ? `${baseDescription} — ${receiptLabel}`
+            : `${baseDescription} (parcial)`
+        } else if (receiptLabel) {
+          entryDescription = `${baseDescription} — ${receiptLabel}`
+        } else {
+          entryDescription = `Pagamento recebido de ${payment.client.name}`
+        }
+
+        await tx.financialEntry.create({
+          data: {
+            type: 'INCOME',
+            category: 'Pagamento de Cliente',
+            description: entryDescription,
+            amount: creditAmount,
+            date: receiptDate,
+            isRecurring: false,
+            paymentId: payment.id,
+          },
+        })
+
+        const totalReceived = alreadyReceived + creditAmount
+        const nextStatus = resolvePaymentStatusAfterReceipt(payment.amount, totalReceived)
+
+        const paymentUpdate: {
+          status: PaymentStatus
+          paymentDate?: Date
+        } = { status: nextStatus }
+
+        if (nextStatus === PaymentStatus.PROCESSING && nextDueDateRaw) {
+          const nextDue = new Date(nextDueDateRaw)
+          if (Number.isFinite(nextDue.getTime())) {
+            paymentUpdate.paymentDate = nextDue
+          }
+        }
+
+        const updated = await tx.payment.update({
+          where: { id: paymentId },
+          data: paymentUpdate,
+        })
+
+        return { ...updated, receivedAmount: totalReceived }
       })
 
       if (!result) return NextResponse.json({ error: 'Pagamento não encontrado' }, { status: 404 })
+      if ((result as { error?: string }).error === 'INVALID_AMOUNT') {
+        return NextResponse.json({ error: 'Valor de recebimento inválido' }, { status: 400 })
+      }
       return NextResponse.json(result)
     }
 
