@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { ensureManagementInternalProject } from '@/lib/management-workspace'
+import {
+  defaultManagementSettings,
+  mergeWorkspaceSettings,
+  normalizeKanbanColumns,
+  parseWorkspaceSettings,
+} from '@/lib/workspace-settings'
 import { mapWorkspace, slugifyWorkspace, workspaceInclude } from '@/lib/workspace-utils'
 import {
   canManageWorkspaces,
@@ -76,22 +83,53 @@ export async function POST(request: NextRequest) {
       slug = `${base}-${n++}`
     }
 
-    const projectIds: string[] = Array.isArray(body.projectIds)
-      ? body.projectIds.filter((id: unknown) => typeof id === 'string')
-      : []
+    const kind = body.kind === 'MANAGEMENT' ? 'MANAGEMENT' : 'DEFAULT'
+    const projectIds: string[] =
+      kind === 'MANAGEMENT'
+        ? []
+        : Array.isArray(body.projectIds)
+          ? body.projectIds.filter((id: unknown) => typeof id === 'string')
+          : []
 
     const workspace = await prisma.$transaction(async (tx) => {
+      let settings: Record<string, unknown> | undefined
+      if (kind === 'MANAGEMENT') {
+        const initialSettings = mergeWorkspaceSettings(defaultManagementSettings(), {
+          showCalendarAboveBoard:
+            body.settings?.showCalendarAboveBoard !== undefined
+              ? Boolean(body.settings.showCalendarAboveBoard)
+              : true,
+          kanbanColumns: normalizeKanbanColumns(body.settings?.kanbanColumns),
+        })
+        settings = initialSettings as Record<string, unknown>
+      }
+
       const created = await tx.workspace.create({
         data: {
           name,
           slug,
           icon: body.icon ? String(body.icon) : null,
           description: body.description ? String(body.description) : null,
+          kind,
+          ...(settings ? { settings } : {}),
           sortOrder: Number(body.sortOrder) || 0,
         },
       })
 
-      if (projectIds.length > 0) {
+      if (kind === 'MANAGEMENT') {
+        const { projectId, settings: nextSettings } = await ensureManagementInternalProject(
+          tx,
+          name,
+          settings
+        )
+        await tx.workspace.update({
+          where: { id: created.id },
+          data: { settings: nextSettings as object },
+        })
+        await tx.workspaceProject.create({
+          data: { workspaceId: created.id, projectId, sortOrder: 0 },
+        })
+      } else if (projectIds.length > 0) {
         await tx.workspaceProject.createMany({
           data: projectIds.map((projectId, index) => ({
             workspaceId: created.id,

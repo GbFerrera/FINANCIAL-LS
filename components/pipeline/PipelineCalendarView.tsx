@@ -24,6 +24,7 @@ type PipelineCalendarViewProps = {
   onTaskClick: (taskId: string) => void
   onAddTask?: () => void
   className?: string
+  compact?: boolean
 }
 
 function tasksForDay(tasks: PipelineTask[], day: Date) {
@@ -36,7 +37,13 @@ function tasksForDay(tasks: PipelineTask[], day: Date) {
   })
 }
 
-export function PipelineCalendarView({ tasks, onTaskClick, onAddTask, className }: PipelineCalendarViewProps) {
+export function PipelineCalendarView({
+  tasks,
+  onTaskClick,
+  onAddTask,
+  className,
+  compact = false,
+}: PipelineCalendarViewProps) {
   const [current, setCurrent] = useState(new Date())
 
   const days = useMemo(() => {
@@ -51,27 +58,37 @@ export function PipelineCalendarView({ tasks, onTaskClick, onAddTask, className 
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border/80 bg-card', className)}>
-      <div className="flex shrink-0 items-center justify-between border-b border-border/60 px-4 py-3">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon-sm" onClick={() => setCurrent((d) => addMonths(d, -1))}>
-            <ChevronLeft className="h-4 w-4" />
+      <div
+        className={cn(
+          'flex shrink-0 items-center justify-between border-b border-border/60',
+          compact ? 'px-2 py-1.5' : 'px-4 py-3'
+        )}
+      >
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="icon-sm" className={compact ? 'h-7 w-7' : undefined} onClick={() => setCurrent((d) => addMonths(d, -1))}>
+            <ChevronLeft className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
           </Button>
-          <Button variant="ghost" size="icon-sm" onClick={() => setCurrent((d) => addMonths(d, 1))}>
-            <ChevronRight className="h-4 w-4" />
+          <Button variant="ghost" size="icon-sm" className={compact ? 'h-7 w-7' : undefined} onClick={() => setCurrent((d) => addMonths(d, 1))}>
+            <ChevronRight className={compact ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
           </Button>
-          <h2 className="ml-2 text-sm font-semibold capitalize">
-            {format(current, 'MMMM yyyy', { locale: ptBR })}
+          <h2 className={cn('font-semibold capitalize', compact ? 'ml-1 text-xs' : 'ml-2 text-sm')}>
+            {format(current, compact ? 'MMM yyyy' : 'MMMM yyyy', { locale: ptBR })}
           </h2>
         </div>
-        <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setCurrent(new Date())}>
+        <Button variant="ghost" size="sm" className={compact ? 'h-7 px-2 text-[10px]' : 'h-8 text-xs'} onClick={() => setCurrent(new Date())}>
           Hoje
         </Button>
       </div>
 
-      <div className="grid shrink-0 grid-cols-7 border-b border-border/60 bg-muted/15 text-center text-[11px] font-medium text-muted-foreground">
+      <div
+        className={cn(
+          'grid shrink-0 grid-cols-7 border-b border-border/60 bg-muted/15 text-center font-medium text-muted-foreground',
+          compact ? 'text-[9px]' : 'text-[11px]'
+        )}
+      >
         {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => (
-          <div key={d} className="px-2 py-2">
-            {d}
+          <div key={d} className={compact ? 'px-1 py-1' : 'px-2 py-2'}>
+            {compact ? d.charAt(0) : d}
           </div>
         ))}
       </div>
@@ -85,36 +102,43 @@ export function PipelineCalendarView({ tasks, onTaskClick, onAddTask, className 
             <div
               key={day.toISOString()}
               className={cn(
-                'min-h-[88px] border-b border-r border-border/40 p-1.5 last:border-r-0',
+                'border-b border-r border-border/40 last:border-r-0',
+                compact ? 'min-h-[42px] p-0.5' : 'min-h-[88px] p-1.5',
                 !inMonth && 'bg-muted/10'
               )}
             >
-              <div className="mb-1 flex justify-end">
+              <div className={cn('flex justify-end', compact ? 'mb-0' : 'mb-1')}>
                 <span
                   className={cn(
-                    'inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px]',
+                    'inline-flex items-center justify-center rounded-full',
+                    compact ? 'h-4 w-4 text-[9px]' : 'h-6 w-6 text-[11px]',
                     isToday && 'bg-primary font-medium text-primary-foreground'
                   )}
                 >
                   {format(day, 'd')}
                 </span>
               </div>
-              <div className="space-y-1">
-                {dayTasks.slice(0, 3).map((task) => (
+              <div className="space-y-0.5">
+                {dayTasks.slice(0, compact ? 1 : 3).map((task) => (
                   <button
                     key={task.id}
                     type="button"
                     onClick={() => onTaskClick(task.id)}
-                    className="block w-full truncate rounded bg-primary/10 px-1.5 py-0.5 text-left text-[10px] text-primary hover:bg-primary/15"
+                    className={cn(
+                      'block w-full truncate rounded bg-primary/10 text-left text-primary hover:bg-primary/15',
+                      compact ? 'px-1 py-0 text-[8px]' : 'px-1.5 py-0.5 text-[10px]'
+                    )}
                   >
-                    {getTaskIdentifier(task)} {task.title}
+                    {compact ? task.title : `${getTaskIdentifier(task)} ${task.title}`}
                   </button>
                 ))}
-                {dayTasks.length > 3 && (
-                  <p className="px-1 text-[10px] text-muted-foreground">+{dayTasks.length - 3} mais</p>
+                {dayTasks.length > (compact ? 1 : 3) && (
+                  <p className={cn('px-0.5 text-muted-foreground', compact ? 'text-[8px]' : 'text-[10px]')}>
+                    +{dayTasks.length - (compact ? 1 : 3)}
+                  </p>
                 )}
               </div>
-              {dayTasks.length === 0 && inMonth && onAddTask && (
+              {!compact && dayTasks.length === 0 && inMonth && onAddTask && (
                 <button
                   type="button"
                   onClick={onAddTask}

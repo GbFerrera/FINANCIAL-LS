@@ -2,7 +2,8 @@
 
 import { ReactNode, useEffect, useState } from 'react'
 import { Droppable, DroppableProvided, DroppableStateSnapshot } from '@hello-pangea/dnd'
-import { Maximize2, Minimize2, MoreVertical, Plus } from 'lucide-react'
+import { DraggableProvidedDragHandleProps } from '@hello-pangea/dnd'
+import { GripVertical, Maximize2, Minimize2, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -40,6 +41,9 @@ type KanbanColumnProps = {
   droppableId: string
   headerActions?: ReactNode
   onAdd?: () => void
+  columnDragHandleProps?: DraggableProvidedDragHandleProps | null
+  onTitleClick?: () => void
+  highlighted?: boolean
   className?: string
   variant?: 'board' | 'grid'
   children: (provided: DroppableProvided, snapshot: DroppableStateSnapshot) => ReactNode
@@ -54,6 +58,9 @@ export function KanbanColumn({
   droppableId,
   headerActions,
   onAdd,
+  columnDragHandleProps,
+  onTitleClick,
+  highlighted = false,
   className,
   variant = 'board',
   children,
@@ -93,7 +100,7 @@ export function KanbanColumn({
             <Plus className="h-3.5 w-3.5" />
           </button>
         )}
-        <Droppable droppableId={droppableId}>
+        <Droppable droppableId={droppableId} type="task">
           {(provided) => (
             <div ref={provided.innerRef} {...provided.droppableProps} className="hidden">
               {provided.placeholder}
@@ -109,12 +116,34 @@ export function KanbanColumn({
       className={cn(
         'flex min-h-0 flex-col self-stretch rounded-xl border border-border/70 bg-muted/10 p-2 transition-all duration-200',
         variant === 'board' ? 'h-full max-h-full w-80 min-w-80 shrink-0' : 'w-full min-h-[160px]',
+        highlighted && 'ring-2 ring-primary/40 ring-offset-2 ring-offset-background',
         className
       )}
     >
       <div className="mb-2.5 flex items-center justify-between rounded-lg px-2.5 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-foreground">{title}</span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          {columnDragHandleProps && (
+            <button
+              type="button"
+              className="cursor-grab rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
+              aria-label={`Reordenar coluna ${title}`}
+              {...columnDragHandleProps}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+          {onTitleClick ? (
+            <button
+              type="button"
+              onClick={onTitleClick}
+              className="truncate text-left text-sm font-medium text-foreground hover:text-primary hover:underline"
+              title="Editar colunas"
+            >
+              {title}
+            </button>
+          ) : (
+            <span className="truncate text-sm font-medium text-foreground">{title}</span>
+          )}
           <span className="text-xs text-muted-foreground">{count}</span>
         </div>
         <div className="flex items-center gap-0.5">
@@ -146,7 +175,7 @@ export function KanbanColumn({
         </div>
       </div>
 
-      <Droppable droppableId={droppableId}>
+      <Droppable droppableId={droppableId} type="task">
         {(provided, snapshot) => (
           <div
             ref={provided.innerRef}

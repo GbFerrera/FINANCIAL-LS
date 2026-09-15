@@ -267,12 +267,19 @@ model Project {
   @@map("projects")
 }
 
+enum WorkspaceKind {
+  DEFAULT
+  MANAGEMENT
+}
+
 model Workspace {
   id          String             @id @default(cuid())
   name        String
   slug        String             @unique
   icon        String?
   description String?
+  kind        WorkspaceKind      @default(DEFAULT)
+  settings    Json?
   sortOrder   Int                @default(0)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
@@ -331,6 +338,7 @@ model Task {
   endTime          DateTime?
   startTime        String?
   order            Int          @default(0)
+  kanbanColumnId   String?
   sprintId         String?
   storyPoints      Int?
   actualMinutes    Int?

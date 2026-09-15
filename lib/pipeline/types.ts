@@ -15,6 +15,7 @@ export type PipelineTask = {
   updatedAt?: string | null
   sprintId?: string | null
   order?: number | null
+  kanbanColumnId?: string | null
   assignee: { id: string; name: string; email: string; avatar: string | null } | null
   milestone: { id: string; name: string; status: string } | null
   project: { id: string; name: string }

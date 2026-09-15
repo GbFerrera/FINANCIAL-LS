@@ -37,6 +37,16 @@ export function WorkspacePipelineView({ slug }: { slug: string }) {
     [workspace]
   )
 
+  const managementBoard = useMemo(() => {
+    if (workspace?.kind !== 'MANAGEMENT' || !workspace.settings?.kanbanColumns?.length) return undefined
+    return {
+      workspaceId: workspace.id,
+      showCalendarAboveBoard: workspace.settings.showCalendarAboveBoard ?? true,
+      kanbanColumns: workspace.settings.kanbanColumns,
+      customStatuses: workspace.settings.customStatuses ?? [],
+    }
+  }, [workspace])
+
   if (loading) {
     return (
       <div className="flex h-full min-h-0 flex-1 items-center justify-center">
@@ -60,6 +70,7 @@ export function WorkspacePipelineView({ slug }: { slug: string }) {
         scopedProjectIds={workspace.projectIds}
         initialProjects={projects}
         contextLabel={workspace.name}
+        managementBoard={managementBoard}
       />
     </div>
   )

@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { ensureManagementInternalProject } from '@/lib/management-workspace'
+import {
+  mergeWorkspaceSettings,
+  normalizeCustomStatuses,
+  normalizeKanbanColumns,
+  parseWorkspaceSettings,
+} from '@/lib/workspace-settings'
 import { mapWorkspace, slugifyWorkspace, workspaceInclude } from '@/lib/workspace-utils'
 import { canAccessWorkspaceById, canManageWorkspaces } from '@/lib/workspace-permissions'
 import { getUserPermissionsSnapshot } from '@/lib/user-permissions-server'
@@ -81,11 +88,42 @@ export async function PUT(request: NextRequest, { params }: Params) {
       }
     }
 
-    const projectIds: string[] | undefined = Array.isArray(body.projectIds)
-      ? body.projectIds.filter((v: unknown) => typeof v === 'string')
-      : undefined
+    const nextKind =
+      body.kind === 'MANAGEMENT' ? 'MANAGEMENT' : body.kind === 'DEFAULT' ? 'DEFAULT' : existing.kind
+    const projectIds: string[] | undefined =
+      nextKind === 'MANAGEMENT'
+        ? undefined
+        : Array.isArray(body.projectIds)
+          ? body.projectIds.filter((v: unknown) => typeof v === 'string')
+          : undefined
 
     const workspace = await prisma.$transaction(async (tx) => {
+      const currentSettings = parseWorkspaceSettings(existing.settings)
+      let nextSettings = currentSettings
+
+      if (body.settings && typeof body.settings === 'object') {
+        nextSettings = mergeWorkspaceSettings(currentSettings, {
+          ...(body.settings.showCalendarAboveBoard !== undefined && {
+            showCalendarAboveBoard: Boolean(body.settings.showCalendarAboveBoard),
+          }),
+          ...(Array.isArray(body.settings.kanbanColumns) && {
+            kanbanColumns: normalizeKanbanColumns(body.settings.kanbanColumns),
+          }),
+          ...(Array.isArray(body.settings.customStatuses) && {
+            customStatuses: normalizeCustomStatuses(body.settings.customStatuses),
+          }),
+        })
+      }
+
+      if (nextKind === 'MANAGEMENT') {
+        const ensured = await ensureManagementInternalProject(
+          tx,
+          body.name !== undefined ? String(body.name).trim() : existing.name,
+          nextSettings
+        )
+        nextSettings = ensured.settings
+      }
+
       await tx.workspace.update({
         where: { id: existing.id },
         data: {
@@ -95,11 +133,25 @@ export async function PUT(request: NextRequest, { params }: Params) {
           ...(body.description !== undefined && {
             description: body.description ? String(body.description) : null,
           }),
+          ...(body.kind !== undefined && { kind: nextKind }),
+          ...(nextKind === 'MANAGEMENT' ? { settings: nextSettings as object } : {}),
           ...(body.sortOrder !== undefined && { sortOrder: Number(body.sortOrder) || 0 }),
         },
       })
 
-      if (projectIds) {
+      if (nextKind === 'MANAGEMENT') {
+        const internalId = nextSettings.internalProjectId
+        if (internalId) {
+          const linked = await tx.workspaceProject.findFirst({
+            where: { workspaceId: existing.id, projectId: internalId },
+          })
+          if (!linked) {
+            await tx.workspaceProject.create({
+              data: { workspaceId: existing.id, projectId: internalId, sortOrder: 0 },
+            })
+          }
+        }
+      } else if (projectIds) {
         await tx.workspaceProject.deleteMany({ where: { workspaceId: existing.id } })
         if (projectIds.length > 0) {
           await tx.workspaceProject.createMany({

@@ -22,13 +22,98 @@ export const KANBAN_COLUMNS = [
   { id: 'COMPLETED', title: 'Concluído' },
 ] as const
 
-export function kanbanColumnStatus(columnId: string) {
-  return columnId === 'COMPLETED' ? 'COMPLETED' : columnId
+export function kanbanColumnStatus(columnStatusKey: string) {
+  if (columnStatusKey === 'COMPLETED' || columnStatusKey === 'DONE') return 'COMPLETED'
+  const builtIn = ['DRAFT', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'COMPLETED']
+  if (builtIn.includes(columnStatusKey)) return columnStatusKey
+  return 'TODO'
 }
 
 export function taskMatchesKanbanColumn(columnId: string, status: string) {
   if (columnId === 'COMPLETED') return status === 'DONE' || status === 'COMPLETED'
   return status === columnId
+}
+
+export type KanbanColumnDef = { id: string; title: string; status: string }
+
+export function resolveTaskKanbanColumnId(
+  task: { status: string; kanbanColumnId?: string | null },
+  columns: KanbanColumnDef[]
+) {
+  if (task.kanbanColumnId && columns.some((c) => c.id === task.kanbanColumnId)) {
+    return task.kanbanColumnId
+  }
+  const byStatus = columns.find((col) => {
+    if (col.status === 'COMPLETED') return task.status === 'DONE' || task.status === 'COMPLETED'
+    return task.status === col.status
+  })
+  return byStatus?.id ?? columns[0]?.id ?? 'TODO'
+}
+
+export function taskMatchesCustomKanbanColumn(
+  column: KanbanColumnDef,
+  task: { status: string; kanbanColumnId?: string | null },
+  columns: KanbanColumnDef[]
+) {
+  return resolveTaskKanbanColumnId(task, columns) === column.id
+}
+
+export function reorderKanbanBoardTasksCustom<T extends KanbanTaskLike & { kanbanColumnId?: string | null }>(
+  allTasks: T[],
+  columns: KanbanColumnDef[],
+  sourceColumnId: string,
+  destColumnId: string,
+  draggableId: string,
+  destinationIndex: number
+): {
+  tasks: T[]
+  destOrderedIds: string[]
+  sourceOrderedIds?: string[]
+  status: string
+  kanbanColumnId: string
+} {
+  const getColumnTasks = (columnId: string, pool: T[]) => {
+    const column = columns.find((c) => c.id === columnId)
+    if (!column) return []
+    return sortKanbanColumnTasks(
+      pool.filter((task) => taskMatchesCustomKanbanColumn(column, task, columns))
+    )
+  }
+
+  const destColumn = columns.find((c) => c.id === destColumnId)
+  if (!destColumn) throw new Error('Coluna de destino inválida')
+
+  const sourceList = getColumnTasks(sourceColumnId, allTasks)
+  const movedIndex = sourceList.findIndex((task) => task.id === draggableId)
+  if (movedIndex === -1) throw new Error('Tarefa não encontrada na coluna de origem')
+
+  const sourceWithoutMoved = [...sourceList]
+  const [movedTask] = sourceWithoutMoved.splice(movedIndex, 1)
+  const status = kanbanColumnStatus(destColumn.status)
+  const kanbanColumnId = destColumn.id
+  const movedUpdated = { ...movedTask, status, kanbanColumnId } as T
+
+  const destBase =
+    sourceColumnId === destColumnId ? sourceWithoutMoved : getColumnTasks(destColumnId, allTasks)
+  const destList = [...destBase]
+  destList.splice(destinationIndex, 0, movedUpdated)
+
+  const reindex = (list: T[]) => list.map((task, index) => ({ ...task, order: index }))
+
+  const newDest = reindex(destList)
+  const newSource = sourceColumnId !== destColumnId ? reindex(sourceWithoutMoved) : []
+
+  const affectedIds = new Set([...newDest, ...newSource].map((task) => task.id))
+  const untouched = allTasks.filter((task) => !affectedIds.has(task.id))
+  const tasks = [...untouched, ...newSource, ...newDest]
+
+  return {
+    tasks,
+    destOrderedIds: newDest.map((task) => task.id),
+    sourceOrderedIds: sourceColumnId !== destColumnId ? newSource.map((task) => task.id) : undefined,
+    status,
+    kanbanColumnId,
+  }
 }
 
 type KanbanTaskLike = { id: string; status: string; order?: number | null }

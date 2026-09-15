@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Columns3,
   List,
+  Minimize2,
   Plus,
   Table2,
 } from 'lucide-react'
@@ -42,6 +43,9 @@ type PipelineHeaderProps = {
   showArchived?: boolean
   onToggleArchived?: () => void
   contextLabel?: string
+  onMinimizeCalendar?: () => void
+  showCalendarPanel?: boolean
+  calendarMinimized?: boolean
 }
 
 export function PipelineHeader({
@@ -56,6 +60,9 @@ export function PipelineHeader({
   showArchived,
   onToggleArchived,
   contextLabel,
+  onMinimizeCalendar,
+  showCalendarPanel,
+  calendarMinimized,
 }: PipelineHeaderProps) {
   return (
     <div className="sticky top-0 z-30 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -100,6 +107,13 @@ export function PipelineHeader({
             onClear={onClearFilters}
             options={filterOptions}
           />
+
+          {showCalendarPanel && onMinimizeCalendar && view === 'board' && !calendarMinimized && (
+            <Button variant="outline" size="sm" className="h-8" onClick={onMinimizeCalendar}>
+              <Minimize2 className="mr-1.5 h-3.5 w-3.5" />
+              Minimizar agenda
+            </Button>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

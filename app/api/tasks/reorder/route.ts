@@ -15,6 +15,7 @@ const taskBroadcastInclude = {
 const schema = z.object({
   taskId: z.string().min(1),
   status: z.string().min(1),
+  kanbanColumnId: z.string().min(1).optional(),
   orderedTaskIds: z.array(z.string().min(1)).min(1),
   sourceOrderedTaskIds: z.array(z.string().min(1)).optional(),
 })
@@ -99,11 +100,16 @@ export async function POST(request: NextRequest) {
     }
 
     await prisma.$transaction(async (tx) => {
-      if (movedTask.status !== newStatus) {
+      const statusChanged = movedTask.status !== newStatus
+      const columnChanged =
+        body.kanbanColumnId !== undefined && movedTask.kanbanColumnId !== body.kanbanColumnId
+
+      if (statusChanged || columnChanged) {
         await tx.task.update({
           where: { id: body.taskId },
           data: {
-            status: newStatus as never,
+            ...(statusChanged ? { status: newStatus as never } : {}),
+            ...(body.kanbanColumnId !== undefined ? { kanbanColumnId: body.kanbanColumnId } : {}),
             ...(newStatus === 'COMPLETED' && !movedTask.completedAt
               ? { completedAt: new Date() }
               : {}),

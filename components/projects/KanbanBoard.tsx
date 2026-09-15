@@ -1,7 +1,13 @@
 
-import { useState, useEffect } from "react";
-import { DragDropContext, Draggable, DropResult } from "@hello-pangea/dnd";
-import { Archive, ArchiveRestore, CheckSquare, MoreVertical, Square } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  DragDropContext,
+  Draggable,
+  DraggableProvidedDragHandleProps,
+  Droppable,
+  DropResult,
+} from "@hello-pangea/dnd";
+import { Archive, ArchiveRestore, CheckSquare, MoreVertical, Plus, Square } from "lucide-react";
 import { TaskCard } from "../scrum/TaskCard";
 import {
   DropdownMenu,
@@ -13,7 +19,18 @@ import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { KanbanColumn, useKanbanColumnCollapse } from "@/components/kanban/KanbanColumn";
-import { KANBAN_COLUMNS, reorderKanbanBoardTasks, sortKanbanColumnTasks, taskMatchesKanbanColumn } from "@/lib/pipeline/task-utils";
+import {
+  KANBAN_COLUMNS,
+  KanbanColumnDef,
+  reorderKanbanBoardTasks,
+  reorderKanbanBoardTasksCustom,
+  sortKanbanColumnTasks,
+  taskMatchesCustomKanbanColumn,
+  taskMatchesKanbanColumn,
+} from "@/lib/pipeline/task-utils";
+
+const COLUMN_DRAG_TYPE = "column";
+const COLUMN_DRAG_PREFIX = "column::";
 
 interface ProjectTask {
   id: string;
@@ -27,6 +44,7 @@ interface ProjectTask {
   startTime: string | null;
   endTime: string | null;
   order?: number | null
+  kanbanColumnId?: string | null
   assignee: {
     id: string;
     name: string;
@@ -65,14 +83,18 @@ interface KanbanBoardProps {
   onToggleArchivedView?: () => void;
   canCompleteTasks?: boolean;
   collapseStorageKey?: string;
+  columns?: KanbanColumnDef[];
+  onAddColumn?: () => void;
+  onColumnTitleClick?: (columnId: string) => void;
+  onColumnsReorder?: (columns: KanbanColumnDef[]) => void | Promise<void>;
+  allowColumnReorder?: boolean;
+  highlightColumnId?: string | null;
+  scrollToColumnId?: string | null;
   className?: string;
 }
 
-const COLUMNS = KANBAN_COLUMNS;
-
 export function KanbanBoard({
   tasks,
-  onTaskUpdate,
   onTasksChange,
   onTaskClick,
   onTaskEdit,
@@ -90,17 +112,43 @@ export function KanbanBoard({
   onToggleArchivedView,
   canCompleteTasks = true,
   collapseStorageKey = "kanban-columns-pipeline",
+  columns,
+  onAddColumn,
+  onColumnTitleClick,
+  onColumnsReorder,
+  allowColumnReorder = false,
+  highlightColumnId,
+  scrollToColumnId,
   className,
 }: KanbanBoardProps) {
+  const boardColumns = columns?.length ? columns : [...KANBAN_COLUMNS];
+  const useCustomColumns = Boolean(columns?.length);
   const [boardTasks, setBoardTasks] = useState<ProjectTask[]>(tasks);
   const { isCollapsed, toggle } = useKanbanColumnCollapse(collapseStorageKey);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const prevColumnCountRef = useRef(boardColumns.length);
 
   useEffect(() => {
     setBoardTasks(tasks);
   }, [tasks]);
 
+  const scrollBoardToEnd = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (boardColumns.length > prevColumnCountRef.current || scrollToColumnId) {
+      scrollBoardToEnd();
+    }
+    prevColumnCountRef.current = boardColumns.length;
+  }, [boardColumns.length, scrollToColumnId, scrollBoardToEnd]);
+
   const onDragEnd = async (result: DropResult) => {
-    const { destination, source, draggableId } = result;
+    const { destination, source, draggableId, type } = result;
 
     if (!destination) return;
 
@@ -111,8 +159,25 @@ export function KanbanBoard({
       return;
     }
 
+    if (type === COLUMN_DRAG_TYPE) {
+      if (!onColumnsReorder || disableDrag) return;
+      const nextColumns = [...boardColumns];
+      const [removed] = nextColumns.splice(source.index, 1);
+      nextColumns.splice(destination.index, 0, removed);
+      try {
+        await onColumnsReorder(nextColumns);
+      } catch {
+        toast.error("Erro ao reordenar colunas");
+      }
+      return;
+    }
+
     const destColumnId = destination.droppableId;
-    if (destColumnId === "COMPLETED" && !canCompleteTasks) {
+    const destColumn = boardColumns.find((c) => c.id === destColumnId);
+    const destIsCompleted = destColumn
+      ? destColumn.status === "COMPLETED"
+      : destColumnId === "COMPLETED";
+    if (destIsCompleted && !canCompleteTasks) {
       toast.error("Apenas administradores podem marcar tarefas como concluídas");
       return;
     }
@@ -123,19 +188,36 @@ export function KanbanBoard({
     let destOrderedIds: string[];
     let sourceOrderedIds: string[] | undefined;
     let status: string;
+    let kanbanColumnId: string | undefined;
 
     try {
-      const reordered = reorderKanbanBoardTasks(
-        boardTasks,
-        source.droppableId,
-        destColumnId,
-        draggableId,
-        destination.index
-      );
-      nextTasks = reordered.tasks as ProjectTask[];
-      destOrderedIds = reordered.destOrderedIds;
-      sourceOrderedIds = reordered.sourceOrderedIds;
-      status = reordered.status;
+      if (useCustomColumns) {
+        const reordered = reorderKanbanBoardTasksCustom(
+          boardTasks,
+          boardColumns,
+          source.droppableId,
+          destColumnId,
+          draggableId,
+          destination.index
+        );
+        nextTasks = reordered.tasks as ProjectTask[];
+        destOrderedIds = reordered.destOrderedIds;
+        sourceOrderedIds = reordered.sourceOrderedIds;
+        status = reordered.status;
+        kanbanColumnId = reordered.kanbanColumnId;
+      } else {
+        const reordered = reorderKanbanBoardTasks(
+          boardTasks,
+          source.droppableId,
+          destColumnId,
+          draggableId,
+          destination.index
+        );
+        nextTasks = reordered.tasks as ProjectTask[];
+        destOrderedIds = reordered.destOrderedIds;
+        sourceOrderedIds = reordered.sourceOrderedIds;
+        status = reordered.status;
+      }
     } catch {
       toast.error("Não foi possível reordenar a tarefa");
       return;
@@ -150,6 +232,7 @@ export function KanbanBoard({
         body: JSON.stringify({
           taskId: draggableId,
           status,
+          ...(kanbanColumnId ? { kanbanColumnId } : {}),
           orderedTaskIds: destOrderedIds,
           sourceOrderedTaskIds: sourceOrderedIds,
         }),
@@ -189,127 +272,214 @@ export function KanbanBoard({
     coverImageUrl: task.coverImageUrl || undefined,
   });
 
+  const renderColumn = (
+    column: KanbanColumnDef,
+    columnDragHandleProps?: DraggableProvidedDragHandleProps | null
+  ) => {
+    const columnTasks = sortKanbanColumnTasks(
+      boardTasks.filter((task) =>
+        useCustomColumns
+          ? taskMatchesCustomKanbanColumn(column, task, boardColumns)
+          : taskMatchesKanbanColumn(column.id, task.status)
+      )
+    );
+
+    const isCompletedColumn = useCustomColumns
+      ? column.status === "COMPLETED"
+      : column.id === "COMPLETED";
+
+    const completedMenu = isCompletedColumn ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="h-7 w-7 text-muted-foreground"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {!showArchived && (
+            <DropdownMenuItem onClick={onArchiveCompleted} disabled={archiveLoading}>
+              <Archive className="mr-2 h-4 w-4" />
+              Arquivar todas concluídas
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={onStartArchiveSelection}>
+            <CheckSquare className="mr-2 h-4 w-4" />
+            {showArchived ? "Selecionar para restaurar" : "Selecionar para arquivar"}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onToggleArchivedView}>
+            {showArchived ? (
+              <ArchiveRestore className="mr-2 h-4 w-4" />
+            ) : (
+              <Archive className="mr-2 h-4 w-4" />
+            )}
+            {showArchived ? "Voltar para ativas" : "Ver todas arquivadas"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+
+    return (
+      <KanbanColumn
+        columnId={column.id}
+        title={column.title}
+        count={columnTasks.length}
+        collapsed={isCollapsed(column.id)}
+        onToggleCollapse={() => toggle(column.id)}
+        droppableId={column.id}
+        headerActions={completedMenu}
+        columnDragHandleProps={columnDragHandleProps}
+        onTitleClick={
+          onColumnTitleClick ? () => onColumnTitleClick(column.id) : undefined
+        }
+        highlighted={highlightColumnId === column.id}
+        className="max-h-full self-stretch snap-center"
+      >
+        {(_, snapshot) => (
+          <>
+            {columnTasks.map((task, index) => (
+              <Draggable
+                key={task.id}
+                draggableId={task.id}
+                index={index}
+                type="task"
+                isDragDisabled={disableDrag}
+              >
+                {(provided, dragSnapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    {...provided.dragHandleProps}
+                    style={provided.draggableProps.style}
+                    className={cn(
+                      "w-full shrink-0 outline-none",
+                      dragSnapshot.isDragging && "z-50 rotate-1 scale-[1.02] shadow-xl"
+                    )}
+                    onClick={(e) => {
+                      if (selectionMode && isCompletedColumn) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onToggleTaskSelection?.(task.id);
+                      }
+                    }}
+                  >
+                    <div className="relative">
+                      {selectionMode && isCompletedColumn && (
+                        <div className="absolute top-2 left-2 z-10">
+                          {selectedTaskIds.includes(task.id) ? (
+                            <CheckSquare className="h-5 w-5 rounded border-2 border-primary bg-card text-primary" />
+                          ) : (
+                            <Square className="h-5 w-5 rounded border-2 border-border bg-card text-muted-foreground" />
+                          )}
+                        </div>
+                      )}
+                      <div
+                        className={cn(
+                          selectionMode && isCompletedColumn && selectedTaskIds.includes(task.id)
+                            ? "rounded-lg ring-2 ring-primary ring-offset-2"
+                            : ""
+                        )}
+                      >
+                        <TaskCard
+                          task={mapToCardTask(task, index)}
+                          size="compact"
+                          onClick={() => onTaskClick(task.id)}
+                          onEdit={selectionMode ? undefined : onTaskEdit ? () => onTaskEdit(task) : undefined}
+                          onDelete={selectionMode ? undefined : onTaskDelete ? () => onTaskDelete(task.id) : undefined}
+                          onArchive={selectionMode || showArchived ? undefined : onTaskArchive ? () => onTaskArchive(task.id) : undefined}
+                          onRestore={selectionMode || !showArchived ? undefined : onTaskRestore ? () => onTaskRestore(task.id) : undefined}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Draggable>
+            ))}
+            {columnTasks.length === 0 && !snapshot.isDraggingOver && (
+              <div className="mx-1 flex h-24 items-center justify-center rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground/50">
+                Solte aqui
+              </div>
+            )}
+          </>
+        )}
+      </KanbanColumn>
+    );
+  };
+
+  const addColumnCard = onAddColumn ? (
+    <button
+      type="button"
+      onClick={onAddColumn}
+      className="flex h-full max-h-full w-72 min-w-72 shrink-0 snap-center flex-col items-center justify-center gap-2 self-stretch rounded-xl border-2 border-dashed border-border/70 bg-muted/5 px-4 py-6 text-muted-foreground transition hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
+    >
+      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-current">
+        <Plus className="h-5 w-5" />
+      </span>
+      <span className="text-sm font-medium">Nova coluna</span>
+    </button>
+  ) : null;
+
+  const useColumnLayout = useCustomColumns && (allowColumnReorder || onAddColumn);
+
   return (
     <DragDropContext onDragEnd={onDragEnd}>
       <div className={cn('flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <div className="flex min-h-0 flex-1 basis-0 items-stretch gap-4 overflow-x-auto px-1 pb-2 snap-x">
-        {COLUMNS.map((column) => {
-          const columnTasks = sortKanbanColumnTasks(
-            boardTasks.filter((task) => taskMatchesKanbanColumn(column.id, task.status))
-          );
-
-          const completedMenu = column.id === "COMPLETED" ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="h-7 w-7 text-muted-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                {!showArchived && (
-                  <DropdownMenuItem onClick={onArchiveCompleted} disabled={archiveLoading}>
-                    <Archive className="mr-2 h-4 w-4" />
-                    Arquivar todas concluídas
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={onStartArchiveSelection}>
-                  <CheckSquare className="mr-2 h-4 w-4" />
-                  {showArchived ? "Selecionar para restaurar" : "Selecionar para arquivar"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onToggleArchivedView}>
-                  {showArchived ? (
-                    <ArchiveRestore className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Archive className="mr-2 h-4 w-4" />
-                  )}
-                  {showArchived ? "Voltar para ativas" : "Ver todas arquivadas"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null;
-
-          return (
-            <KanbanColumn
-              key={column.id}
-              columnId={column.id}
-              title={column.title}
-              count={columnTasks.length}
-              collapsed={isCollapsed(column.id)}
-              onToggleCollapse={() => toggle(column.id)}
-              droppableId={column.id}
-              headerActions={completedMenu}
-              className="max-h-full self-stretch snap-center"
-            >
-              {(_, snapshot) => (
-                <>
-                  {columnTasks.map((task, index) => (
-                    <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={disableDrag}>
-                      {(provided, dragSnapshot) => (
+        {useColumnLayout ? (
+          <Droppable droppableId="kanban-columns" direction="horizontal" type={COLUMN_DRAG_TYPE}>
+            {(columnsProvided) => (
+              <div
+                ref={(node) => {
+                  columnsProvided.innerRef(node);
+                  scrollRef.current = node;
+                }}
+                {...columnsProvided.droppableProps}
+                className="flex min-h-0 flex-1 basis-0 items-stretch gap-4 overflow-x-auto px-1 pb-2 snap-x"
+              >
+                {boardColumns.map((column, index) =>
+                  allowColumnReorder ? (
+                    <Draggable
+                      key={column.id}
+                      draggableId={`${COLUMN_DRAG_PREFIX}${column.id}`}
+                      index={index}
+                      type={COLUMN_DRAG_TYPE}
+                      isDragDisabled={disableDrag}
+                    >
+                      {(provided, snapshot) => (
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          style={provided.draggableProps.style}
                           className={cn(
-                            "w-full shrink-0 outline-none",
-                            dragSnapshot.isDragging && "z-50 rotate-1 scale-[1.02] shadow-xl"
+                            "flex shrink-0 self-stretch",
+                            snapshot.isDragging && "z-40 opacity-95 shadow-lg"
                           )}
-                          onClick={(e) => {
-                            if (selectionMode && column.id === "COMPLETED") {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onToggleTaskSelection?.(task.id);
-                            }
-                          }}
                         >
-                          <div className="relative">
-                            {selectionMode && column.id === "COMPLETED" && (
-                              <div className="absolute top-2 left-2 z-10">
-                                {selectedTaskIds.includes(task.id) ? (
-                                  <CheckSquare className="h-5 w-5 rounded border-2 border-primary bg-card text-primary" />
-                                ) : (
-                                  <Square className="h-5 w-5 rounded border-2 border-border bg-card text-muted-foreground" />
-                                )}
-                              </div>
-                            )}
-                            <div
-                              className={cn(
-                                selectionMode && column.id === "COMPLETED" && selectedTaskIds.includes(task.id)
-                                  ? "rounded-lg ring-2 ring-primary ring-offset-2"
-                                  : ""
-                              )}
-                            >
-                              <TaskCard
-                                task={mapToCardTask(task, index)}
-                                size="compact"
-                                onClick={() => onTaskClick(task.id)}
-                                onEdit={selectionMode ? undefined : onTaskEdit ? () => onTaskEdit(task) : undefined}
-                                onDelete={selectionMode ? undefined : onTaskDelete ? () => onTaskDelete(task.id) : undefined}
-                                onArchive={selectionMode || showArchived ? undefined : onTaskArchive ? () => onTaskArchive(task.id) : undefined}
-                                onRestore={selectionMode || !showArchived ? undefined : onTaskRestore ? () => onTaskRestore(task.id) : undefined}
-                              />
-                            </div>
-                          </div>
+                          {renderColumn(column, provided.dragHandleProps)}
                         </div>
                       )}
                     </Draggable>
-                  ))}
-                  {columnTasks.length === 0 && !snapshot.isDraggingOver && (
-                    <div className="mx-1 flex h-24 items-center justify-center rounded-lg border border-dashed border-border/60 text-sm text-muted-foreground/50">
-                      Solte aqui
+                  ) : (
+                    <div key={column.id} className="flex shrink-0 self-stretch">
+                      {renderColumn(column)}
                     </div>
-                  )}
-                </>
-              )}
-            </KanbanColumn>
-          );
-        })}
-        </div>
+                  )
+                )}
+                {addColumnCard}
+                {columnsProvided.placeholder}
+              </div>
+            )}
+          </Droppable>
+        ) : (
+          <div
+            ref={scrollRef}
+            className="flex min-h-0 flex-1 basis-0 items-stretch gap-4 overflow-x-auto px-1 pb-2 snap-x"
+          >
+            {boardColumns.map((column) => renderColumn(column))}
+          </div>
+        )}
       </div>
     </DragDropContext>
   );

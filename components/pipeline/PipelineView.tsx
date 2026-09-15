@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import toast from "react-hot-toast"
@@ -10,6 +10,11 @@ import { PipelineHeader } from "@/components/pipeline/PipelineHeader"
 import { PipelineListView } from "@/components/pipeline/PipelineListView"
 import { PipelineTableView } from "@/components/pipeline/PipelineTableView"
 import { PipelineCalendarView } from "@/components/pipeline/PipelineCalendarView"
+import { PipelineManagementCalendarPanel } from "@/components/pipeline/PipelineManagementCalendarPanel"
+import {
+  ManagementKanbanColumnsDialog,
+  type ManagementKanbanColumnsSavePayload,
+} from "@/components/pipeline/ManagementKanbanColumnsDialog"
 import { PipelineTimelineView } from "@/components/pipeline/PipelineTimelineView"
 import { TaskFilterBadges } from "@/components/tasks/TaskFiltersPanel"
 import { Badge } from "@/components/ui/badge"
@@ -27,11 +32,18 @@ import {
   taskFiltersToSearchParams,
 } from "@/lib/task-filters"
 import { PipelineTask, PipelineViewMode } from "@/lib/pipeline/types"
+import type { KanbanColumnDef } from "@/lib/pipeline/task-utils"
 import { useTaskUpdates } from "@/hooks/useTaskUpdates"
 import { OPEN_TASK_EVENT } from "@/lib/active-task-view"
 import { applyPipelineTaskEvent } from "@/lib/task-socket-client"
 import type { TaskUpdateEvent } from "@/lib/task-socket-types"
-
+import {
+  calendarPanelStorageKey,
+  readCalendarPanelMode,
+  writeCalendarPanelMode,
+  type CalendarPanelMode,
+} from "@/lib/pipeline-management-panel-storage"
+import type { WorkspaceCustomStatus } from "@/lib/workspace-settings"
 type ProjectOption = { id: string; name: string }
 type MilestoneOption = { id: string; name: string }
 
@@ -55,6 +67,12 @@ export type PipelineViewProps = {
   scopedProjectIds?: string[]
   initialProjects?: ProjectOption[]
   contextLabel?: string
+  managementBoard?: {
+    workspaceId: string
+    showCalendarAboveBoard: boolean
+    kanbanColumns: KanbanColumnDef[]
+    customStatuses: WorkspaceCustomStatus[]
+  }
 }
 
 export function PipelineView({
@@ -62,6 +80,7 @@ export function PipelineView({
   scopedProjectIds,
   initialProjects,
   contextLabel,
+  managementBoard,
 }: PipelineViewProps = {}) {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -87,10 +106,47 @@ export function PipelineView({
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [archiveLoading, setArchiveLoading] = useState(false)
+  const [kanbanColumns, setKanbanColumns] = useState<KanbanColumnDef[]>(
+    managementBoard?.kanbanColumns ?? []
+  )
+  const [customStatuses, setCustomStatuses] = useState(
+    managementBoard?.customStatuses ?? []
+  )
+  const [highlightColumnId, setHighlightColumnId] = useState<string | null>(null)
+  const [scrollToColumnId, setScrollToColumnId] = useState<string | null>(null)
+  const [columnsDialogOpen, setColumnsDialogOpen] = useState(false)
+  const [columnsDialogMode, setColumnsDialogMode] = useState<"add" | "manage">("add")
+  const [columnsDialogFocusId, setColumnsDialogFocusId] = useState<string | null>(null)
+  const boardAreaRef = useRef<HTMLDivElement>(null)
+  const [calendarMode, setCalendarMode] = useState<CalendarPanelMode>("docked")
+
+  const calendarStorageKey = managementBoard
+    ? calendarPanelStorageKey(managementBoard.workspaceId)
+    : null
+  const isCalendarMinimized = calendarMode === "minimized"
 
   useEffect(() => {
     if (initialProjects) setProjects(initialProjects)
   }, [initialProjects])
+
+  useEffect(() => {
+    setKanbanColumns(managementBoard?.kanbanColumns ?? [])
+    setCustomStatuses(managementBoard?.customStatuses ?? [])
+  }, [managementBoard?.kanbanColumns, managementBoard?.customStatuses])
+
+  useEffect(() => {
+    if (!calendarStorageKey) return
+    setCalendarMode(readCalendarPanelMode(calendarStorageKey))
+  }, [calendarStorageKey])
+
+  const setCalendarModePersisted = useCallback(
+    (mode: CalendarPanelMode) => {
+      if (!calendarStorageKey) return
+      writeCalendarPanelMode(calendarStorageKey, mode)
+      setCalendarMode(mode)
+    },
+    [calendarStorageKey]
+  )
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams?.toString() || "")
@@ -601,6 +657,84 @@ export function PipelineView({
 
   const emptyWorkspace = scopedProjectIds?.length === 0
 
+  const activeManagementBoard = managementBoard
+    ? {
+        ...managementBoard,
+        kanbanColumns: kanbanColumns.length ? kanbanColumns : managementBoard.kanbanColumns,
+      }
+    : undefined
+
+  const saveKanbanColumns = async (
+    nextColumns: KanbanColumnDef[],
+    opts?: { highlightId?: string; scrollToId?: string; customStatuses?: ManagementKanbanColumnsSavePayload['customStatuses'] }
+  ) => {
+    if (!managementBoard || !isAdmin) return
+    const previous = kanbanColumns.length ? kanbanColumns : managementBoard.kanbanColumns
+    const previousStatuses = customStatuses.length ? customStatuses : managementBoard.customStatuses
+    const nextStatuses = opts?.customStatuses ?? previousStatuses
+    setKanbanColumns(nextColumns)
+    setCustomStatuses(nextStatuses)
+    if (opts?.highlightId) setHighlightColumnId(opts.highlightId)
+    if (opts?.scrollToId) setScrollToColumnId(opts.scrollToId)
+    try {
+      const res = await fetch(`/api/workspaces/${managementBoard.workspaceId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settings: { kanbanColumns: nextColumns, customStatuses: nextStatuses },
+        }),
+      })
+      const data = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok) throw new Error(data.error || "Erro ao salvar colunas")
+      if (opts?.highlightId) {
+        window.setTimeout(() => setHighlightColumnId(null), 2000)
+      }
+      if (opts?.scrollToId) {
+        window.setTimeout(() => setScrollToColumnId(null), 500)
+      }
+    } catch (error) {
+      setKanbanColumns(previous)
+      setCustomStatuses(previousStatuses)
+      setHighlightColumnId(null)
+      setScrollToColumnId(null)
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar colunas")
+      throw error
+    }
+  }
+
+  const openAddColumnDialog = () => {
+    if (!managementBoard || !isAdmin) return
+    setColumnsDialogMode("add")
+    setColumnsDialogFocusId(null)
+    setColumnsDialogOpen(true)
+  }
+
+  const openManageColumnsDialog = (focusColumnId?: string) => {
+    if (!managementBoard || !isAdmin) return
+    setColumnsDialogMode("manage")
+    setColumnsDialogFocusId(focusColumnId ?? null)
+    setColumnsDialogOpen(true)
+  }
+
+  const handleSaveColumnsFromDialog = async (payload: ManagementKanbanColumnsSavePayload) => {
+    const previousIds = new Set(kanbanColumns.map((c) => c.id))
+    const added = payload.columns.filter((c) => !previousIds.has(c.id))
+    const highlightId = added[0]?.id ?? null
+    await saveKanbanColumns(payload.columns, {
+      customStatuses: payload.customStatuses,
+      ...(highlightId ? { highlightId, scrollToId: highlightId } : {}),
+    })
+    toast.success(added.length > 0 ? "Coluna adicionada" : "Colunas atualizadas")
+  }
+
+  const handleReorderKanbanColumns = async (nextColumns: KanbanColumnDef[]) => {
+    await saveKanbanColumns(nextColumns)
+  }
+
+  const handleMinimizeCalendar = () => {
+    setCalendarModePersisted("minimized")
+  }
+
   return (
     <PageLoadingGate loading={status === "loading" || initialLoading} fillHeight>
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-5 md:px-8">
@@ -622,6 +756,13 @@ export function PipelineView({
         showArchived={showArchived}
         onToggleArchived={toggleArchivedView}
         contextLabel={contextLabel}
+        onMinimizeCalendar={
+          activeManagementBoard?.showCalendarAboveBoard && view === "board"
+            ? handleMinimizeCalendar
+            : undefined
+        }
+        showCalendarPanel={Boolean(activeManagementBoard?.showCalendarAboveBoard)}
+        calendarMinimized={isCalendarMinimized}
       />
 
       {emptyWorkspace ? (
@@ -661,25 +802,56 @@ export function PipelineView({
         )}
 
         {view === "board" && (
-          <KanbanBoard
-            className="h-full"
-            tasks={tasks as any}
-            onTasksChange={(updated) => setTasks(updated as PipelineTask[])}
-            onTaskClick={handleTaskClick}
-            onTaskDelete={isAdmin ? handleDeleteTask : undefined}
-            onTaskArchive={isAdmin ? handleArchiveSingleTask : undefined}
-            onTaskRestore={isAdmin ? handleRestoreSingleTask : undefined}
-            selectionMode={selectionMode}
-            selectedTaskIds={selectedTaskIds}
-            onToggleTaskSelection={toggleTaskSelection}
-            disableDrag={selectionMode || showArchived}
-            showArchived={showArchived}
-            archiveLoading={archiveLoading}
-            onArchiveCompleted={() => handleArchiveTasks("completed", true)}
-            onStartArchiveSelection={startArchiveSelection}
-            onToggleArchivedView={toggleArchivedView}
-            canCompleteTasks={isAdmin}
-          />
+          <div ref={boardAreaRef} className="relative h-full min-h-0 overflow-hidden">
+            {activeManagementBoard?.showCalendarAboveBoard && calendarStorageKey && (
+              <PipelineManagementCalendarPanel
+                storageKey={calendarStorageKey}
+                boundsRef={boardAreaRef}
+                mode={calendarMode}
+                onModeChange={setCalendarModePersisted}
+                tasks={tasks}
+                onTaskClick={handleTaskClick}
+                onAddTask={openCreate}
+              />
+            )}
+            <KanbanBoard
+              className="h-full"
+              tasks={tasks as any}
+              columns={activeManagementBoard?.kanbanColumns}
+              collapseStorageKey={
+                activeManagementBoard
+                  ? `kanban-columns-management-${activeManagementBoard.workspaceId}`
+                  : "kanban-columns-pipeline"
+              }
+              onTasksChange={(updated) => setTasks(updated as PipelineTask[])}
+              onTaskClick={handleTaskClick}
+              onTaskDelete={isAdmin ? handleDeleteTask : undefined}
+              onTaskArchive={isAdmin ? handleArchiveSingleTask : undefined}
+              onTaskRestore={isAdmin ? handleRestoreSingleTask : undefined}
+              selectionMode={selectionMode}
+              selectedTaskIds={selectedTaskIds}
+              onToggleTaskSelection={toggleTaskSelection}
+              disableDrag={selectionMode || showArchived}
+              showArchived={showArchived}
+              archiveLoading={archiveLoading}
+              onArchiveCompleted={() => handleArchiveTasks("completed", true)}
+              onStartArchiveSelection={startArchiveSelection}
+              onToggleArchivedView={toggleArchivedView}
+              canCompleteTasks={isAdmin}
+              onAddColumn={
+                activeManagementBoard && isAdmin ? openAddColumnDialog : undefined
+              }
+              onColumnTitleClick={
+                activeManagementBoard && isAdmin ? openManageColumnsDialog : undefined
+              }
+              onColumnsReorder={
+                activeManagementBoard && isAdmin ? handleReorderKanbanColumns : undefined
+              }
+              allowColumnReorder={Boolean(activeManagementBoard && isAdmin)}
+              highlightColumnId={highlightColumnId}
+              scrollToColumnId={scrollToColumnId}
+            />
+          </div>
         )}
 
         {view === "calendar" && (
@@ -732,6 +904,18 @@ export function PipelineView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {activeManagementBoard && isAdmin && (
+        <ManagementKanbanColumnsDialog
+          open={columnsDialogOpen}
+          onOpenChange={setColumnsDialogOpen}
+          columns={kanbanColumns.length ? kanbanColumns : activeManagementBoard.kanbanColumns}
+          customStatuses={customStatuses.length ? customStatuses : activeManagementBoard.customStatuses}
+          mode={columnsDialogMode}
+          focusColumnId={columnsDialogFocusId}
+          onSave={handleSaveColumnsFromDialog}
+        />
+      )}
 
       {createProjectId && (
         <ProjectCreateTaskModal

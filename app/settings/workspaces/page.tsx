@@ -24,17 +24,43 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, Trash2, ExternalLink, MoreVertical, Edit } from 'lucide-react'
+import { Plus, Trash2, ExternalLink, MoreVertical, Edit, GripVertical } from 'lucide-react'
 import Link from 'next/link'
 import type { WorkspaceDTO } from '@/lib/workspace-utils'
 import { ProjectMultiPicker } from '@/components/projects/project-picker'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
+import { CustomStatusesManager } from '@/components/pipeline/CustomStatusesManager'
+import { KanbanColumnStatusSelect } from '@/components/pipeline/KanbanColumnStatusSelect'
+import {
+  DEFAULT_MANAGEMENT_COLUMNS,
+  newKanbanColumnId,
+  type WorkspaceCustomStatus,
+  type WorkspaceKanbanColumn,
+} from '@/lib/workspace-settings'
 
-const emptyForm = () => ({
+type WorkspaceForm = {
+  name: string
+  slug: string
+  icon: string
+  description: string
+  kind: 'DEFAULT' | 'MANAGEMENT'
+  projectIds: string[]
+  showCalendarAboveBoard: boolean
+  kanbanColumns: WorkspaceKanbanColumn[]
+  customStatuses: WorkspaceCustomStatus[]
+}
+
+const emptyForm = (): WorkspaceForm => ({
   name: '',
   slug: '',
   icon: '📁',
   description: '',
-  projectIds: [] as string[],
+  kind: 'DEFAULT',
+  projectIds: [],
+  showCalendarAboveBoard: true,
+  kanbanColumns: DEFAULT_MANAGEMENT_COLUMNS.map((c) => ({ ...c })),
+  customStatuses: [],
 })
 
 export default function WorkspacesSettingsPage() {
@@ -95,7 +121,13 @@ export default function WorkspacesSettingsPage() {
       slug: ws.slug,
       icon: ws.icon || '📁',
       description: ws.description || '',
+      kind: ws.kind,
       projectIds: ws.projectIds,
+      showCalendarAboveBoard: ws.settings?.showCalendarAboveBoard ?? true,
+      kanbanColumns: ws.settings?.kanbanColumns?.length
+        ? ws.settings.kanbanColumns.map((c) => ({ ...c }))
+        : DEFAULT_MANAGEMENT_COLUMNS.map((c) => ({ ...c })),
+      customStatuses: ws.settings?.customStatuses?.map((s) => ({ ...s })) ?? [],
     })
     setDialogOpen(true)
   }
@@ -115,10 +147,33 @@ export default function WorkspacesSettingsPage() {
     try {
       const url = editingId ? `/api/workspaces/${editingId}` : '/api/workspaces'
       const method = editingId ? 'PUT' : 'POST'
+      const payload =
+        form.kind === 'MANAGEMENT'
+          ? {
+              name: form.name,
+              slug: form.slug,
+              icon: form.icon,
+              description: form.description,
+              kind: form.kind,
+              settings: {
+                showCalendarAboveBoard: form.showCalendarAboveBoard,
+                kanbanColumns: form.kanbanColumns,
+                customStatuses: form.customStatuses,
+              },
+            }
+          : {
+              name: form.name,
+              slug: form.slug,
+              icon: form.icon,
+              description: form.description,
+              kind: form.kind,
+              projectIds: form.projectIds,
+            }
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
@@ -220,7 +275,10 @@ export default function WorkspacesSettingsPage() {
                     <span className="font-medium truncate">{ws.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    /workspace/{ws.slug} · {ws.projects.length} projeto(s)
+                    /workspace/{ws.slug}
+                    {ws.kind === 'MANAGEMENT'
+                      ? ' · Gerenciamento'
+                      : ` · ${ws.projects.length} projeto(s)`}
                   </p>
                 </div>
                 <DropdownMenu>
@@ -257,24 +315,59 @@ export default function WorkspacesSettingsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar espaço' : 'Novo espaço'}</DialogTitle>
             <DialogDescription>
-              {editingId
-                ? 'Atualize nome, ícone, URL e projetos vinculados.'
-                : 'Crie um espaço de trabalho e vincule os projetos que farão parte dele.'}
+              {form.kind === 'MANAGEMENT'
+                ? 'Espaço dedicado a desempenho do setor, com colunas Kanban personalizáveis e agenda opcional.'
+                : editingId
+                  ? 'Atualize nome, ícone, URL e projetos vinculados.'
+                  : 'Crie um espaço de trabalho e vincule os projetos que farão parte dele.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-1">
+            <div>
+              <Label>Tipo de espaço</Label>
+              <Select
+                value={form.kind}
+                onValueChange={(value: 'DEFAULT' | 'MANAGEMENT') =>
+                  setForm((f) => ({
+                    ...f,
+                    kind: value,
+                    ...(value === 'MANAGEMENT'
+                      ? {
+                          kanbanColumns:
+                            f.kanbanColumns.length > 0
+                              ? f.kanbanColumns
+                              : DEFAULT_MANAGEMENT_COLUMNS.map((c) => ({ ...c })),
+                        }
+                      : {}),
+                  }))
+                }
+                disabled={Boolean(editingId)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DEFAULT">Padrão (projetos de entrega)</SelectItem>
+                  <SelectItem value="MANAGEMENT">Gerenciamento (desempenho do setor)</SelectItem>
+                </SelectContent>
+              </Select>
+              {editingId && (
+                <p className="text-xs text-muted-foreground mt-1">O tipo não pode ser alterado após a criação.</p>
+              )}
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label>Nome</Label>
                 <Input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Link Callendar"
+                  placeholder={form.kind === 'MANAGEMENT' ? 'RH · Metas Q3' : 'Link Callendar'}
                 />
               </div>
               <div>
@@ -282,7 +375,7 @@ export default function WorkspacesSettingsPage() {
                 <Input
                   value={form.icon}
                   onChange={(e) => setForm({ ...form, icon: e.target.value })}
-                  placeholder="📅"
+                  placeholder={form.kind === 'MANAGEMENT' ? '📊' : '📅'}
                 />
               </div>
             </div>
@@ -291,7 +384,7 @@ export default function WorkspacesSettingsPage() {
               <Input
                 value={form.slug}
                 onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                placeholder="link-callendar"
+                placeholder={form.kind === 'MANAGEMENT' ? 'rh-metas' : 'link-callendar'}
               />
             </div>
             <div>
@@ -302,14 +395,130 @@ export default function WorkspacesSettingsPage() {
                 rows={2}
               />
             </div>
-            <div>
-              <Label className="mb-2 block">Projetos neste espaço</Label>
-              <ProjectMultiPicker
-                values={form.projectIds}
-                onChange={(projectIds) => setForm((f) => ({ ...f, projectIds }))}
-                placeholder="Busque e adicione projetos ao espaço"
-              />
-            </div>
+
+            {form.kind === 'DEFAULT' ? (
+              <div>
+                <Label className="mb-2 block">Projetos neste espaço</Label>
+                <ProjectMultiPicker
+                  values={form.projectIds}
+                  onChange={(projectIds) => setForm((f) => ({ ...f, projectIds }))}
+                  placeholder="Busque e adicione projetos ao espaço"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <Checkbox
+                    id="show-calendar"
+                    checked={form.showCalendarAboveBoard}
+                    onCheckedChange={(checked) =>
+                      setForm((f) => ({ ...f, showCalendarAboveBoard: checked === true }))
+                    }
+                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="show-calendar" className="cursor-pointer font-medium">
+                      Agenda acima do quadro
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Exibe o calendário de tarefas acima do Kanban na esteira deste espaço.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <Label>Colunas Kanban</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setForm((f) => ({
+                          ...f,
+                          kanbanColumns: [
+                            ...f.kanbanColumns,
+                            {
+                              id: newKanbanColumnId(),
+                              title: 'Nova coluna',
+                              status: 'TODO',
+                            },
+                          ],
+                        }))
+                      }
+                    >
+                      <Plus className="mr-1 h-3.5 w-3.5" />
+                      Coluna
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {form.kanbanColumns.map((col, index) => (
+                      <div key={col.id} className="flex items-center gap-2 rounded-lg border p-2">
+                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <Input
+                          value={col.title}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              kanbanColumns: f.kanbanColumns.map((c, i) =>
+                                i === index ? { ...c, title: e.target.value } : c
+                              ),
+                            }))
+                          }
+                          placeholder="Nome da coluna"
+                          className="flex-1"
+                        />
+                        <KanbanColumnStatusSelect
+                          value={col.status}
+                          onChange={(status) =>
+                            setForm((f) => ({
+                              ...f,
+                              kanbanColumns: f.kanbanColumns.map((c, i) =>
+                                i === index ? { ...c, status } : c
+                              ),
+                            }))
+                          }
+                          customStatuses={form.customStatuses}
+                          onCustomStatusesChange={(customStatuses) =>
+                            setForm((f) => ({ ...f, customStatuses }))
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 text-destructive"
+                          disabled={form.kanbanColumns.length <= 1}
+                          onClick={() =>
+                            setForm((f) => ({
+                              ...f,
+                              kanbanColumns: f.kanbanColumns.filter((_, i) => i !== index),
+                            }))
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Crie colunas e status personalizados. Status customizados ficam salvos neste espaço de gerenciamento.
+                  </p>
+                </div>
+
+                <CustomStatusesManager
+                  statuses={form.customStatuses}
+                  onChange={(customStatuses) => setForm((f) => ({ ...f, customStatuses }))}
+                  onStatusRemoved={(removedId) =>
+                    setForm((f) => ({
+                      ...f,
+                      kanbanColumns: f.kanbanColumns.map((col) =>
+                        col.status === removedId ? { ...col, status: 'TODO' } : col
+                      ),
+                    }))
+                  }
+                />
+              </>
+            )}
           </div>
 
           <DialogFooter>

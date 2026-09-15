@@ -1,3 +1,9 @@
+import {
+  parseWorkspaceSettings,
+  settingsForManagementKind,
+  type WorkspaceSettings,
+} from '@/lib/workspace-settings'
+
 export function slugifyWorkspace(name: string): string {
   return name
     .normalize('NFD')
@@ -25,6 +31,8 @@ export type WorkspaceDTO = {
   slug: string
   icon: string | null
   description: string | null
+  kind: 'DEFAULT' | 'MANAGEMENT'
+  settings: WorkspaceSettings | null
   sortOrder: number
   projects: WorkspaceProjectLink[]
   projectIds: string[]
@@ -36,6 +44,8 @@ export function mapWorkspace(row: {
   slug: string
   icon: string | null
   description: string | null
+  kind?: 'DEFAULT' | 'MANAGEMENT'
+  settings?: unknown
   sortOrder: number
   projects: Array<{
     id: string
@@ -48,15 +58,28 @@ export function mapWorkspace(row: {
     }
   }>
 }): WorkspaceDTO {
-  const projects = [...row.projects].sort((a, b) => a.sortOrder - b.sortOrder || a.project.name.localeCompare(b.project.name))
+  const kind = row.kind === 'MANAGEMENT' ? 'MANAGEMENT' : 'DEFAULT'
+  const projects = [...row.projects].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.project.name.localeCompare(b.project.name)
+  )
+  const visibleProjects =
+    kind === 'MANAGEMENT'
+      ? projects.filter(({ project }) => {
+          const internalId = parseWorkspaceSettings(row.settings).internalProjectId
+          return !internalId || project.id !== internalId
+        })
+      : projects
+
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
     icon: row.icon,
     description: row.description,
+    kind,
+    settings: settingsForManagementKind(kind, row.settings),
     sortOrder: row.sortOrder,
-    projects,
+    projects: visibleProjects,
     projectIds: projects.map((p) => p.project.id),
   }
 }
