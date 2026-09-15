@@ -44,6 +44,7 @@ import {
   type CalendarPanelMode,
 } from "@/lib/pipeline-management-panel-storage"
 import type { WorkspaceCustomStatus } from "@/lib/workspace-settings"
+import { TaskLabelsManagerDialog } from "@/components/scrum/TaskLabelsManagerDialog"
 type ProjectOption = { id: string; name: string }
 type MilestoneOption = { id: string; name: string }
 
@@ -92,6 +93,7 @@ export function PipelineView({
   const [filterUsers, setFilterUsers] = useState<{ id: string; label: string }[]>([])
   const [filterSprints, setFilterSprints] = useState<{ id: string; label: string }[]>([])
   const [filterMilestones, setFilterMilestones] = useState<{ id: string; label: string }[]>([])
+  const [filterTaskLabels, setFilterTaskLabels] = useState<{ id: string; label: string; sub?: string }[]>([])
   const [tasks, setTasks] = useState<PipelineTask[]>([])
   const [initialLoading, setInitialLoading] = useState(true)
   const [createPickOpen, setCreatePickOpen] = useState(false)
@@ -117,6 +119,7 @@ export function PipelineView({
   const [columnsDialogOpen, setColumnsDialogOpen] = useState(false)
   const [columnsDialogMode, setColumnsDialogMode] = useState<"add" | "manage">("add")
   const [columnsDialogFocusId, setColumnsDialogFocusId] = useState<string | null>(null)
+  const [labelsDialogOpen, setLabelsDialogOpen] = useState(false)
   const boardAreaRef = useRef<HTMLDivElement>(null)
   const [calendarMode, setCalendarMode] = useState<CalendarPanelMode>("docked")
 
@@ -255,6 +258,23 @@ export function PipelineView({
       if (m?.id && m?.name) milestoneMap.set(m.id, m.name)
     })
     setFilterMilestones([...milestoneMap.entries()].map(([id, label]) => ({ id, label })))
+
+    const wsId = managementBoard?.workspaceId
+    const labelsQs = wsId ? `?workspaceId=${encodeURIComponent(wsId)}` : ""
+    const labelsRes = await fetch(`/api/task-labels${labelsQs}`, { credentials: "same-origin" })
+    if (labelsRes.ok) {
+      const labelsData = await labelsRes.json().catch(() => ({} as { labels?: { id: string; name: string; scope: string }[] }))
+      const rows = Array.isArray(labelsData.labels) ? labelsData.labels : []
+      setFilterTaskLabels(
+        rows.map((l) => ({
+          id: l.id,
+          label: l.name,
+          sub: l.scope === "PERSONAL" ? "Pessoal" : "Global",
+        }))
+      )
+    } else {
+      setFilterTaskLabels([])
+    }
   }
 
   useEffect(() => {
@@ -302,7 +322,7 @@ export function PipelineView({
   useEffect(() => {
     if (status !== "authenticated" || initialLoading || projects.length === 0) return
     fetchFilterOptions(projects).catch(() => {})
-  }, [taskFilters.projectIds, projects, status, initialLoading])
+  }, [taskFilters.projectIds, projects, status, initialLoading, managementBoard?.workspaceId])
 
   const isAdmin = session?.user?.role === "ADMIN"
 
@@ -320,9 +340,12 @@ export function PipelineView({
     filterMilestones.forEach((m) => {
       map[m.id] = m.label
     })
+    filterTaskLabels.forEach((l) => {
+      map[l.id] = l.label
+    })
     map[UNASSIGNED_ASSIGNEE] = "Sem responsável"
     return map
-  }, [filterUsers, projects, filterSprints, filterMilestones])
+  }, [filterUsers, projects, filterSprints, filterMilestones, filterTaskLabels])
 
   const handleRemoteTaskUpdate = useCallback((event: TaskUpdateEvent) => {
     setTasks((prev) => applyPipelineTaskEvent(prev, event))
@@ -731,10 +754,6 @@ export function PipelineView({
     await saveKanbanColumns(nextColumns)
   }
 
-  const handleMinimizeCalendar = () => {
-    setCalendarModePersisted("minimized")
-  }
-
   return (
     <PageLoadingGate loading={status === "loading" || initialLoading} fillHeight>
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-5 md:px-8">
@@ -750,19 +769,14 @@ export function PipelineView({
           projects: projects.map((p) => ({ id: p.id, label: p.name })),
           sprints: filterSprints,
           milestones: filterMilestones,
+          taskLabels: filterTaskLabels,
           showModuleFilter: true,
         }}
         onAddTask={openCreate}
         showArchived={showArchived}
         onToggleArchived={toggleArchivedView}
         contextLabel={contextLabel}
-        onMinimizeCalendar={
-          activeManagementBoard?.showCalendarAboveBoard && view === "board"
-            ? handleMinimizeCalendar
-            : undefined
-        }
-        showCalendarPanel={Boolean(activeManagementBoard?.showCalendarAboveBoard)}
-        calendarMinimized={isCalendarMinimized}
+        onManageLabels={() => setLabelsDialogOpen(true)}
       />
 
       {emptyWorkspace ? (
@@ -917,12 +931,19 @@ export function PipelineView({
         />
       )}
 
+      <TaskLabelsManagerDialog
+        open={labelsDialogOpen}
+        onOpenChange={setLabelsDialogOpen}
+        workspaceId={managementBoard?.workspaceId}
+      />
+
       {createProjectId && (
         <ProjectCreateTaskModal
           isOpen={createTaskOpen}
           onClose={() => setCreateTaskOpen(false)}
           projectId={createProjectId}
           milestones={createMilestones}
+          workspaceId={managementBoard?.workspaceId}
           onSuccess={async () => {
             setCreateTaskOpen(false)
             await fetchTasks(taskFilters)
@@ -940,6 +961,7 @@ export function PipelineView({
           projectId={editProjectId}
           milestones={editMilestones}
           editingTask={editingTask}
+          workspaceId={managementBoard?.workspaceId}
           onEditingTaskSync={(patch) => {
             setEditingTask((prev) => (prev ? { ...prev, ...patch } : prev))
           }}

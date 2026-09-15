@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { STATE_GROUP_OPTIONS, UNASSIGNED_ASSIGNEE } from "@/lib/task-filters"
+import { extractTaskLabels, taskLabelsInclude } from "@/lib/task-labels"
 import { z } from "zod"
 
 const querySchema = z.object({
@@ -15,6 +16,7 @@ const querySchema = z.object({
   assigneeIds: z.string().min(1).optional(),
   priorities: z.string().min(1).optional(),
   milestoneIds: z.string().min(1).optional(),
+  labelIds: z.string().min(1).optional(),
   sprintIds: z.string().min(1).optional(),
   startDateFrom: z.string().optional(),
   startDateTo: z.string().optional(),
@@ -81,6 +83,7 @@ export async function GET(request: NextRequest) {
       assigneeIds: searchParams.get("assigneeIds") || undefined,
       priorities: searchParams.get("priorities") || undefined,
       milestoneIds: searchParams.get("milestoneIds") || undefined,
+      labelIds: searchParams.get("labelIds") || undefined,
       sprintIds: searchParams.get("sprintIds") || undefined,
       startDateFrom: searchParams.get("startDateFrom") || undefined,
       startDateTo: searchParams.get("startDateTo") || undefined,
@@ -112,6 +115,7 @@ export async function GET(request: NextRequest) {
     const priorities = splitCsv(parsed.data.priorities)
     const assigneeIds = splitCsv(parsed.data.assigneeIds)
     const milestoneIds = splitCsv(parsed.data.milestoneIds)
+    const labelIds = splitCsv(parsed.data.labelIds)
     const sprintIds = splitCsv(parsed.data.sprintIds)
 
     const user = await prisma.user.findUnique({
@@ -131,6 +135,16 @@ export async function GET(request: NextRequest) {
     if (priorities.length > 0) where.priority = { in: priorities }
     if (milestoneIds.length > 0) where.milestoneId = { in: milestoneIds }
     if (sprintIds.length > 0) where.sprintId = { in: sprintIds }
+    if (labelIds.length > 0) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          labelAssignments: {
+            some: { labelId: { in: labelIds } },
+          },
+        },
+      ]
+    }
 
     if (assigneeIds.length > 0) {
       const assigned = assigneeIds.filter((id) => id !== UNASSIGNED_ASSIGNEE)
@@ -213,11 +227,17 @@ export async function GET(request: NextRequest) {
             name: true,
           },
         },
+        ...taskLabelsInclude,
       },
       orderBy: [{ order: 'asc' }, { updatedAt: 'desc' }],
     })
 
-    return NextResponse.json({ tasks })
+    const mapped = tasks.map((task) => ({
+      ...task,
+      labels: extractTaskLabels(task.labelAssignments, session.user.id),
+    }))
+
+    return NextResponse.json({ tasks: mapped })
   } catch (error) {
     console.error("Erro ao buscar tarefas:", error)
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 })

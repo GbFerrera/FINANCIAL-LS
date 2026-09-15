@@ -31,6 +31,7 @@ export function socketPayloadToPipelineTask(task: TaskSocketPayload): PipelineTa
         }
       : null,
     project: task.project || { id: task.projectId, name: '' },
+    labels: task.labels ?? [],
   }
 }
 
@@ -70,5 +71,12 @@ export function applyPipelineTaskEvent(tasks: PipelineTask[], event: TaskUpdateE
     return next
   }
 
-  return next.map((t) => (t.id === event.taskId ? { ...t, ...mapped } : t))
+  return next.map((t) => {
+    if (t.id !== event.taskId) return t
+    const merged = { ...t, ...mapped }
+    if (!event.task?.labels?.length && t.labels?.length) {
+      merged.labels = t.labels
+    }
+    return merged
+  })
 }

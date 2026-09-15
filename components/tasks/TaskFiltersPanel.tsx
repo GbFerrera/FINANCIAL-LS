@@ -19,6 +19,7 @@ import {
   Target,
   Users,
   X,
+  Bookmark,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +46,7 @@ type FilterKey =
   | 'priority'
   | 'mentions'
   | 'label'
+  | 'milestone'
   | 'cycle'
   | 'module'
   | 'startDate'
@@ -59,6 +61,7 @@ export type TaskFiltersOptions = {
   projects?: Option[]
   sprints?: Option[]
   milestones?: Option[]
+  taskLabels?: Option[]
   showModuleFilter?: boolean
 }
 
@@ -76,6 +79,7 @@ const FILTER_ROWS: { key: FilterKey; label: string; icon: React.ElementType }[] 
   { key: 'priority', label: 'Prioridade', icon: Signal },
   { key: 'mentions', label: 'Menções', icon: AtSign },
   { key: 'label', label: 'Etiqueta', icon: Tag },
+  { key: 'milestone', label: MODULES_LABEL, icon: Bookmark },
   { key: 'cycle', label: 'Ciclo', icon: Circle },
   { key: 'module', label: 'Módulo', icon: Grid2X2 },
   { key: 'startDate', label: 'Data de início', icon: CalendarClock },
@@ -211,6 +215,22 @@ export function TaskFiltersPanel({ filters, onChange, options = {}, className }:
           </div>
         )
       case 'label':
+        return (options.taskLabels || []).length > 0 ? (
+          <CheckboxList
+            items={(options.taskLabels || []).map((l) => ({
+              value: l.id,
+              label: l.label,
+              sub: l.sub,
+            }))}
+            selected={filters.labelIds}
+            onToggle={(v) => toggle('labelIds', v)}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground py-2">
+            Nenhuma etiqueta criada. Use &quot;Etiquetas&quot; no header ou na tarefa para criar.
+          </p>
+        )
+      case 'milestone':
         return (options.milestones || []).length > 0 ? (
           <CheckboxList
             items={(options.milestones || []).map((m) => ({ value: m.id, label: m.label }))}
@@ -218,7 +238,7 @@ export function TaskFiltersPanel({ filters, onChange, options = {}, className }:
             onToggle={(v) => toggle('milestoneIds', v)}
           />
         ) : (
-          <p className="text-sm text-muted-foreground py-2">Nenhuma etiqueta disponível nos projetos filtrados.</p>
+          <p className="text-sm text-muted-foreground py-2">Nenhum módulo disponível nos projetos filtrados.</p>
         )
       case 'cycle':
         return (options.sprints || []).length > 0 ? (
@@ -455,6 +475,7 @@ export function TaskFilterBadges({
   addList('projectIds', 'Projeto')
   addList('sprintIds', 'Ciclo')
   addList('milestoneIds', MODULES_LABEL)
+  addList('labelIds', 'Etiqueta')
 
   if (filters.mentionSearch.trim()) {
     badges.push({

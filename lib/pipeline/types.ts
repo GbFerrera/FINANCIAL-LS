@@ -1,3 +1,5 @@
+import type { TaskLabelDTO } from '@/lib/task-labels'
+
 export type PipelineViewMode = 'list' | 'board' | 'calendar' | 'table' | 'timeline'
 
 export type PipelineTask = {
@@ -20,6 +22,7 @@ export type PipelineTask = {
   milestone: { id: string; name: string; status: string } | null
   project: { id: string; name: string }
   sprint?: { id: string; name: string } | null
+  labels?: TaskLabelDTO[]
 }
 
 export const PIPELINE_VIEW_MODES: { id: PipelineViewMode; label: string }[] = [

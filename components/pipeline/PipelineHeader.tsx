@@ -6,9 +6,9 @@ import {
   ChevronDown,
   Columns3,
   List,
-  Minimize2,
   Plus,
   Table2,
+  Tag,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,9 +43,7 @@ type PipelineHeaderProps = {
   showArchived?: boolean
   onToggleArchived?: () => void
   contextLabel?: string
-  onMinimizeCalendar?: () => void
-  showCalendarPanel?: boolean
-  calendarMinimized?: boolean
+  onManageLabels?: () => void
 }
 
 export function PipelineHeader({
@@ -60,9 +58,7 @@ export function PipelineHeader({
   showArchived,
   onToggleArchived,
   contextLabel,
-  onMinimizeCalendar,
-  showCalendarPanel,
-  calendarMinimized,
+  onManageLabels,
 }: PipelineHeaderProps) {
   return (
     <div className="sticky top-0 z-30 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -108,10 +104,10 @@ export function PipelineHeader({
             options={filterOptions}
           />
 
-          {showCalendarPanel && onMinimizeCalendar && view === 'board' && !calendarMinimized && (
-            <Button variant="outline" size="sm" className="h-8" onClick={onMinimizeCalendar}>
-              <Minimize2 className="mr-1.5 h-3.5 w-3.5" />
-              Minimizar agenda
+          {onManageLabels && (
+            <Button variant="outline" size="sm" className="h-8 gap-1 text-xs font-normal" onClick={onManageLabels}>
+              <Tag className="h-3.5 w-3.5" />
+              Etiquetas
             </Button>
           )}
 

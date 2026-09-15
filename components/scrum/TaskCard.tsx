@@ -30,7 +30,10 @@ import {
   Bot,
   Image as ImageIcon,
   FileText,
+  Tag,
 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { TaskLabelDTO } from '@/lib/task-labels'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,6 +78,7 @@ interface Task {
     filePath?: string
   }>
   coverImageUrl?: string
+  labels?: TaskLabelDTO[]
 }
 
 interface TaskCardProps {
@@ -422,6 +426,23 @@ export function TaskCard({
           <PropertyPill compact={isCompact} title={`Prioridade: ${getPriorityLabel()}`}>
             <Signal className={cn(iconClass, getPriorityIconClass())} />
           </PropertyPill>
+
+          {task.labels?.map((label) => (
+            <Tooltip key={label.id} delayDuration={200}>
+              <TooltipTrigger asChild>
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center rounded border border-border/80 bg-background',
+                    isCompact ? 'h-6 w-6' : 'h-7 w-7'
+                  )}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Tag className={iconClass} style={{ color: label.color }} aria-hidden />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{label.name}</TooltipContent>
+            </Tooltip>
+          ))}
 
           {task.dueDate && (
             <PropertyPill

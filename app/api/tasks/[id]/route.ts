@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { notifyTaskStatusChange, notifyTaskAssignment } from '@/lib/notifications';
 import { broadcastTaskEvent, resolveTaskUpdateAction, serializeTaskForSocket, shouldBroadcastTaskPatch } from '@/lib/task-socket-server';
 import { syncTaskLinkedProjects } from '@/lib/task-projects';
+import { extractTaskLabels, syncTaskLabels, taskLabelsInclude } from '@/lib/task-labels';
 
 export async function PATCH(
   request: NextRequest,
@@ -118,6 +119,10 @@ export async function PATCH(
       ? (updates.linkedProjectIds as string[]).filter(Boolean)
       : undefined
 
+    const labelIds = Array.isArray(updates.labelIds)
+      ? (updates.labelIds as string[]).filter(Boolean)
+      : undefined
+
     const taskUpdateData = {
       ...(updates.title !== undefined && { title: updates.title }),
       ...(updates.description !== undefined && { description: updates.description }),
@@ -149,6 +154,7 @@ export async function PATCH(
           project: { select: { id: true, name: true } },
         },
       },
+      ...taskLabelsInclude,
     } as const
 
     let updatedTask
@@ -176,6 +182,17 @@ export async function PATCH(
           }
         }
 
+        if (labelIds !== undefined) {
+          try {
+            await syncTaskLabels(tx, taskId, labelIds, session.user.id)
+          } catch (e) {
+            if (e instanceof Error && e.message === 'INVALID_LABELS') {
+              throw new Error('INVALID_LABELS')
+            }
+            throw e
+          }
+        }
+
         if (updates.status && updates.status !== oldStatus) {
           await tx.taskStatusHistory.create({
             data: {
@@ -187,7 +204,7 @@ export async function PATCH(
           })
         }
 
-        if (linkedProjectIds !== undefined) {
+        if (linkedProjectIds !== undefined || labelIds !== undefined) {
           return tx.task.findUnique({
             where: { id: taskId },
             include: extendedInclude,
@@ -199,6 +216,9 @@ export async function PATCH(
     } catch (e) {
       if (e instanceof Error && e.message === 'INVALID_PROJECTS') {
         return NextResponse.json({ error: 'Projetos vinculados inválidos' }, { status: 400 })
+      }
+      if (e instanceof Error && e.message === 'INVALID_LABELS') {
+        return NextResponse.json({ error: 'Etiquetas inválidas' }, { status: 400 })
       }
 
       updatedTask = await prisma.task.update({
@@ -248,12 +268,14 @@ export async function PATCH(
         projectId: updatedTask.project.id,
         userId: session.user.id,
         userName: session.user.name || undefined,
-        task: serializeTaskForSocket(updatedTask as Record<string, unknown>),
+        task: serializeTaskForSocket(updatedTask as Record<string, unknown>, session.user.id),
         changes: Object.keys(changes).length > 0 ? changes : undefined,
       }).catch(console.error)
     }
 
-    return NextResponse.json(updatedTask);
+    const labels = extractTaskLabels(updatedTask.labelAssignments, session.user.id)
+
+    return NextResponse.json({ ...updatedTask, labels });
   } catch (error) {
     console.error('Erro ao atualizar tarefa:', error);
     return NextResponse.json(
@@ -377,6 +399,7 @@ export async function GET(
             changedBy: { select: { id: true, name: true } },
           },
         },
+        ...taskLabelsInclude,
       }
     });
 
@@ -384,7 +407,9 @@ export async function GET(
       return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
     }
 
-    return NextResponse.json(task);
+    const labels = extractTaskLabels(task.labelAssignments, session.user.id)
+
+    return NextResponse.json({ ...task, labels });
   } catch (error) {
     console.error('Erro ao buscar tarefa:', error);
     return NextResponse.json(

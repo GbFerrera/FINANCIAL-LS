@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import {
   Calendar as CalendarIcon,
   Clock,
+  Signal,
   Tag,
   User,
   Briefcase,
@@ -22,6 +23,9 @@ import {
   CheckSquare,
   Pencil,
 } from 'lucide-react'
+import { TaskLabelsPicker } from '@/components/scrum/TaskLabelsPicker'
+import { TaskLabelBadge } from '@/components/scrum/TaskLabelBadge'
+import type { TaskLabelDTO } from '@/lib/task-labels'
 
 type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
@@ -37,7 +41,7 @@ export type TaskMetadataFormValues = {
   estimatedMinutes?: number
 }
 
-type PanelId = 'labels' | 'members' | 'dates' | 'milestone' | 'project'
+type PanelId = 'priority' | 'tags' | 'members' | 'dates' | 'milestone' | 'project'
 
 type TeamMember = { id: string; name: string; email: string }
 type Milestone = { id: string; title: string }
@@ -239,6 +243,11 @@ type TaskMetadataControlsProps = {
     startDate?: string
     dueDate?: string
   }) => void | Promise<void>
+  labelIds?: string[]
+  onLabelIdsChange?: (ids: string[]) => void
+  onLabelsCommit?: (ids: string[]) => void | Promise<void>
+  taskLabels?: TaskLabelDTO[]
+  workspaceId?: string | null
 }
 
 export function TaskMetadataControls({
@@ -255,6 +264,11 @@ export function TaskMetadataControls({
   hideToolbar = false,
   className,
   onDatesCommit,
+  labelIds = [],
+  onLabelIdsChange,
+  onLabelsCommit,
+  taskLabels = [],
+  workspaceId,
 }: TaskMetadataControlsProps) {
   const [openPanel, setOpenPanel] = useState<PanelId | null>(null)
   const [summaryOpen, setSummaryOpen] = useState<PanelId | null>(null)
@@ -287,19 +301,17 @@ export function TaskMetadataControls({
   const draftDatesPayload = useMemo((): {
     startDate?: string
     dueDate?: string
-  } | null => {
+  } => {
     if (!draftRange?.from) {
       return { startDate: undefined, dueDate: undefined }
     }
-    if (!draftRange.to) return null
     return {
       startDate: toIsoDate(draftRange.from),
-      dueDate: toIsoDate(draftRange.to),
+      dueDate: toIsoDate(draftRange.to ?? draftRange.from),
     }
   }, [draftRange])
 
   const datesDraftDirty = useMemo(() => {
-    if (draftDatesPayload === null) return false
     const savedStart = startDate || undefined
     const savedDue = dueDate || undefined
     return (
@@ -308,7 +320,7 @@ export function TaskMetadataControls({
     )
   }, [draftDatesPayload, startDate, dueDate])
 
-  const canApplyDates = draftDatesPayload !== null
+  const canApplyDates = !!draftRange?.from
 
   const datesPanelOpen = isOpen('dates') || isSummaryOpen('dates')
 
@@ -319,20 +331,22 @@ export function TaskMetadataControls({
     datesPanelWasOpenRef.current = datesPanelOpen
   }, [datesPanelOpen, dateRange])
 
-  useEffect(() => {
-    if (!datesPanelOpen || datesDraftDirty) return
-    setDraftRange(dateRange)
-  }, [startDate, dueDate, datesPanelOpen, datesDraftDirty, dateRange])
-
   const assignee = teamMembers.find((m) => m.id === assigneeId)
   const milestone = milestones.find((m) => m.id === milestoneId)
   const priorityMeta = PRIORITY_OPTIONS.find((p) => p.value === priority)
 
   const hasDates = !!(startDate || dueDate || startTime || estimatedMinutes)
-  const hasLabels =
+  const hasPriorityContent =
     !!priorityMeta || (storyPoints ?? 0) > 0 || !!hasBonus
+  const hasTaskLabels = labelIds.length > 0
+  const visibleTaskLabels = taskLabels.filter((label) => labelIds.includes(label.id))
 
-  const labelsEditor = (
+  const handleLabelIdsChange = (ids: string[]) => {
+    onLabelIdsChange?.(ids)
+    void onLabelsCommit?.(ids)
+  }
+
+  const priorityEditor = (
     <>
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
         Prioridade
@@ -442,7 +456,7 @@ export function TaskMetadataControls({
   }
 
   const applyDraftDates = async () => {
-    if (!draftDatesPayload) return
+    if (!canApplyDates) return
 
     const { startDate: nextStart, dueDate: nextDue } = draftDatesPayload
     setDateField('startDate', nextStart)
@@ -472,9 +486,9 @@ export function TaskMetadataControls({
         numberOfMonths={1}
         className="rounded-md border bg-background p-2 mx-auto"
       />
-      {draftDatesPayload === null && draftRange?.from && (
+      {draftRange?.from && !draftRange.to && (
         <p className="mt-2 text-xs text-muted-foreground text-center">
-          Selecione a data de entrega para concluir o intervalo.
+          Um dia: início e entrega iguais. Clique outro dia para definir intervalo.
         </p>
       )}
       {(draftRange?.from || startDate || dueDate) && (
@@ -524,21 +538,46 @@ export function TaskMetadataControls({
     </>
   )
 
+  const tagsEditor = (
+    <TaskLabelsPicker
+      selectedIds={labelIds}
+      onChange={handleLabelIdsChange}
+      workspaceId={workspaceId}
+      compact
+    />
+  )
+
   const toolbar = (
     <div className="flex flex-wrap gap-2">
       <Popover
         modal={false}
-        open={isOpen('labels')}
-        onOpenChange={(open) => setPanel(open ? 'labels' : null)}
+        open={isOpen('priority')}
+        onOpenChange={(open) => setPanel(open ? 'priority' : null)}
       >
         <PopoverTrigger asChild>
-          <ActionChip active={isOpen('labels') || hasLabels}>
+          <ActionChip active={isOpen('priority') || hasPriorityContent}>
+            <Signal className="w-3.5 h-3.5 opacity-70" />
+            Prioridade
+          </ActionChip>
+        </PopoverTrigger>
+        <PopoverContent align="start" side="bottom" collisionPadding={16} className="w-64" {...popoverFocusHandlers}>
+          {priorityEditor}
+        </PopoverContent>
+      </Popover>
+
+      <Popover
+        modal={false}
+        open={isOpen('tags')}
+        onOpenChange={(open) => setPanel(open ? 'tags' : null)}
+      >
+        <PopoverTrigger asChild>
+          <ActionChip active={isOpen('tags') || hasTaskLabels}>
             <Tag className="w-3.5 h-3.5 opacity-70" />
             Etiquetas
           </ActionChip>
         </PopoverTrigger>
-        <PopoverContent align="start" side="bottom" collisionPadding={16} className="w-64" {...popoverFocusHandlers}>
-          {labelsEditor}
+        <PopoverContent align="start" side="bottom" collisionPadding={16} className="w-72" {...popoverFocusHandlers}>
+          {tagsEditor}
         </PopoverContent>
       </Popover>
 
@@ -652,12 +691,12 @@ export function TaskMetadataControls({
       {hideToolbar ? (
         <>
           <SummaryPopoverRow
-            open={isSummaryOpen('labels')}
-            onOpenChange={(open) => setSummaryPanel(open ? 'labels' : null)}
-            title="Estado"
-            hasContent={hasLabels}
+            open={isSummaryOpen('priority')}
+            onOpenChange={(open) => setSummaryPanel(open ? 'priority' : null)}
+            title="Prioridade"
+            hasContent={hasPriorityContent}
             emptyHint="Definir prioridade"
-            content={labelsEditor}
+            content={priorityEditor}
             contentClassName="w-64"
           >
             <div className="flex flex-wrap gap-1.5 pointer-events-none">
@@ -681,6 +720,22 @@ export function TaskMetadataControls({
                   Bônus
                 </span>
               )}
+            </div>
+          </SummaryPopoverRow>
+
+          <SummaryPopoverRow
+            open={isSummaryOpen('tags')}
+            onOpenChange={(open) => setSummaryPanel(open ? 'tags' : null)}
+            title="Etiquetas"
+            hasContent={hasTaskLabels}
+            emptyHint="Adicionar etiquetas"
+            content={tagsEditor}
+            contentClassName="w-72"
+          >
+            <div className="flex flex-wrap gap-1 pointer-events-none">
+              {visibleTaskLabels.map((label) => (
+                <TaskLabelBadge key={label.id} label={label} />
+              ))}
             </div>
           </SummaryPopoverRow>
 
@@ -783,9 +838,9 @@ export function TaskMetadataControls({
       ) : (
         <>
           <SummaryBlock
-            title="Estado"
-            onEdit={() => setPanel('labels')}
-            hasContent={hasLabels}
+            title="Prioridade"
+            onEdit={() => setPanel('priority')}
+            hasContent={hasPriorityContent}
             emptyHint="Definir prioridade"
           >
             <div className="flex flex-wrap gap-1.5 pointer-events-none">
@@ -809,6 +864,19 @@ export function TaskMetadataControls({
                   Bônus
                 </span>
               )}
+            </div>
+          </SummaryBlock>
+
+          <SummaryBlock
+            title="Etiquetas"
+            onEdit={() => setPanel('tags')}
+            hasContent={hasTaskLabels}
+            emptyHint="Adicionar etiquetas"
+          >
+            <div className="flex flex-wrap gap-1 pointer-events-none">
+              {visibleTaskLabels.map((label) => (
+                <TaskLabelBadge key={label.id} label={label} />
+              ))}
             </div>
           </SummaryBlock>
 

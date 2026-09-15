@@ -9,6 +9,8 @@ export type TaskUpdateAction =
   | 'restored'
   | 'moved'
 
+import type { TaskLabelDTO } from '@/lib/task-labels'
+
 export type TaskSocketPayload = {
   id: string
   title: string
@@ -37,6 +39,7 @@ export type TaskSocketPayload = {
     id: string
     name: string
   }
+  labels?: TaskLabelDTO[]
 }
 
 export type TaskUpdateEvent = {

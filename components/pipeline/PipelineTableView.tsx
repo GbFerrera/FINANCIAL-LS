@@ -1,6 +1,7 @@
 'use client'
 
-import { Signal, Tag, User } from 'lucide-react'
+import { Signal, User } from 'lucide-react'
+import { TaskLabelBadge } from '@/components/scrum/TaskLabelBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { PipelineTask } from '@/lib/pipeline/types'
@@ -78,14 +79,15 @@ export function PipelineTableView({ tasks, onTaskClick, className }: PipelineTab
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                  {task.milestone ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Tag className="h-3 w-3" />
-                      {task.milestone.name}
-                    </span>
+                <td className="px-3 py-2.5">
+                  {task.labels && task.labels.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {task.labels.map((label) => (
+                        <TaskLabelBadge key={label.id} label={label} />
+                      ))}
+                    </div>
                   ) : (
-                    '—'
+                    <span className="text-xs text-muted-foreground">—</span>
                   )}
                 </td>
                 <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[140px]">

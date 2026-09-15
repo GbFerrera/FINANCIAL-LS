@@ -8,6 +8,7 @@ export type TaskFilterState = {
   priorities: string[]
   mentionSearch: string
   milestoneIds: string[]
+  labelIds: string[]
   sprintIds: string[]
   projectIds: string[]
   startDateFrom: string
@@ -28,6 +29,7 @@ export const EMPTY_TASK_FILTERS: TaskFilterState = {
   priorities: [],
   mentionSearch: '',
   milestoneIds: [],
+  labelIds: [],
   sprintIds: [],
   projectIds: [],
   startDateFrom: '',
@@ -78,6 +80,7 @@ type TaskLike = {
   milestone?: { id: string } | null
   project?: { id: string } | null
   projectId?: string
+  labels?: { id: string }[]
 }
 
 function parseDay(value?: string | null) {
@@ -115,6 +118,7 @@ export function countActiveTaskFilters(filters: TaskFilterState) {
   n += filters.assigneeIds.length
   n += filters.priorities.length
   n += filters.milestoneIds.length
+  n += filters.labelIds.length
   n += filters.sprintIds.length
   n += filters.projectIds.length
   if (filters.startDateFrom || filters.startDateTo) n++
@@ -156,6 +160,11 @@ export function applyTaskFilters<T extends TaskLike>(tasks: T[], filters: TaskFi
       if (!mid || !filters.milestoneIds.includes(mid)) return false
     }
 
+    if (filters.labelIds.length > 0) {
+      const taskLabelIds = task.labels?.map((l) => l.id) ?? []
+      if (!filters.labelIds.some((id) => taskLabelIds.includes(id))) return false
+    }
+
     if (filters.sprintIds.length > 0) {
       if (!task.sprintId || !filters.sprintIds.includes(task.sprintId)) return false
     }
@@ -192,6 +201,7 @@ export function searchParamsToTaskFilters(params: URLSearchParams): TaskFilterSt
     assigneeIds: splitCsv(params.get('assigneeIds')),
     priorities: splitCsv(params.get('priorities')),
     milestoneIds: splitCsv(params.get('milestoneIds')),
+    labelIds: splitCsv(params.get('labelIds')),
     sprintIds: splitCsv(params.get('sprintIds')),
     startDateFrom: params.get('startDateFrom') || '',
     startDateTo: params.get('startDateTo') || '',
@@ -214,6 +224,7 @@ export function taskFiltersToSearchParams(filters: TaskFilterState): URLSearchPa
   if (filters.assigneeIds.length) params.set('assigneeIds', filters.assigneeIds.join(','))
   if (filters.priorities.length) params.set('priorities', filters.priorities.join(','))
   if (filters.milestoneIds.length) params.set('milestoneIds', filters.milestoneIds.join(','))
+  if (filters.labelIds.length) params.set('labelIds', filters.labelIds.join(','))
   if (filters.sprintIds.length) params.set('sprintIds', filters.sprintIds.join(','))
   if (filters.startDateFrom) params.set('startDateFrom', filters.startDateFrom)
   if (filters.startDateTo) params.set('startDateTo', filters.startDateTo)

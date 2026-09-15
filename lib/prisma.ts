@@ -9,11 +9,13 @@ function prismaClientReady(client: PrismaClient) {
     whatsAppInstance?: { findMany?: unknown }
     callRoom?: { findMany?: unknown }
     userPresenceSession?: { findMany?: unknown }
+    taskLabel?: { findMany?: unknown }
   }
   return (
     typeof d.whatsAppInstance?.findMany === "function" &&
     typeof d.callRoom?.findMany === "function" &&
-    typeof d.userPresenceSession?.findMany === "function"
+    typeof d.userPresenceSession?.findMany === "function" &&
+    typeof d.taskLabel?.findMany === "function"
   )
 }
 

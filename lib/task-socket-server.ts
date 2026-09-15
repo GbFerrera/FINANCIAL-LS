@@ -2,12 +2,20 @@ import 'server-only'
 
 import type { Server as ServerIO } from 'socket.io'
 import type { TaskSocketPayload, TaskUpdateEvent } from '@/lib/task-socket-types'
+import { extractTaskLabels } from '@/lib/task-labels'
 import { emitViaRealtimeBroadcast } from '@/lib/realtime-broadcast'
 
-export function serializeTaskForSocket(task: Record<string, unknown>): TaskSocketPayload {
+export function serializeTaskForSocket(
+  task: Record<string, unknown>,
+  viewerUserId?: string
+): TaskSocketPayload {
   const assignee = task.assignee as TaskSocketPayload['assignee']
   const milestone = task.milestone as TaskSocketPayload['milestone']
   const project = task.project as TaskSocketPayload['project']
+  const labelAssignments = task.labelAssignments as
+    | { label: Parameters<typeof extractTaskLabels>[0][number]['label'] }[]
+    | undefined
+  const explicitLabels = task.labels as TaskSocketPayload['labels'] | undefined
 
   return {
     id: String(task.id),
@@ -38,6 +46,11 @@ export function serializeTaskForSocket(task: Record<string, unknown>): TaskSocke
         }
       : null,
     project: project ? { id: project.id, name: project.name } : undefined,
+    labels:
+      explicitLabels ??
+      (viewerUserId && labelAssignments
+        ? extractTaskLabels(labelAssignments, viewerUserId)
+        : undefined),
   }
 }
 
@@ -138,6 +151,7 @@ export function shouldBroadcastTaskPatch(
     'sprintId',
     'order',
     'hasBonus',
+    'labelIds',
   ]
 
   return trackedKeys.some((key) => updates[key] !== undefined)

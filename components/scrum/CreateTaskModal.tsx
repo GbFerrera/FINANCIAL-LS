@@ -33,6 +33,7 @@ import { toast } from 'react-hot-toast'
 import { TaskChecklist } from '@/components/collaborator/TaskChecklist'
 import { TaskCommentsPanel } from '@/components/scrum/TaskCommentsPanel'
 import { TaskMetadataControls } from '@/components/scrum/TaskMetadataControls'
+import type { TaskLabelDTO } from '@/lib/task-labels'
 import { cn } from '@/lib/utils'
 import { setActiveTaskViewId } from '@/lib/active-task-view'
 import {
@@ -120,6 +121,7 @@ interface CreateTaskModalProps {
   editingTask?: Task | null
   sprintProjects?: Project[]
   milestones?: Milestone[]
+  workspaceId?: string | null
 }
 
 interface User {
@@ -150,7 +152,8 @@ export function CreateTaskModal({
   onEditingTaskSync,
   editingTask,
   sprintProjects: propSprintProjects = [],
-  milestones: propMilestones = []
+  milestones: propMilestones = [],
+  workspaceId = null,
 }: CreateTaskModalProps) {
   const [loading, setLoading] = useState(false)
   const [teamMembers, setTeamMembers] = useState<User[]>([])
@@ -181,6 +184,8 @@ export function CreateTaskModal({
   const [statusHistory, setStatusHistory] = useState<StatusHistoryRow[]>([])
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [savingLinks, setSavingLinks] = useState(false)
+  const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([])
+  const [availableLabels, setAvailableLabels] = useState<TaskLabelDTO[]>([])
   const fileUploadRef = useRef<{ handleUpload: (taskIdOverride?: string) => Promise<UploadFileInfo[]> } | null>(null)
   const skipAutoSaveRef = useRef(true)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -235,9 +240,33 @@ export function CreateTaskModal({
           : []
         setLinkedProjectIds(links)
         setStatusHistory(Array.isArray(data.statusHistory) ? data.statusHistory : [])
+        const taskLabels = Array.isArray(data.labels) ? (data.labels as TaskLabelDTO[]) : []
+        setSelectedLabelIds(taskLabels.map((label) => label.id))
+        setAvailableLabels((prev) => {
+          const map = new Map(prev.map((label) => [label.id, label]))
+          taskLabels.forEach((label) => map.set(label.id, label))
+          return [...map.values()]
+        })
       })
       .catch(() => {})
   }, [editingTask?.id, editingTask?.isArchived, isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : ''
+    fetch(`/api/task-labels${qs}`)
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = await res.json()
+        const rows = Array.isArray(data.labels) ? (data.labels as TaskLabelDTO[]) : []
+        setAvailableLabels((prev) => {
+          const map = new Map(prev.map((label) => [label.id, label]))
+          rows.forEach((label) => map.set(label.id, label))
+          return [...map.values()]
+        })
+      })
+      .catch(() => {})
+  }, [isOpen, workspaceId])
 
   const handleDeleteAttachment = async (file: UploadFileInfo) => {
     if (!editingTask) return
@@ -524,6 +553,38 @@ export function CreateTaskModal({
       }
     },
     [editingTask, uploadPendingAttachments]
+  )
+
+  const commitLabels = useCallback(
+    async (ids: string[]) => {
+      if (!editingTask) {
+        setSelectedLabelIds(ids)
+        return
+      }
+
+      try {
+        const res = await fetch(`/api/tasks/${editingTask.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ labelIds: ids }),
+        })
+        const data = await res.json().catch(() => ({} as { error?: string; labels?: TaskLabelDTO[] }))
+        if (!res.ok) {
+          throw new Error(data.error || 'Falha ao salvar etiquetas')
+        }
+        const taskLabels = Array.isArray(data.labels) ? (data.labels as TaskLabelDTO[]) : []
+        setSelectedLabelIds(taskLabels.map((label) => label.id))
+        setAvailableLabels((prev) => {
+          const map = new Map(prev.map((label) => [label.id, label]))
+          taskLabels.forEach((label) => map.set(label.id, label))
+          return [...map.values()]
+        })
+        onSuccess()
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Erro ao salvar etiquetas')
+      }
+    },
+    [editingTask, onSuccess]
   )
 
   const commitDates = useCallback(
@@ -832,6 +893,7 @@ export function CreateTaskModal({
         ...(data.estimatedMinutes && { estimatedMinutes: data.estimatedMinutes }),
         // @ts-ignore
         ...(data.hasBonus !== undefined ? { hasBonus: !!data.hasBonus } : {}),
+        ...(selectedLabelIds.length > 0 ? { labelIds: selectedLabelIds } : {}),
       }
 
       const url = editingTask ? `/api/tasks/${editingTask.id}` : '/api/projects/tasks'
@@ -994,44 +1056,31 @@ export function CreateTaskModal({
     }
   }
 
-  const metadataControls = (
-    <TaskMetadataControls
-      watch={watch}
-      setValue={setValue}
-      register={register}
-      teamMembers={teamMembers}
-      milestones={propMilestones}
-      sprintProjects={sprintProjects}
-      selectedProjectId={selectedProjectId}
-      onProjectChange={(value) => {
-        setSelectedProjectId(value)
-        fetchTeamMembers()
-      }}
-      estimatedEndTime={estimatedEndTime}
-      showSummary
-      onDatesCommit={commitDates}
-    />
-  )
+  const metadataControlProps = {
+    watch,
+    setValue,
+    register,
+    teamMembers,
+    milestones: propMilestones,
+    sprintProjects,
+    selectedProjectId,
+    onProjectChange: (value: string) => {
+      setSelectedProjectId(value)
+      fetchTeamMembers()
+    },
+    estimatedEndTime,
+    showSummary: true as const,
+    onDatesCommit: commitDates,
+    labelIds: selectedLabelIds,
+    onLabelIdsChange: setSelectedLabelIds,
+    onLabelsCommit: commitLabels,
+    taskLabels: availableLabels,
+    workspaceId,
+  }
 
-  const sidebarProperties = (
-    <TaskMetadataControls
-      watch={watch}
-      setValue={setValue}
-      register={register}
-      teamMembers={teamMembers}
-      milestones={propMilestones}
-      sprintProjects={sprintProjects}
-      selectedProjectId={selectedProjectId}
-      onProjectChange={(value) => {
-        setSelectedProjectId(value)
-        fetchTeamMembers()
-      }}
-      estimatedEndTime={estimatedEndTime}
-      showSummary
-      hideToolbar
-      onDatesCommit={commitDates}
-    />
-  )
+  const metadataControls = <TaskMetadataControls {...metadataControlProps} />
+
+  const sidebarProperties = <TaskMetadataControls {...metadataControlProps} hideToolbar />
 
   const watchedDescription = watch('description')
   const descriptionForEditor =

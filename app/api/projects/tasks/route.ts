@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { broadcastTaskEvent, serializeTaskForSocket } from '@/lib/task-socket-server'
 import { prisma } from '@/lib/prisma'
 import { syncTaskLinkedProjects } from '@/lib/task-projects'
+import { extractTaskLabels, syncTaskLabels, taskLabelsInclude } from '@/lib/task-labels'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
       hasBonus,
       status: requestedStatus,
       linkedProjectIds,
+      labelIds,
     } = body
 
     if (!title || !projectId) {
@@ -92,6 +94,13 @@ export async function POST(request: NextRequest) {
 
         await syncTaskLinkedProjects(tx, created.id, projectId, extraLinks)
 
+        if (Array.isArray(labelIds) && labelIds.length > 0) {
+          const userId = (session.user as { id?: string }).id
+          if (userId) {
+            await syncTaskLabels(tx, created.id, labelIds.filter(Boolean), userId)
+          }
+        }
+
         await tx.taskStatusHistory.create({
           data: {
             taskId: created.id,
@@ -118,12 +127,16 @@ export async function POST(request: NextRequest) {
                 project: { select: { id: true, name: true } },
               },
             },
+            ...taskLabelsInclude,
           },
         })
       })
     } catch (e) {
       if (e instanceof Error && e.message === 'INVALID_PROJECTS') {
         return NextResponse.json({ error: 'Projetos vinculados inválidos' }, { status: 400 })
+      }
+      if (e instanceof Error && e.message === 'INVALID_LABELS') {
+        return NextResponse.json({ error: 'Etiquetas inválidas' }, { status: 400 })
       }
       throw e
     }
@@ -145,7 +158,12 @@ export async function POST(request: NextRequest) {
       }).catch(console.error)
     }
 
-    return NextResponse.json(task, { status: 201 })
+    const labels = extractTaskLabels(
+      task.labelAssignments,
+      (session.user as { id?: string }).id || ''
+    )
+
+    return NextResponse.json({ ...task, labels }, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar tarefa:', error)
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })

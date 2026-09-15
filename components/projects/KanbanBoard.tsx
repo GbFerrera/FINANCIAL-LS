@@ -28,6 +28,7 @@ import {
   taskMatchesCustomKanbanColumn,
   taskMatchesKanbanColumn,
 } from "@/lib/pipeline/task-utils";
+import type { TaskLabelDTO } from "@/lib/task-labels";
 
 const COLUMN_DRAG_TYPE = "column";
 const COLUMN_DRAG_PREFIX = "column::";
@@ -61,6 +62,7 @@ interface ProjectTask {
     name: string;
   } | null;
   coverImageUrl?: string | null;
+  labels?: TaskLabelDTO[];
 }
 
 interface KanbanBoardProps {
@@ -270,6 +272,7 @@ export function KanbanBoard({
     estimatedMinutes: task.estimatedMinutes || undefined,
     order: index,
     coverImageUrl: task.coverImageUrl || undefined,
+    labels: task.labels ?? [],
   });
 
   const renderColumn = (

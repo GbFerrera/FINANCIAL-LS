@@ -31,6 +31,7 @@ import { ProjectMultiPicker } from '@/components/projects/project-picker'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { CustomStatusesManager } from '@/components/pipeline/CustomStatusesManager'
+import { TaskLabelsManager } from '@/components/scrum/TaskLabelsManager'
 import { KanbanColumnStatusSelect } from '@/components/pipeline/KanbanColumnStatusSelect'
 import {
   DEFAULT_MANAGEMENT_COLUMNS,
@@ -517,6 +518,12 @@ export default function WorkspacesSettingsPage() {
                     }))
                   }
                 />
+
+                {editingId && (
+                  <div className="rounded-lg border p-3">
+                    <TaskLabelsManager workspaceId={editingId} />
+                  </div>
+                )}
               </>
             )}
           </div>

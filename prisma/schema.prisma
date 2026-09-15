@@ -48,6 +48,7 @@ model User {
   callRoomMessages CallRoomMessage[]
   teamChannelMessages TeamChannelMessage[]
   taskStatusChanges   TaskStatusHistory[]
+  taskLabels          TaskLabel[]
 
   @@map("users")
 }
@@ -284,6 +285,7 @@ model Workspace {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   projects    WorkspaceProject[]
+  taskLabels  TaskLabel[]
 
   @@map("workspaces")
 }
@@ -358,8 +360,45 @@ model Task {
   checklistItems   TaskChecklistItem[]
   linkedProjects   TaskProject[]
   statusHistory    TaskStatusHistory[]
+  labelAssignments TaskLabelAssignment[]
 
   @@map("tasks")
+}
+
+enum TaskLabelScope {
+  GLOBAL
+  PERSONAL
+}
+
+model TaskLabel {
+  id          String         @id @default(cuid())
+  name        String
+  color       String         @default("#6366f1")
+  scope       TaskLabelScope @default(PERSONAL)
+  userId      String?
+  workspaceId String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  user        User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments TaskLabelAssignment[]
+
+  @@unique([name, scope, userId, workspaceId])
+  @@index([scope, userId])
+  @@index([workspaceId])
+  @@map("task_labels")
+}
+
+model TaskLabelAssignment {
+  id        String    @id @default(cuid())
+  taskId    String
+  labelId   String
+  createdAt DateTime  @default(now())
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label     TaskLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, labelId])
+  @@map("task_label_assignments")
 }
 
 model TaskProject {
