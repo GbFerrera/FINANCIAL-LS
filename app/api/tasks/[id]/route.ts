@@ -123,6 +123,25 @@ export async function PATCH(
       ? (updates.labelIds as string[]).filter(Boolean)
       : undefined
 
+    const nextProjectId =
+      typeof updates.projectId === 'string' && updates.projectId.trim()
+        ? updates.projectId.trim()
+        : undefined
+
+    if (nextProjectId && nextProjectId !== existingTask.projectId) {
+      const targetProject = await prisma.project.findUnique({
+        where: { id: nextProjectId },
+        select: { id: true },
+      })
+      if (!targetProject) {
+        return NextResponse.json({ error: 'Projeto não encontrado' }, { status: 404 })
+      }
+    }
+
+    const projectChanged =
+      !!nextProjectId && nextProjectId !== existingTask.projectId
+    const primaryProjectId = nextProjectId || existingTask.projectId
+
     const taskUpdateData = {
       ...(updates.title !== undefined && { title: updates.title }),
       ...(updates.description !== undefined && { description: updates.description }),
@@ -143,6 +162,8 @@ export async function PATCH(
       ...(setCompletedAt !== undefined ? { completedAt: setCompletedAt as Date | null } : {}),
       ...(setArchivedAt !== undefined ? { archivedAt: setArchivedAt as Date | null } : {}),
       ...(updates.sprintId !== undefined && updates.sprintId !== null ? { sprintId: updates.sprintId } : {}),
+      ...(projectChanged ? { sprintId: null, kanbanColumnId: null } : {}),
+      ...(nextProjectId ? { projectId: nextProjectId } : {}),
       ...(updates.order !== undefined && { order: updates.order }),
       updatedAt: new Date(),
     }
@@ -166,14 +187,21 @@ export async function PATCH(
           include: extendedInclude,
         })
 
-        if (linkedProjectIds !== undefined) {
+        if (linkedProjectIds !== undefined || projectChanged) {
           try {
-            await syncTaskLinkedProjects(
-              tx,
-              taskId,
-              existingTask.projectId,
-              linkedProjectIds
-            )
+            let links = linkedProjectIds
+            if (links === undefined && projectChanged) {
+              const existingLinks = await tx.taskProject.findMany({
+                where: { taskId },
+                select: { projectId: true },
+              })
+              links = existingLinks
+                .map((row) => row.projectId)
+                .filter(
+                  (id) => id !== existingTask.projectId && id !== primaryProjectId
+                )
+            }
+            await syncTaskLinkedProjects(tx, taskId, primaryProjectId, links)
           } catch (e) {
             if (e instanceof Error && e.message === 'INVALID_PROJECTS') {
               throw new Error('INVALID_PROJECTS')
@@ -204,7 +232,7 @@ export async function PATCH(
           })
         }
 
-        if (linkedProjectIds !== undefined || labelIds !== undefined) {
+        if (linkedProjectIds !== undefined || labelIds !== undefined || projectChanged) {
           return tx.task.findUnique({
             where: { id: taskId },
             include: extendedInclude,
