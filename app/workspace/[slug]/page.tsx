@@ -16,11 +16,22 @@ export default async function WorkspaceHomePage({ params }: Props) {
   const workspace = mapWorkspace(row)
   const projectIds = workspace.projectIds
 
+  const taskScopeWhere =
+    projectIds.length > 0
+      ? {
+          isArchived: false,
+          OR: [
+            { projectId: { in: projectIds } },
+            { linkedProjects: { some: { projectId: { in: projectIds } } } },
+          ],
+        }
+      : null
+
   const [taskStats, sprintCount, projectDetails] = await Promise.all([
-    projectIds.length
+    taskScopeWhere
       ? prisma.task.groupBy({
           by: ['status'],
-          where: { projectId: { in: projectIds }, isArchived: false },
+          where: taskScopeWhere,
           _count: true,
         })
       : Promise.resolve([]),

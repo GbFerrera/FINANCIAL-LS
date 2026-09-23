@@ -22,7 +22,7 @@ services:
       - traefik.http.services.projects-socket.loadbalancer.server.port=3000
     environment:
       - TZ=America/Sao_Paulo
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${COMPOSE_PROJECT_NAME:-financial}-postgres:5432/${POSTGRES_DB:-financial_ls}?schema=public
+      - DATABASE_URL=postgresql://financial_app:${POSTGRES_PASSWORD:-postgres}@${COMPOSE_PROJECT_NAME:-financial}-postgres:5432/${POSTGRES_DB:-financial_ls}?schema=public
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - SMTP_HOST=${SMTP_HOST}
@@ -106,7 +106,7 @@ services:
       AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-dev-evolution-key-change-me}
       DATABASE_ENABLED: "true"
       DATABASE_PROVIDER: postgresql
-      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${EVOLUTION_POSTGRES_DB:-evolution}?schema=public
+      DATABASE_CONNECTION_URI: postgresql://financial_app:${POSTGRES_PASSWORD:-postgres}@db:5432/${EVOLUTION_POSTGRES_DB:-evolution}?schema=public
       CACHE_REDIS_ENABLED: "true"
       CACHE_REDIS_URI: redis://evolution-redis:6379/0
       DEL_INSTANCE: "false"

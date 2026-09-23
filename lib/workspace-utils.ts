@@ -62,13 +62,19 @@ export function mapWorkspace(row: {
   const projects = [...row.projects].sort(
     (a, b) => a.sortOrder - b.sortOrder || a.project.name.localeCompare(b.project.name)
   )
+  const internalId =
+    kind === 'MANAGEMENT' ? parseWorkspaceSettings(row.settings).internalProjectId : undefined
   const visibleProjects =
     kind === 'MANAGEMENT'
-      ? projects.filter(({ project }) => {
-          const internalId = parseWorkspaceSettings(row.settings).internalProjectId
-          return !internalId || project.id !== internalId
-        })
+      ? projects.filter(({ project }) => !internalId || project.id !== internalId)
       : projects
+  // Quadro CEO: pipeline/home usam projectIds; sidebar não lista o projeto interno duplicado.
+  const projectIds =
+    kind === 'MANAGEMENT' && internalId
+      ? projects.some((p) => p.project.id === internalId)
+        ? [internalId]
+        : projects.map((p) => p.project.id)
+      : projects.map((p) => p.project.id)
 
   return {
     id: row.id,
@@ -80,7 +86,7 @@ export function mapWorkspace(row: {
     settings: settingsForManagementKind(kind, row.settings),
     sortOrder: row.sortOrder,
     projects: visibleProjects,
-    projectIds: projects.map((p) => p.project.id),
+    projectIds,
   }
 }
 

@@ -30,4 +30,5 @@ COPY --from=builder /app/node_modules ./node_modules
 RUN mkdir -p /app/uploads
 EXPOSE 3000
 ENV PORT=3000
-CMD ["node", "server.js"]
+RUN chmod +x /app/scripts/start-prod.sh
+CMD ["/app/scripts/start-prod.sh"]

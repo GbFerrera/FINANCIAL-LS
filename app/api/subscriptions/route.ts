@@ -41,6 +41,16 @@ const deleteSubscriptionSchema = z.object({
   subscriptionId: z.string().min(1),
 })
 
+const disableClientSubscriptionSchema = z.object({
+  clientSubscriptionId: z.string().min(1),
+  disable: z.literal(true),
+})
+
+const enableClientSubscriptionSchema = z.object({
+  clientSubscriptionId: z.string().min(1),
+  enable: z.literal(true),
+})
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -49,18 +59,21 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url)
     const groupId = searchParams.get("groupId") || undefined
+    const view = searchParams.get("view") === "disabled" ? "disabled" : "active"
+    const linkStatus = view === "disabled" ? "CANCELED" : "ACTIVE"
 
     const db = prisma as any
     const subscriptions = await db.subscription.findMany({
       where: {
         isActive: true,
         ...(groupId ? { groupId } : {}),
+        clients: { some: { status: linkStatus } },
       },
       orderBy: { createdAt: "desc" },
       include: {
         group: true,
         clients: {
-          where: { status: "ACTIVE" },
+          where: { status: linkStatus },
           include: {
             client: { select: { id: true, name: true, email: true, company: true } },
           },
@@ -134,8 +147,48 @@ export async function PATCH(req: NextRequest) {
     const json = await req.json()
     const isResetPayment =
       json && typeof json === "object" && json.resetPayment === true && "clientSubscriptionId" in json
-    const isMarkPaid = json && typeof json === "object" && "clientSubscriptionId" in json && !isResetPayment
+    const isDisable =
+      json && typeof json === "object" && json.disable === true && "clientSubscriptionId" in json
+    const isEnable =
+      json && typeof json === "object" && json.enable === true && "clientSubscriptionId" in json
+    const isMarkPaid =
+      json &&
+      typeof json === "object" &&
+      "clientSubscriptionId" in json &&
+      !isResetPayment &&
+      !isDisable &&
+      !isEnable
     const isUpdateSubscription = json && typeof json === "object" && "subscriptionId" in json && !("clientSubscriptionId" in json)
+
+    if (isDisable) {
+      const body = disableClientSubscriptionSchema.parse(json)
+      const db = prisma as any
+      const updated = await db.clientSubscription.update({
+        where: { id: body.clientSubscriptionId },
+        data: { status: "CANCELED", endedAt: new Date() },
+        include: {
+          client: { select: { id: true, name: true, email: true } },
+          subscription: { include: { group: true } },
+        },
+      })
+      scheduleLinkBrainSync("assinatura assinante desabilitado")
+      return NextResponse.json(updated)
+    }
+
+    if (isEnable) {
+      const body = enableClientSubscriptionSchema.parse(json)
+      const db = prisma as any
+      const updated = await db.clientSubscription.update({
+        where: { id: body.clientSubscriptionId },
+        data: { status: "ACTIVE", endedAt: null },
+        include: {
+          client: { select: { id: true, name: true, email: true } },
+          subscription: { include: { group: true } },
+        },
+      })
+      scheduleLinkBrainSync("assinatura assinante reativado")
+      return NextResponse.json(updated)
+    }
 
     if (isResetPayment) {
       const body = resetPaymentSchema.parse(json)

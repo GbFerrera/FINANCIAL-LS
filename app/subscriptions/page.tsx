@@ -4,7 +4,21 @@ import { useEffect, useMemo, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import toast from "react-hot-toast"
-import { CreditCard, ChevronLeft, ChevronRight, Edit, FolderOpen, MoreHorizontal, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react"
+import {
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  FolderOpen,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  Trash2,
+  UserX,
+  Users,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +52,7 @@ type SubscriptionCycleFilter = "all" | "MONTHLY" | "YEARLY"
 function getSubscriptionBillingStatus(s: Subscription, todayKey: string): SubscriptionBillingStatus {
   if (!s.isActive) return "inactive"
   const link = s.clients?.[0]
+  if (!link || (link.status || "").toUpperCase() !== "ACTIVE") return "inactive"
   const dueDay = typeof link?.dueDay === "number" ? link.dueDay : null
   if (dueDay === null) return "pending"
 
@@ -221,7 +236,7 @@ export default function SubscriptionsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState<"subscriptions" | "groups">("subscriptions")
+  const [activeTab, setActiveTab] = useState<"subscriptions" | "disabled" | "groups">("subscriptions")
   const [loading, setLoading] = useState(true)
   const [subscriptionSearchTerm, setSubscriptionSearchTerm] = useState("")
   const [groupSearchTerm, setGroupSearchTerm] = useState("")
@@ -240,6 +255,11 @@ export default function SubscriptionsPage() {
 
   const [groups, setGroups] = useState<Group[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+  const [disabledSubscriptions, setDisabledSubscriptions] = useState<Subscription[]>([])
+  const [disabledSearchTerm, setDisabledSearchTerm] = useState("")
+  const [disabledPage, setDisabledPage] = useState(1)
+  const [disablingId, setDisablingId] = useState<string | null>(null)
+  const [enablingId, setEnablingId] = useState<string | null>(null)
 
   const [newGroupName, setNewGroupName] = useState("")
   const [newGroupDescription, setNewGroupDescription] = useState("")
@@ -278,10 +298,14 @@ export default function SubscriptionsPage() {
     setGroupPage(1)
   }, [groupSearchTerm])
 
+  useEffect(() => {
+    setDisabledPage(1)
+  }, [disabledSearchTerm])
+
   const refreshAll = async () => {
     setLoading(true)
     try {
-      await Promise.all([fetchGroups(), fetchSubscriptions()])
+      await Promise.all([fetchGroups(), fetchSubscriptions(), fetchDisabledSubscriptions()])
     } finally {
       setLoading(false)
     }
@@ -295,10 +319,59 @@ export default function SubscriptionsPage() {
   }
 
   const fetchSubscriptions = async () => {
-    const res = await fetch("/api/subscriptions")
+    const res = await fetch("/api/subscriptions?view=active")
     if (!res.ok) throw new Error("Falha ao buscar assinaturas")
     const data = await res.json()
     setSubscriptions(data.subscriptions || [])
+  }
+
+  const fetchDisabledSubscriptions = async () => {
+    const res = await fetch("/api/subscriptions?view=disabled")
+    if (!res.ok) throw new Error("Falha ao buscar assinaturas desabilitadas")
+    const data = await res.json()
+    setDisabledSubscriptions(data.subscriptions || [])
+  }
+
+  const disableSubscriber = async (clientSubscriptionId: string) => {
+    try {
+      setDisablingId(clientSubscriptionId)
+      const res = await fetch("/api/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientSubscriptionId, disable: true }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error || "Falha ao desabilitar")
+      }
+      toast.success("Assinante desabilitado")
+      await Promise.all([fetchSubscriptions(), fetchDisabledSubscriptions()])
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erro ao desabilitar assinante")
+    } finally {
+      setDisablingId(null)
+    }
+  }
+
+  const enableSubscriber = async (clientSubscriptionId: string) => {
+    try {
+      setEnablingId(clientSubscriptionId)
+      const res = await fetch("/api/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientSubscriptionId, enable: true }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error || "Falha ao reativar")
+      }
+      toast.success("Assinante reativado")
+      await Promise.all([fetchSubscriptions(), fetchDisabledSubscriptions()])
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Erro ao reativar assinante")
+    } finally {
+      setEnablingId(null)
+    }
   }
 
   const createGroup = async () => {
@@ -520,10 +593,14 @@ export default function SubscriptionsPage() {
     let nextDueInMonthAmount = 0
 
     for (const s of subscriptions) {
-      total += Number(s.price || 0)
+      if (!s.isActive) continue
       const price = Number(s.price || 0)
+      const activeLinks = (s.clients || []).filter((link) => (link.status || "").toUpperCase() === "ACTIVE")
+      if (activeLinks.length === 0) continue
 
-      for (const link of s.clients || []) {
+      total += price
+
+      for (const link of activeLinks) {
         const due = chargeDueForMonth({
           billingCycle: s.billingCycle,
           isActive: s.isActive,
@@ -720,6 +797,26 @@ export default function SubscriptionsPage() {
     safeGroupPage * PAGE_SIZE
   )
 
+  const filteredDisabledSubscriptions = useMemo(() => {
+    const q = disabledSearchTerm.trim().toLowerCase()
+    return disabledSubscriptions.filter((s) => {
+      if (!q) return true
+      const clientName = s.clients?.[0]?.client?.name?.toLowerCase() || ""
+      return (
+        s.name.toLowerCase().includes(q) ||
+        clientName.includes(q) ||
+        (s.group?.name || "").toLowerCase().includes(q)
+      )
+    })
+  }, [disabledSubscriptions, disabledSearchTerm])
+
+  const disabledTotalPages = Math.max(1, Math.ceil(filteredDisabledSubscriptions.length / PAGE_SIZE))
+  const safeDisabledPage = Math.min(disabledPage, disabledTotalPages)
+  const paginatedDisabledSubscriptions = filteredDisabledSubscriptions.slice(
+    (safeDisabledPage - 1) * PAGE_SIZE,
+    safeDisabledPage * PAGE_SIZE
+  )
+
   const hasSubscriptionFilters =
     subscriptionSearchTerm.trim() !== "" ||
     subscriptionStatusFilter !== "all" ||
@@ -762,11 +859,20 @@ export default function SubscriptionsPage() {
 
       <SubscriptionSummaryCards summary={subscriptionSummary} />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "subscriptions" | "groups")}>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "subscriptions" | "disabled" | "groups")}>
         <TabsList>
           <TabsTrigger value="subscriptions" className="gap-1.5">
             <CreditCard className="h-3.5 w-3.5" />
             Assinaturas
+          </TabsTrigger>
+          <TabsTrigger value="disabled" className="gap-1.5">
+            <UserX className="h-3.5 w-3.5" />
+            Desabilitadas
+            {disabledSubscriptions.length > 0 ? (
+              <Badge variant="secondary" className="ml-1 h-5 min-w-[1.25rem] px-1 text-[10px]">
+                {disabledSubscriptions.length}
+              </Badge>
+            ) : null}
           </TabsTrigger>
           <TabsTrigger value="groups" className="gap-1.5">
             <FolderOpen className="h-3.5 w-3.5" />
@@ -973,6 +1079,15 @@ export default function SubscriptionsPage() {
                                     <Edit className="mr-2 h-4 w-4" />
                                     Editar
                                   </DropdownMenuItem>
+                                  {link?.id ? (
+                                    <DropdownMenuItem
+                                      disabled={disablingId === link.id}
+                                      onClick={() => void disableSubscriber(link.id)}
+                                    >
+                                      <UserX className="mr-2 h-4 w-4" />
+                                      {disablingId === link.id ? "Desabilitando..." : "Desabilitar assinante"}
+                                    </DropdownMenuItem>
+                                  ) : null}
                                   <DropdownMenuItem
                                     variant="destructive"
                                     onClick={() => void deleteSubscription(s)}
@@ -996,6 +1111,104 @@ export default function SubscriptionsPage() {
                   pageSize={PAGE_SIZE}
                   onPageChange={setSubscriptionPage}
                 />
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="disabled" className="mt-4 space-y-4">
+          <Card className="gap-0 overflow-hidden py-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <CardHeader className="border-b border-border px-4 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-base">Assinantes desabilitados</CardTitle>
+                  <CardDescription className="mt-0.5">
+                    Clientes que desistiram — não entram no total nem na cobrança ativa.
+                  </CardDescription>
+                </div>
+                <div className="relative w-full sm:max-w-xs">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar..."
+                    value={disabledSearchTerm}
+                    onChange={(e) => setDisabledSearchTerm(e.target.value)}
+                    className="h-9 pl-9"
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              {filteredDisabledSubscriptions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <UserX className="mb-2 h-8 w-8 text-muted-foreground/35" />
+                  <p className="text-sm font-medium text-foreground">Nenhum assinante desabilitado</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Use o menu ⋯ na lista de assinaturas para desabilitar quando o cliente sair.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {paginatedDisabledSubscriptions.map((s) => {
+                      const link = (s.clients || [])[0] || null
+                      const clientName = link?.client?.name || "—"
+                      const endedAt = link?.endedAt ? new Date(link.endedAt) : null
+                      return (
+                        <div
+                          key={s.id}
+                          className="rounded-lg border border-border/70 bg-muted/10 p-4"
+                        >
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium text-foreground">{s.name}</p>
+                                {s.group?.name ? (
+                                  <Badge variant="secondary" className="text-[10px] font-normal">
+                                    {s.group.name}
+                                  </Badge>
+                                ) : null}
+                                <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                                  Desabilitada
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-sm text-muted-foreground">{clientName}</p>
+                              {endedAt ? (
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  Desabilitada em {formatDateTimeBR(endedAt)}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+                              <div className="text-right">
+                                <p className="text-[11px] text-muted-foreground">Valor (referência)</p>
+                                <CurrencyAmount value={Number(s.price || 0)} size="sm" />
+                              </div>
+                              {link?.id ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8"
+                                  disabled={enablingId === link.id}
+                                  onClick={() => void enableSubscriber(link.id)}
+                                >
+                                  <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                                  {enablingId === link.id ? "Reativando..." : "Reativar"}
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <ListPagination
+                    page={safeDisabledPage}
+                    totalPages={disabledTotalPages}
+                    totalItems={filteredDisabledSubscriptions.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setDisabledPage}
+                  />
                 </>
               )}
             </CardContent>

@@ -1,10 +1,14 @@
 /**
- * Corrige tasks do usuário na Esteira A: remove etiqueta CEO e move para workspace CEO.
+ * Move tasks Esteira A → workspace CEO via API (requer deploy do PATCH projectId).
  *
- * Uso: source .env.local && npx tsx scripts/move-tasks-to-ceo-workspace.ts
+ * Preferível sem deploy: npx tsx scripts/move-tasks-to-ceo-workspace-prisma.ts
+ * (com PROD_DATABASE_URL no .env.local — Coolify → projects → DATABASE_URL)
  */
-import 'dotenv/config'
+import { config } from 'dotenv'
 import { loginPm, pmApi, pmBase, requirePmCredentials } from './lib/pm-api-client'
+
+config({ path: '.env.local' })
+config()
 
 type WorkspaceDetail = {
   id: string

@@ -40,6 +40,22 @@ SERVICE_URL_APP=http://cosg4ccwsoc4s0wccco0k0gk.72.61.219.179.sslip.io
 SERVICE_FQDN_APP=cosg4ccwsoc4s0wccco0k0gk.72.61.219.179.sslip.io
 ```
 
+## Migrations em produção (Coolify)
+
+O **Dockerfile** usa `scripts/start-prod.sh`: `prisma migrate deploy` antes de `node server.js`.
+
+Se aparecer **500** em pipeline/tarefas/etiquetas após deploy de schema novo:
+
+```bash
+# Na VPS (container do projects — nome pode variar)
+docker ps --format '{{.Names}}' | grep -i financial
+docker exec -it <NOME_DO_CONTAINER> npx prisma migrate deploy
+docker restart <NOME_DO_CONTAINER>
+docker logs --tail 100 <NOME_DO_CONTAINER>
+```
+
+Erro típico nos logs: `relation "task_labels" does not exist` → migration `20260915120000_task_labels` não aplicada.
+
 ## 🎯 Próximos Passos
 
 1. **Rebuild** a aplicação no Coolify
