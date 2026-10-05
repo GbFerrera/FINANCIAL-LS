@@ -13,7 +13,7 @@ services:
     labels:
       - traefik.docker.network=coolify
       # Socket.IO — rota dedicada sem gzip (gzip quebra upgrade WSS em prod)
-      - traefik.http.routers.projects-socket.rule=Host(`${SERVICE_FQDN_APP:-projects.linksystem.tech}`) && PathPrefix(`/api/socket`)
+      - traefik.http.routers.projects-socket.rule=Host(`projects.linksystem.tech`) && PathPrefix(`/api/socket`)
       - traefik.http.routers.projects-socket.entrypoints=https
       - traefik.http.routers.projects-socket.tls=true
       - traefik.http.routers.projects-socket.tls.certresolver=letsencrypt
