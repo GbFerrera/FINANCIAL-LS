@@ -80,7 +80,11 @@ function attachStatusHandlers(instance: Socket) {
   if ((instance as Socket & { __linkStatusHandlers?: boolean }).__linkStatusHandlers) return
   ;(instance as Socket & { __linkStatusHandlers?: boolean }).__linkStatusHandlers = true
 
-  instance.on('connect', () => notifyStatus(true))
+  instance.on('connect', () => {
+    const tagged = instance as Socket & { __linkAuthKey?: string }
+    tagged.__linkAuthKey = undefined
+    notifyStatus(true)
+  })
   instance.on('disconnect', () => notifyStatus(false))
   instance.io.on('reconnect', () => notifyStatus(true))
 }
@@ -89,11 +93,11 @@ function createSocketInstance(): Socket {
   const instance = io({
     path: '/api/socket',
     addTrailingSlash: false,
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
+    reconnectionAttempts: 12,
+    reconnectionDelay: 1500,
+    reconnectionDelayMax: 10000,
     timeout: 20000,
     autoConnect: false,
   })
@@ -176,6 +180,10 @@ export function authenticateTeamSocket(user: {
 }) {
   const instance = readStoredSocket()
   if (!instance?.connected) return
+  const key = `${user.id}:${user.role ?? ''}:${user.name ?? ''}`
+  const tagged = instance as Socket & { __linkAuthKey?: string }
+  if (tagged.__linkAuthKey === key) return
+  tagged.__linkAuthKey = key
   instance.emit('authenticate', {
     userId: user.id,
     userName: user.name,

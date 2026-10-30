@@ -3,6 +3,7 @@ import { Geist_Mono, Sora, Source_Sans_3 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider"
 import { Providers } from "@/components/providers/session-provider";
 import { AppShell } from "@/components/layout/app-shell";
+import { DevServiceWorkerCleanup } from "@/components/dev-sw-cleanup";
 import { resolveAppBrand } from "@/lib/app-branding";
 import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
@@ -55,18 +56,26 @@ export const metadata: Metadata = {
   },
 };
 
+const devSwCleanupScript = `(function(){if(typeof navigator==="undefined"||!("serviceWorker"in navigator))return;navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});if(typeof caches!=="undefined"){caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k);});});}})();`
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   const brand = resolveAppBrand()
+  const isDev = process.env.NODE_ENV === "development"
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {isDev ? (
+          <script dangerouslySetInnerHTML={{ __html: devSwCleanupScript }} />
+        ) : null}
+      </head>
       <body
         className={`${sora.variable} ${sourceSans.variable} ${geistMono.variable} antialiased`}
       >
-        
+        {isDev ? <DevServiceWorkerCleanup /> : null}
          <ThemeProvider
             attribute="class"
             defaultTheme="system"

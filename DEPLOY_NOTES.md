@@ -40,6 +40,10 @@ SERVICE_URL_APP=http://cosg4ccwsoc4s0wccco0k0gk.72.61.219.179.sslip.io
 SERVICE_FQDN_APP=cosg4ccwsoc4s0wccco0k0gk.72.61.219.179.sslip.io
 ```
 
+## Deploy via GitHub Actions (build fora do servidor)
+
+Build no **GitHub Actions** → imagem **GHCR** → VPS só faz pull. Guia completo: [docs/deploy-github-actions.md](docs/deploy-github-actions.md).
+
 ## Migrations em produção (Coolify)
 
 O **Dockerfile** usa `scripts/start-prod.sh`: `prisma migrate deploy` antes de `node server.js`.
@@ -70,6 +74,18 @@ Erro típico nos logs: `relation "task_labels" does not exist` → migration `20
 - Healthcheck agora em `/api/health` (simples, sem DB)
 - Logs devem mostrar menos falhas de healthcheck
 - Container não deve mais ser derrubado após 2 horas
+
+## Postgres — quedas recorrentes (set/2026)
+
+**Causa:** cron em `/root/pm-postgres-guard.sh` com nomes de container **fixos** (deploy antigo). Após redeploy Coolify, o script falhava no health check e rodava `postgres --single` no volume **com o Postgres real ainda ativo** → corrupção de WAL/checkpoint → loop de restart do DB → 503 / “no available server” / “Erro ao carregar clientes”.
+
+**Correção:**
+
+- Removido o script antigo; instalado guard **seguro** (resolve `db-bsog*` / `app-bsog*` dinamicamente; **nunca** `--single` com volume montado; `pg_resetwal` só com DB parado).
+- Versão no repo: `scripts/pm-postgres-guard-prod.sh` (copiar para `/root/pm-postgres-guard.sh` na VPS).
+- Cron: `*/10 * * * * /root/pm-postgres-guard.sh` (opcional — só recuperação segura).
+
+**Recomendado:** backup diário do volume `bsogksw4wkc4g88ssgcwwggs_postgres-data` no Coolify.
 
 ## 📝 Observações
 
