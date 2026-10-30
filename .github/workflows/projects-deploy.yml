@@ -74,7 +74,8 @@ jobs:
           password: ${{ secrets.PROD_SSH_PASSWORD }}
           key: ${{ secrets.PROD_SSH_KEY }}
           source: scripts/vps-redeploy-from-ghcr.sh
-          target: /root/
+          target: /root/deploy-projects-from-ghcr.sh
+          strip_components: 1
           overwrite: true
 
       - name: Redeploy na VPS (pull GHCR, sem build local)
@@ -92,7 +93,6 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            mv -f /root/vps-redeploy-from-ghcr.sh /root/deploy-projects-from-ghcr.sh
             chmod +x /root/deploy-projects-from-ghcr.sh
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             bash /root/deploy-projects-from-ghcr.sh "$IMAGE"
