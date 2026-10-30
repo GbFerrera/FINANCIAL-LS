@@ -66,15 +66,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Publicar script de redeploy na VPS
+      - name: Publicar scripts de redeploy na VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: root
           password: ${{ secrets.PROD_SSH_PASSWORD }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          source: scripts/vps-redeploy-from-ghcr.sh
-          target: /root/
+          source: scripts/vps-redeploy-from-ghcr.sh,scripts/coolify-compose-app-service.py
+          target: /root/scripts/
           overwrite: true
 
       - name: Redeploy na VPS (pull GHCR, sem build local)
@@ -92,7 +92,8 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            rm -rf /root/deploy-projects-from-ghcr.sh
             install -m 755 /root/scripts/vps-redeploy-from-ghcr.sh /root/deploy-projects-from-ghcr.sh
+            install -m 644 /root/scripts/coolify-compose-app-service.py /root/scripts/coolify-compose-app-service.py 2>/dev/null || true
+            export PATCH_SCRIPT=/root/scripts/coolify-compose-app-service.py
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             bash /root/deploy-projects-from-ghcr.sh "$IMAGE"

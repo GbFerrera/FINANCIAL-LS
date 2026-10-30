@@ -53,13 +53,28 @@ path, image = sys.argv[1], sys.argv[2]
 with open(path, encoding="utf-8") as f:
     data = yaml.safe_load(f)
 
-app = data["services"]["app"]
+services = data.get("services") or {}
+if "app" in services:
+    key = "app"
+else:
+    skip = ("db", "postgres", "redis", "mysql", "mariadb", "mongo")
+    key = None
+    for name in services:
+        if any(s in name.lower() for s in skip):
+            continue
+        key = name
+        break
+    if key is None:
+        key = next(iter(services))
+
+app = services[key]
 app.pop("build", None)
 app["image"] = image
 app["pull_policy"] = "always"
 
 with open(path, "w", encoding="utf-8") as f:
     yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+print(f"[coolify-ghcr] serviço patch: {key}")
 PY
 
 echo "[coolify-ghcr] estado atual:"
