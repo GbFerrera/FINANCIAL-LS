@@ -107,3 +107,5 @@ jobs:
             export PATCH_SCRIPT=/root/scripts/coolify-compose-app-service.py
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             bash /root/deploy-projects-from-ghcr.sh "$IMAGE"
+            echo "[post] postgres (bsog):"
+            docker ps -a --format 'table {{.Names}}\t{{.Status}}' | grep -iE 'postgres|bsog.*db|NAMES' || true

@@ -59,4 +59,19 @@ cd "$APP_DIR"
 docker compose -f "$RUN_COMPOSE" up -d --no-build --remove-orphans "$APP_SERVICE"
 
 echo "[deploy] ok — container:"
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'app-bsog|bsogksw|NAMES' || true
+docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'bsogksw|NAMES' || true
+
+echo "[deploy] aguardando app (15s)..."
+sleep 15
+APP_CTN="$(docker ps -a --format '{{.Names}}' | grep '^bsogksw4wkc4g88ssgcwwggs-' | grep -v postgres | grep -v db- | head -1 || true)"
+if [[ -n "${APP_CTN:-}" ]]; then
+  echo "[deploy] logs ($APP_CTN, tail 60):"
+  docker logs "$APP_CTN" --tail 60 2>&1 || true
+  RUNNING="$(docker inspect -f '{{.State.Running}}' "$APP_CTN" 2>/dev/null || echo false)"
+  if [[ "$RUNNING" != "true" ]]; then
+    echo "[deploy] ERRO: container da app não está running"
+    exit 1
+  fi
+else
+  echo "[deploy] aviso: container da app não identificado para logs"
+fi
