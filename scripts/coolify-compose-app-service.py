@@ -28,13 +28,42 @@ def patch_compose_for_ghcr_image(data: dict, image: str) -> tuple[dict, str]:
     return data, key
 
 
+def write_compose_override(src: str, dst: str, image: str) -> str:
+    """Gera override mínimo (merge) para não perder env/env_file do compose Coolify."""
+    import yaml
+
+    with open(src, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    services = data.get("services") or {}
+    key = app_service_name(services)
+    override = {
+        "services": {
+            key: {
+                "image": image,
+                "pull_policy": "always",
+            }
+        }
+    }
+    with open(dst, "w", encoding="utf-8") as f:
+        yaml.dump(override, f, default_flow_style=False, sort_keys=False)
+    return key
+
+
 if __name__ == "__main__":
     import yaml
 
     if len(sys.argv) != 4:
-        print("usage: coolify-compose-app-service.py <src-compose> <dst-compose> <image>", file=sys.stderr)
+        print(
+            "usage: coolify-compose-app-service.py <src-compose> <dst-compose|override> <image>",
+            file=sys.stderr,
+        )
         sys.exit(2)
     src, dst, image = sys.argv[1:4]
+    if dst.endswith("-override.yaml") or dst.endswith(".override.yaml"):
+        service = write_compose_override(src, dst, image)
+        print(service)
+        sys.exit(0)
+
     with open(src, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     data, service = patch_compose_for_ghcr_image(data, image)

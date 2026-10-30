@@ -6,7 +6,7 @@ set -euo pipefail
 IMAGE="${1:?Informe a imagem completa, ex.: ghcr.io/gbferrera/financial-ls:abc1234}"
 APP_DIR="${APP_DIR:-/data/coolify/applications/bsogksw4wkc4g88ssgcwwggs}"
 SRC_COMPOSE="$APP_DIR/docker-compose.yaml"
-RUN_COMPOSE="$APP_DIR/docker-compose.ghcr-run.yaml"
+OVERRIDE_COMPOSE="$APP_DIR/docker-compose.ghcr-override.yaml"
 PATCH_SCRIPT="${PATCH_SCRIPT:-/root/scripts/coolify-compose-app-service.py}"
 
 if [[ ! -f "$SRC_COMPOSE" ]]; then
@@ -18,9 +18,8 @@ echo "[deploy] pull $IMAGE"
 docker pull "$IMAGE"
 
 if [[ ! -f "$PATCH_SCRIPT" ]]; then
-  # fallback inline (compatível com compose antigo e Coolify sem serviço "app")
   APP_SERVICE="$(
-    python3 - "$SRC_COMPOSE" "$RUN_COMPOSE" "$IMAGE" <<'PY'
+    python3 - "$SRC_COMPOSE" "$OVERRIDE_COMPOSE" "$IMAGE" <<'PY'
 import sys
 import yaml
 
@@ -40,36 +39,48 @@ else:
         break
     if key is None:
         key = next(iter(services))
-app = services[key]
-app.pop("build", None)
-app["image"] = image
-app["pull_policy"] = "always"
+override = {"services": {key: {"image": image, "pull_policy": "always"}}}
 with open(dst, "w", encoding="utf-8") as f:
-    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+    yaml.dump(override, f, default_flow_style=False, sort_keys=False)
 print(key)
 PY
   )"
 else
-  APP_SERVICE="$(python3 "$PATCH_SCRIPT" "$SRC_COMPOSE" "$RUN_COMPOSE" "$IMAGE")"
+  APP_SERVICE="$(python3 "$PATCH_SCRIPT" "$SRC_COMPOSE" "$OVERRIDE_COMPOSE" "$IMAGE")"
 fi
 
 echo "[deploy] serviço alvo: $APP_SERVICE"
 
 cd "$APP_DIR"
-docker compose -f "$RUN_COMPOSE" up -d --no-build --remove-orphans "$APP_SERVICE"
+COMPOSE_CMD=(docker compose)
+if [[ -f "$APP_DIR/.env" ]]; then
+  COMPOSE_CMD+=(--env-file "$APP_DIR/.env")
+fi
+COMPOSE_CMD+=(-f "$SRC_COMPOSE" -f "$OVERRIDE_COMPOSE")
+
+"${COMPOSE_CMD[@]}" up -d --no-build --remove-orphans "$APP_SERVICE"
 
 echo "[deploy] ok — container:"
 docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'bsogksw|NAMES' || true
 
-echo "[deploy] aguardando app (15s)..."
-sleep 15
-APP_CTN="$(docker ps -a --format '{{.Names}}' | grep '^bsogksw4wkc4g88ssgcwwggs-' | grep -v postgres | grep -v db- | head -1 || true)"
+echo "[deploy] aguardando app (20s)..."
+sleep 20
+APP_CTN="$(docker ps -a --format '{{.Names}}' | grep '^bsogksw4wkc4g88ssgcwwggs-' | grep -viE 'postgres|redis' | head -1 || true)"
 if [[ -n "${APP_CTN:-}" ]]; then
-  echo "[deploy] logs ($APP_CTN, tail 60):"
-  docker logs "$APP_CTN" --tail 60 2>&1 || true
+  echo "[deploy] logs ($APP_CTN, tail 80):"
+  LOGS="$(docker logs "$APP_CTN" --tail 80 2>&1 || true)"
+  echo "$LOGS"
+  if echo "$LOGS" | grep -q 'Environment variable not found: DATABASE_URL'; then
+    echo "[deploy] ERRO: DATABASE_URL ausente no container (compose/env Coolify)"
+    exit 1
+  fi
   RUNNING="$(docker inspect -f '{{.State.Running}}' "$APP_CTN" 2>/dev/null || echo false)"
   if [[ "$RUNNING" != "true" ]]; then
     echo "[deploy] ERRO: container da app não está running"
+    exit 1
+  fi
+  if ! docker exec "$APP_CTN" sh -c 'test -n "${DATABASE_URL:-}"'; then
+    echo "[deploy] ERRO: DATABASE_URL vazio dentro do container"
     exit 1
   fi
 else
