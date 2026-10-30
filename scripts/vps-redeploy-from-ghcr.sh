@@ -46,10 +46,16 @@ print(key)
 PY
   )"
 else
-  APP_SERVICE="$(python3 "$PATCH_SCRIPT" "$SRC_COMPOSE" "$OVERRIDE_COMPOSE" "$IMAGE")"
+  APP_SERVICE="$(python3 "$PATCH_SCRIPT" "$SRC_COMPOSE" "$OVERRIDE_COMPOSE" "$IMAGE" "$APP_DIR")"
 fi
 
 echo "[deploy] serviço alvo: $APP_SERVICE"
+if [[ -f "$APP_DIR/.env" ]]; then
+  echo "[deploy] Coolify .env presente ($(grep -cve '^\s*$' -e '^\s*#' "$APP_DIR/.env" || echo 0) linhas úteis)"
+else
+  echo "[deploy] aviso: $APP_DIR/.env não encontrado — env pode vir só do compose"
+  ls -la "$APP_DIR" 2>/dev/null | head -20 || true
+fi
 
 cd "$APP_DIR"
 COMPOSE_CMD=(docker compose)
