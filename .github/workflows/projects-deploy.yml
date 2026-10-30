@@ -92,8 +92,18 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            install -m 755 /root/scripts/vps-redeploy-from-ghcr.sh /root/deploy-projects-from-ghcr.sh
-            install -m 644 /root/scripts/coolify-compose-app-service.py /root/scripts/coolify-compose-app-service.py 2>/dev/null || true
+            # appleboy/scp-action preserva o prefixo "scripts/" → arquivos em /root/scripts/scripts/
+            UPLOAD_DIR="/root/scripts/scripts"
+            if [[ ! -f "$UPLOAD_DIR/vps-redeploy-from-ghcr.sh" ]]; then
+              UPLOAD_DIR="/root/scripts"
+            fi
+            if [[ ! -f "$UPLOAD_DIR/vps-redeploy-from-ghcr.sh" ]]; then
+              echo "Script de redeploy não encontrado após SCP (procurou em /root/scripts/scripts e /root/scripts)"
+              ls -laR /root/scripts || true
+              exit 1
+            fi
+            install -m 755 "$UPLOAD_DIR/vps-redeploy-from-ghcr.sh" /root/deploy-projects-from-ghcr.sh
+            install -m 644 "$UPLOAD_DIR/coolify-compose-app-service.py" /root/scripts/coolify-compose-app-service.py
             export PATCH_SCRIPT=/root/scripts/coolify-compose-app-service.py
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             bash /root/deploy-projects-from-ghcr.sh "$IMAGE"
