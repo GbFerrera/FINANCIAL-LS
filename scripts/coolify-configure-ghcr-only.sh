@@ -31,11 +31,11 @@ fi
 echo "[coolify-ghcr] application id=${APP_ID}"
 
 echo "[coolify-ghcr] DB: auto-deploy off + imagem GHCR"
-psql -v ON_ERROR_STOP=1 -c "UPDATE applications SET is_auto_deploy_enabled = false WHERE uuid = '${COOLIFY_APP_UUID}';"
-psql_try -c "UPDATE applications SET is_preview_deployments_enabled = false WHERE uuid = '${COOLIFY_APP_UUID}';"
-psql_try -c "UPDATE applications SET build_pack = 'dockerimage' WHERE uuid = '${COOLIFY_APP_UUID}';"
-psql_try -c "UPDATE applications SET docker_registry_image_name = 'ghcr.io/gbferrera/financial-ls' WHERE uuid = '${COOLIFY_APP_UUID}';"
-psql_try -c "UPDATE applications SET docker_registry_image_tag = 'latest' WHERE uuid = '${COOLIFY_APP_UUID}';"
+psql -v ON_ERROR_STOP=1 -c "UPDATE application_settings SET is_auto_deploy_enabled = false WHERE application_id = ${APP_ID};"
+psql_try -c "UPDATE application_settings SET is_preview_deployments_enabled = false WHERE application_id = ${APP_ID};"
+psql_try -c "UPDATE applications SET build_pack = 'dockerimage' WHERE id = ${APP_ID};"
+psql_try -c "UPDATE applications SET docker_registry_image_name = 'ghcr.io/gbferrera/financial-ls' WHERE id = ${APP_ID};"
+psql_try -c "UPDATE applications SET docker_registry_image_tag = 'latest' WHERE id = ${APP_ID};"
 
 if [[ ! -f "$COMPOSE" ]]; then
   echo "Compose não encontrado: $COMPOSE"
@@ -63,7 +63,7 @@ with open(path, "w", encoding="utf-8") as f:
 PY
 
 echo "[coolify-ghcr] estado atual:"
-psql -c "SELECT id, name, build_pack, is_auto_deploy_enabled, docker_registry_image_name, docker_registry_image_tag FROM applications WHERE uuid = '${COOLIFY_APP_UUID}';"
+psql -c "SELECT a.id, a.name, a.build_pack, a.docker_registry_image_name, a.docker_registry_image_tag, s.is_auto_deploy_enabled FROM applications a JOIN application_settings s ON s.application_id = a.id WHERE a.uuid = '${COOLIFY_APP_UUID}';"
 
 grep -E '^    image:|^    build:' "$COMPOSE" || true
 
