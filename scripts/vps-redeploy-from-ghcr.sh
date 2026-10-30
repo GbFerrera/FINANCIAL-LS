@@ -52,6 +52,11 @@ fi
 echo "[deploy] serviço alvo: $APP_SERVICE"
 if [[ -f "$APP_DIR/.env" ]]; then
   echo "[deploy] Coolify .env presente ($(grep -cve '^\s*$' -e '^\s*#' "$APP_DIR/.env" || echo 0) linhas úteis)"
+  if grep -q '^DATABASE_URL=' "$APP_DIR/.env"; then
+    echo "[deploy] .env declara DATABASE_URL"
+  else
+    echo "[deploy] aviso: .env sem linha DATABASE_URL= (chaves: $(grep -v '^\s*#' "$APP_DIR/.env" | cut -d= -f1 | tr '\n' ' ' | head -c 180))"
+  fi
 else
   echo "[deploy] aviso: $APP_DIR/.env não encontrado — env pode vir só do compose"
   ls -la "$APP_DIR" 2>/dev/null | head -20 || true

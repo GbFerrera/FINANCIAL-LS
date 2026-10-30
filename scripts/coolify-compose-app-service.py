@@ -66,19 +66,37 @@ def write_compose_override(src: str, dst: str, image: str, app_dir: str | None =
         data = yaml.safe_load(f)
     services = data.get("services") or {}
     key = app_service_name(services)
+    base_svc = services.get(key) or {}
     svc_override: dict = {
         "image": image,
         "pull_policy": "always",
     }
+    compose_env: dict[str, str] = {}
+    raw_env = base_svc.get("environment")
+    if isinstance(raw_env, dict):
+        compose_env.update({str(k): str(v) for k, v in raw_env.items()})
+    elif isinstance(raw_env, list):
+        for item in raw_env:
+            if isinstance(item, str) and "=" in item:
+                k, _, v = item.partition("=")
+                compose_env[k] = v
     if app_dir:
         env_files = _coolify_env_files(app_dir)
         if env_files:
-            svc_override["env_file"] = env_files
             merged: dict[str, str] = {}
             for rel in env_files:
                 merged.update(_load_dotenv(os.path.join(app_dir, rel)))
+            # paths absolutos — compose roda com -f em app_dir; env_file relativo falha em merge
+            svc_override["env_file"] = [os.path.join(app_dir, rel) for rel in env_files]
+            merged = {**compose_env, **merged}
             if merged:
-                svc_override["environment"] = merged
+                svc_override["environment"] = [f"{k}={v}" for k, v in sorted(merged.items())]
+                print(
+                    f"[coolify-compose] override env: {len(merged)} vars, DATABASE_URL={'yes' if 'DATABASE_URL' in merged else 'NO'}",
+                    file=sys.stderr,
+                )
+    elif compose_env:
+        svc_override["environment"] = [f"{k}={v}" for k, v in sorted(compose_env.items())]
     override = {"services": {key: svc_override}}
     with open(dst, "w", encoding="utf-8") as f:
         yaml.dump(override, f, default_flow_style=False, sort_keys=False)
