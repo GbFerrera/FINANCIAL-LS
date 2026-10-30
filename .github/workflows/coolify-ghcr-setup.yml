@@ -40,5 +40,10 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            install -m 755 /root/coolify-configure-ghcr-only.sh /root/coolify-configure-ghcr-only.sh
-            bash /root/coolify-configure-ghcr-only.sh
+            SCRIPT="/root/coolify-configure-ghcr-only.sh"
+            if [[ -f /root/scripts/coolify-configure-ghcr-only.sh ]]; then
+              install -m 755 /root/scripts/coolify-configure-ghcr-only.sh "$SCRIPT"
+            elif [[ -f /root/coolify-configure-ghcr-only.sh/coolify-configure-ghcr-only.sh ]]; then
+              install -m 755 /root/coolify-configure-ghcr-only.sh/coolify-configure-ghcr-only.sh "$SCRIPT"
+            fi
+            bash "$SCRIPT"
