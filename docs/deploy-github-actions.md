@@ -16,6 +16,7 @@ Objetivo: **build no GitHub Actions**, VPS só faz **pull** da imagem (sem `npm 
 | `PROD_SSH_HOST` | Ex.: `72.61.219.179` |
 | `PROD_SSH_PASSWORD` ou `PROD_SSH_KEY` | Acesso root/deploy na VPS |
 | `PROD_SSH_USER` | Opcional (default `root`) |
+| `GHCR_READ_TOKEN` | PAT GitHub `read:packages` — pull manual na VPS / Coolify registry (opcional; workflow usa `GITHUB_TOKEN` se vazio) |
 
 `GITHUB_TOKEN` já serve para push no GHCR (job `packages: write`).
 
@@ -30,13 +31,16 @@ O script lê o `docker-compose.yaml` do Coolify, remove o bloco `build:` e sobe 
 
 ## Coolify — migrar para “só pull” (recomendado)
 
-1. Painel Coolify → app **financial** (projects.linksystem.tech)
-2. **Build Pack** → **Docker Image** (não Dockerfile no servidor)
-3. Imagem: `ghcr.io/gbferrera/financial-ls:latest`
-4. Registry: GitHub Container Registry + PAT `read:packages`
-5. Desligar auto-deploy por git no Coolify (deploy passa a ser só via Actions)
+**Automático (via Actions):** Actions → **Coolify — configurar GHCR only** → *Run workflow*  
+(roda `scripts/coolify-configure-ghcr-only.sh` na VPS: desliga auto-deploy Git, `build_pack` dockerimage, compose só com `image:` GHCR)
 
-Enquanto o Coolify ainda tiver `build:` no compose, o script `vps-redeploy-from-ghcr.sh` usa um compose derivado (`docker-compose.ghcr-run.yaml`) só no redeploy via Actions.
+**Manual no painel (espelho):**
+
+1. Painel Coolify → app **financial** (projects.linksystem.tech)
+2. **Build Pack** → **Docker Image**
+3. Imagem: `ghcr.io/gbferrera/financial-ls:latest`
+4. Registry: GitHub Container Registry + PAT `read:packages` (secret `GHCR_READ_TOKEN` no GitHub)
+5. Desligar **Automatic Deployment** (git push)
 
 ## Deploy manual
 

@@ -1,0 +1,44 @@
+# Configuração única: Coolify só pull GHCR + auto-deploy Git desligado.
+name: Coolify — configurar GHCR only
+
+on:
+  workflow_dispatch:
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publicar script na VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: root
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: scripts/coolify-configure-ghcr-only.sh
+          target: /root/
+          overwrite: true
+
+      - name: Executar configuração Coolify + GHCR
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN || secrets.GITHUB_TOKEN }}
+          GHCR_IMAGE: ghcr.io/gbferrera/financial-ls:latest
+          COOLIFY_APP_UUID: bsogksw4wkc4g88ssgcwwggs
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: root
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          envs: GHCR_USER,GHCR_TOKEN,GHCR_IMAGE,COOLIFY_APP_UUID
+          script_stop: true
+          script: |
+            set -euo pipefail
+            install -m 755 /root/coolify-configure-ghcr-only.sh /root/coolify-configure-ghcr-only.sh
+            bash /root/coolify-configure-ghcr-only.sh
