@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import pkg from '../../../package.json'
+
+/** Keep in sync with package.json version (deploy smoke test). */
+const APP_VERSION = '0.1.1'
 
 export async function GET() {
   try {
@@ -8,7 +10,7 @@ export async function GET() {
       status: 'ok', 
       timestamp: new Date().toISOString(),
       service: 'financial-app',
-      version: pkg.version,
+      version: APP_VERSION,
     }, { status: 200 })
   } catch (error) {
     return NextResponse.json({ 
