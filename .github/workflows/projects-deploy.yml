@@ -1,4 +1,4 @@
-# Build no GitHub Actions → GHCR → redeploy na VPS (sem build no Coolify).
+# Build no GitHub Actions → GHCR → redeploy em /opt/projects-linksystem (sem Coolify).
 name: Projects — build & deploy
 
 on:
@@ -66,18 +66,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Publicar scripts de redeploy na VPS
+      - name: Publicar compose e scripts na VPS (via bastion)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.PROD_SSH_HOST }}
           username: root
           password: ${{ secrets.PROD_SSH_PASSWORD }}
           key: ${{ secrets.PROD_SSH_KEY }}
-          source: scripts/vps-redeploy-from-ghcr.sh,scripts/coolify-compose-app-service.py
-          target: /root/scripts/
+          proxy_host: ${{ secrets.PROD_SSH_BASTION_HOST }}
+          proxy_username: root
+          proxy_password: ${{ secrets.PROD_SSH_PASSWORD }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
+          source: deploy/docker-compose.prod.yml,scripts/vps-deploy-projects-stack.sh,scripts/backup-before-deploy.sh
+          target: /opt/projects-linksystem/
           overwrite: true
 
-      - name: Redeploy na VPS (pull GHCR, sem build local)
+      - name: Redeploy stack Projects (/opt/projects-linksystem)
         uses: appleboy/ssh-action@v1.2.0
         env:
           IMAGE: ghcr.io/${{ env.IMAGE_NAME }}:latest
@@ -88,24 +92,26 @@ jobs:
           username: root
           password: ${{ secrets.PROD_SSH_PASSWORD }}
           key: ${{ secrets.PROD_SSH_KEY }}
+          proxy_host: ${{ secrets.PROD_SSH_BASTION_HOST }}
+          proxy_username: root
+          proxy_password: ${{ secrets.PROD_SSH_PASSWORD }}
+          proxy_key: ${{ secrets.PROD_SSH_KEY }}
           envs: IMAGE,GHCR_USER,GHCR_TOKEN
           script_stop: true
           script: |
             set -euo pipefail
-            # appleboy/scp-action preserva o prefixo "scripts/" → arquivos em /root/scripts/scripts/
-            UPLOAD_DIR="/root/scripts/scripts"
-            if [[ ! -f "$UPLOAD_DIR/vps-redeploy-from-ghcr.sh" ]]; then
-              UPLOAD_DIR="/root/scripts"
+            mkdir -p /opt/projects-linksystem
+            if [[ -f /opt/projects-linksystem/deploy/docker-compose.prod.yml ]]; then
+              mv /opt/projects-linksystem/deploy/docker-compose.prod.yml /opt/projects-linksystem/docker-compose.prod.yml
+              rmdir /opt/projects-linksystem/deploy 2>/dev/null || true
             fi
-            if [[ ! -f "$UPLOAD_DIR/vps-redeploy-from-ghcr.sh" ]]; then
-              echo "Script de redeploy não encontrado após SCP (procurou em /root/scripts/scripts e /root/scripts)"
-              ls -laR /root/scripts || true
-              exit 1
-            fi
-            install -m 755 "$UPLOAD_DIR/vps-redeploy-from-ghcr.sh" /root/deploy-projects-from-ghcr.sh
-            install -m 644 "$UPLOAD_DIR/coolify-compose-app-service.py" /root/scripts/coolify-compose-app-service.py
-            export PATCH_SCRIPT=/root/scripts/coolify-compose-app-service.py
+            for f in vps-deploy-projects-stack.sh backup-before-deploy.sh; do
+              if [[ -f /opt/projects-linksystem/scripts/$f ]]; then
+                install -m 755 "/opt/projects-linksystem/scripts/$f" "/opt/projects-linksystem/$f"
+              fi
+            done
+            install -m 755 /opt/projects-linksystem/vps-deploy-projects-stack.sh /root/deploy-projects-stack.sh
+            chmod 600 /opt/projects-linksystem/.env 2>/dev/null || true
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            bash /root/deploy-projects-from-ghcr.sh "$IMAGE"
-            echo "[post] postgres (bsog):"
-            docker ps -a --format 'table {{.Names}}\t{{.Status}}' | grep -iE 'postgres|bsog.*db|NAMES' || true
+            bash /root/deploy-projects-stack.sh "$IMAGE"
+            docker compose -f /opt/projects-linksystem/docker-compose.prod.yml --env-file /opt/projects-linksystem/.env ps

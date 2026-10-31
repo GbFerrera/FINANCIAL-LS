@@ -1,0 +1,129 @@
+# Projects (PM) — produção em 72.61.219.179 — fora do Coolify
+# Volumes existentes do app Coolify bsogksw4wkc4g88ssgcwwggs são reutilizados.
+
+name: projects-linksystem
+
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/gbferrera/financial-ls:latest}
+    pull_policy: always
+    restart: unless-stopped
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    environment:
+      TZ: America/Sao_Paulo
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-financial_ls}?schema=public
+      REDIS_URL: redis://evolution-redis:6379/1
+      EVOLUTION_API_URL: http://evolution-api:8080
+    volumes:
+      - ${UPLOADS_PATH:-./uploads}:/app/uploads
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && if [ "$$SEED_DB" = "true" ]; then npm run db:seed; fi && npm run start
+    depends_on:
+      db:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - projects-internal
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.middlewares.projects-gzip.compress.excludedcontenttypes=text/event-stream
+      - traefik.http.middlewares.projects-redirect-to-https.redirectscheme.scheme=https
+      - traefik.http.routers.projects-http.entryPoints=http
+      - traefik.http.routers.projects-http.middlewares=projects-redirect-to-https
+      - traefik.http.routers.projects-http.rule=Host(`projects.linksystem.tech`) && PathPrefix(`/`)
+      - traefik.http.routers.projects-http.service=projects-app
+      - traefik.http.routers.projects-https.entryPoints=https
+      - traefik.http.routers.projects-https.middlewares=projects-gzip
+      - traefik.http.routers.projects-https.rule=Host(`projects.linksystem.tech`) && PathPrefix(`/`)
+      - traefik.http.routers.projects-https.service=projects-app
+      - traefik.http.routers.projects-https.tls=true
+      - traefik.http.routers.projects-https.tls.certresolver=letsencrypt
+      - traefik.http.services.projects-app.loadbalancer.server.port=3000
+      - traefik.http.routers.projects-socket.rule=Host(`projects.linksystem.tech`) && PathPrefix(`/api/socket`)
+      - traefik.http.routers.projects-socket.entryPoints=https
+      - traefik.http.routers.projects-socket.tls=true
+      - traefik.http.routers.projects-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.projects-socket.service=projects-socket
+      - traefik.http.routers.projects-socket.priority=1000
+      - traefik.http.services.projects-socket.loadbalancer.server.port=3000
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-financial_ls}
+    volumes:
+      - projects-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-financial_ls}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - projects-internal
+
+  evolution-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - projects-internal
+
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    restart: unless-stopped
+    expose:
+      - "8080"
+    env_file:
+      - .env
+    environment:
+      SERVER_URL: ${EVOLUTION_PUBLIC_URL:-http://localhost:8080}
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-projects-evolution-key}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${EVOLUTION_POSTGRES_DB:-evolution}?schema=public
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/0
+      DEL_INSTANCE: "false"
+      QRCODE_LIMIT: "30"
+      CONFIG_SESSION_PHONE_VERSION: ${EVOLUTION_PHONE_VERSION:-2.3000.1030831524}
+    volumes:
+      - projects-evolution-instances:/evolution/instances
+    depends_on:
+      db:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_started
+    networks:
+      - projects-internal
+
+volumes:
+  projects-postgres-data:
+    external: true
+    name: bsogksw4wkc4g88ssgcwwggs_postgres-data
+  projects-evolution-instances:
+    external: true
+    name: bsogksw4wkc4g88ssgcwwggs_evolution-instances
+
+networks:
+  projects-internal:
+    driver: bridge
+  coolify:
+    external: true
