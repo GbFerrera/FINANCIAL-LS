@@ -9,8 +9,6 @@ RUN npx prisma generate
 # Build the application
 ARG NEXTAUTH_URL=http://localhost:3000
 ARG NEXTAUTH_SECRET
-# Avoid flaky Google Fonts fetch during docker build (GitHub Actions).
-ENV NEXT_FONT_GOOGLE_MOCKED_RESPONSES=1
 RUN NEXT_TELEMETRY_DISABLED=1 SKIP_AUTH_MIDDLEWARE=1 NEXTAUTH_URL=$NEXTAUTH_URL npm run build
 
 FROM node:20-alpine AS runner
